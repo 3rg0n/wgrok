@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 
-def _load_env() -> None:
-    load_dotenv()
+def _load_env(env_file: str | None = None) -> None:
+    load_dotenv(env_file, override=True)
 
 
 def _require(name: str) -> str:
@@ -36,8 +36,8 @@ class SenderConfig:
     debug: bool = False
 
     @classmethod
-    def from_env(cls) -> SenderConfig:
-        _load_env()
+    def from_env(cls, env_file: str | None = None) -> SenderConfig:
+        _load_env(env_file)
         return cls(
             webex_token=_require("WGROK_TOKEN"),
             target=_require("WGROK_TARGET"),
@@ -54,8 +54,8 @@ class BotConfig:
     debug: bool = False
 
     @classmethod
-    def from_env(cls) -> BotConfig:
-        _load_env()
+    def from_env(cls, env_file: str | None = None) -> BotConfig:
+        _load_env(env_file)
         return cls(
             webex_token=_require("WGROK_TOKEN"),
             domains=_parse_domains(_require("WGROK_DOMAINS")),
@@ -71,8 +71,8 @@ class ReceiverConfig:
     debug: bool = False
 
     @classmethod
-    def from_env(cls) -> ReceiverConfig:
-        _load_env()
+    def from_env(cls, env_file: str | None = None) -> ReceiverConfig:
+        _load_env(env_file)
         return cls(
             webex_token=_require("WGROK_TOKEN"),
             slug=_require("WGROK_SLUG"),
