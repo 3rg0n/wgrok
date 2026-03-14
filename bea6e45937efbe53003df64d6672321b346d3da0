@@ -1,0 +1,43 @@
+rust/tests/logging_test.rs
+  fc445375822781d8 1-34
+rust/Cargo.toml
+  fc445375822781d8 19
+rust/tests/echo_bot_test.rs
+  fc445375822781d8 1-131
+ts/tests/logging.test.ts
+  fc445375822781d8 1-118
+ts/tests/webex-http.test.ts
+  fc445375822781d8 1-95
+rust/src/webex.rs
+  fc445375822781d8 4,9-11,13-17,22-26,30-37
+rust/src/lib.rs
+  fc445375822781d8 13-14
+rust/tests/sender_test.rs
+  fc445375822781d8 1-94
+rust/tests/webex_http_test.rs
+  fc445375822781d8 1-22,24-42,44-61,63-122
+rust/tests/receiver_test.rs
+  fc445375822781d8 1-117
+go/webex_test.go
+  fc445375822781d8 40-46,163-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "bea6e45937efbe53003df64d6672321b346d3da0",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 892,
+      "total_deletions": 129,
+      "accepted_lines": 762,
+      "overriden_lines": 0
+    }
+  }
+}
