@@ -1,0 +1,95 @@
+go/logging.go
+  fc445375822781d8 1-60
+go/receiver.go
+  fc445375822781d8 1-156
+python/tests/test_sender.py
+  fc445375822781d8 1,3-4,7,13-21,25-36,38-42,47
+CLAUDE.md
+  fc445375822781d8 44-47,60-71
+go/sender.go
+  fc445375822781d8 1-36
+tests/echo_bot_cases.json
+  fc445375822781d8 1-69
+tests/receiver_cases.json
+  fc445375822781d8 1-60
+tests/sender_cases.json
+  fc445375822781d8 1-42
+python/tests/test_protocol.py
+  fc445375822781d8 1,3-4,20-21,25-28,31-36,38-41,44-47,51-53,57-79,81-82
+go/echo_bot_test.go
+  fc445375822781d8 1-106
+go/go.mod
+  fc445375822781d8 1-4,6
+tests/config_cases.json
+  fc445375822781d8 1-64
+go/config.go
+  fc445375822781d8 1-117
+tests/allowlist_cases.json
+  fc445375822781d8 1-82
+go/protocol_test.go
+  fc445375822781d8 1-203
+go/receiver_test.go
+  fc445375822781d8 1-105
+go/allowlist_test.go
+  fc445375822781d8 1-42
+tests/protocol_cases.json
+  fc445375822781d8 1-52
+go/webex.go
+  fc445375822781d8 1-140
+go/.env.example
+  fc445375822781d8 1-16
+python/tests/test_allowlist.py
+  fc445375822781d8 1,3-4,6,8,13-17
+go/config_test.go
+  fc445375822781d8 1-257
+go/cmd/echobot/main.go
+  fc445375822781d8 1-32
+go/cmd/receiver/main.go
+  fc445375822781d8 1-43
+python/tests/test_receiver.py
+  fc445375822781d8 1,3-4,7,9-10,15-20,24-26,28-36,39-43,45-46
+tests/webex_cases.json
+  fc445375822781d8 1-63
+python/tests/test_echo_bot.py
+  fc445375822781d8 1,3-4,7,9-10,15-19,23-32,36-37,39-40,43-56
+go/helpers_test.go
+  fc445375822781d8 1-7
+go/logging_test.go
+  fc445375822781d8 1-102
+go/cmd/sender/main.go
+  fc445375822781d8 1-55
+go/webex_test.go
+  fc445375822781d8 1-155
+go/protocol.go
+  fc445375822781d8 1-61
+go/echo_bot.go
+  fc445375822781d8 1-156
+go/sender_test.go
+  fc445375822781d8 1-95
+go/allowlist.go
+  fc445375822781d8 1-45
+python/tests/test_config.py
+  fc445375822781d8 1,3,5,25-26,28-33,36-38,42-44,48-49,51,54-55,57,63-64,66-68,71-73,80-81,83-86,89-92,95
+python/tests/test_webex.py
+  fc445375822781d8 1,3-4,23-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "b8305a93c4c506d7a8b3f438f41d37b20cf5dd42",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 2701,
+      "total_deletions": 397,
+      "accepted_lines": 2664,
+      "overriden_lines": 6
+    }
+  }
+}
