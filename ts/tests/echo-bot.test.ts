@@ -20,6 +20,7 @@ import { loadCases } from './helpers';
 
 interface EchoBotCases {
   config: { domains: string[] };
+  routes: Record<string, string>;
   cases: Array<{
     name: string;
     sender: string;
@@ -29,6 +30,7 @@ interface EchoBotCases {
     expected_reply_to?: string;
     expected_reply_text?: string;
     expected_reply_card?: unknown;
+    use_routes?: boolean;
   }>;
 }
 
@@ -53,10 +55,15 @@ describe('WgrokEchoBot', () => {
   });
 
   it.each(CASES.cases)('$name', async (tc) => {
+    const routes = tc.use_routes ? CASES.routes : {};
     const bot = new WgrokEchoBot({
       webexToken: 'fake-token',
       domains: CASES.config.domains,
       debug: false,
+      routes,
+      platformTokens: { webex: ['fake-token'] },
+      webhookPort: null,
+      webhookSecret: null,
     });
 
     const msg = fakeMsg(tc.sender, tc.text);

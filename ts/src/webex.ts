@@ -3,6 +3,14 @@ export let WEBEX_MESSAGES_URL = `${WEBEX_API_BASE}/messages`;
 export let WEBEX_ATTACHMENT_ACTIONS_URL = `${WEBEX_API_BASE}/attachment/actions`;
 export const ADAPTIVE_CARD_CONTENT_TYPE = 'application/vnd.microsoft.card.adaptive';
 
+const MAX_RETRIES = 3;
+
+let sleepFn = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+function sleep(ms: number): Promise<void> {
+  return sleepFn(ms);
+}
+
 interface CardAttachment {
   contentType: string;
   content: unknown;
@@ -44,19 +52,34 @@ async function postMessage(
   payload: SendMessagePayload,
   fetchFn: typeof fetch,
 ): Promise<Record<string, unknown>> {
-  const resp = await fetchFn(WEBEX_MESSAGES_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`HTTP ${resp.status}: ${body}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const resp = await fetchFn(WEBEX_MESSAGES_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (resp.status === 429) {
+      if (attempt < MAX_RETRIES) {
+        const retryAfter = resp.headers.get('Retry-After') || '1';
+        const delaySecs = parseInt(retryAfter, 10) || 1;
+        await sleep(delaySecs * 1000);
+        continue;
+      }
+    }
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${body}`);
+    }
+    return (await resp.json()) as Record<string, unknown>;
   }
-  return (await resp.json()) as Record<string, unknown>;
+
+  // This should be unreachable, but TypeScript needs it
+  throw new Error('Unexpected state in postMessage retry loop');
 }
 
 export async function getMessage(
@@ -80,18 +103,33 @@ async function getJSON(
   url: string,
   fetchFn: typeof fetch,
 ): Promise<Record<string, unknown>> {
-  const resp = await fetchFn(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`HTTP ${resp.status}: ${body}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const resp = await fetchFn(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (resp.status === 429) {
+      if (attempt < MAX_RETRIES) {
+        const retryAfter = resp.headers.get('Retry-After') || '1';
+        const delaySecs = parseInt(retryAfter, 10) || 1;
+        await sleep(delaySecs * 1000);
+        continue;
+      }
+    }
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${body}`);
+    }
+    return (await resp.json()) as Record<string, unknown>;
   }
-  return (await resp.json()) as Record<string, unknown>;
+
+  // This should be unreachable, but TypeScript needs it
+  throw new Error('Unexpected state in getJSON retry loop');
 }
 
 export function extractCards(message: Record<string, unknown>): unknown[] {
@@ -115,4 +153,9 @@ export function _setMessagesUrl(url: string): void {
 
 export function _setAttachmentActionsUrl(url: string): void {
   WEBEX_ATTACHMENT_ACTIONS_URL = url;
+}
+
+/** Override sleep function for testing */
+export function _setSleepFn(fn: (ms: number) => Promise<void>): void {
+  sleepFn = fn;
 }

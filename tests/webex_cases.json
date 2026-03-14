@@ -59,5 +59,60 @@
 
   "send_card": {
     "expected_attachment_content_type": "application/vnd.microsoft.card.adaptive"
+  },
+
+  "retry_after": {
+    "max_retries": 3,
+    "description": "On HTTP 429 (Too Many Requests), read the Retry-After header and sleep for that many seconds before retrying. Retry up to max_retries times. If still 429 after max retries, raise the error.",
+    "cases": [
+      {
+        "name": "retries_on_429_then_succeeds",
+        "responses": [
+          {"status": 429, "retry_after": "1"},
+          {"status": 200, "body": {"id": "msg-retry-1"}}
+        ],
+        "expected_result": {"id": "msg-retry-1"},
+        "expected_attempts": 2
+      },
+      {
+        "name": "retries_multiple_429s",
+        "responses": [
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "2"},
+          {"status": 200, "body": {"id": "msg-retry-2"}}
+        ],
+        "expected_result": {"id": "msg-retry-2"},
+        "expected_attempts": 3
+      },
+      {
+        "name": "raises_after_max_retries",
+        "responses": [
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"}
+        ],
+        "expected_error_contains": "429",
+        "expected_attempts": 4
+      },
+      {
+        "name": "uses_retry_after_header_value",
+        "responses": [
+          {"status": 429, "retry_after": "3"},
+          {"status": 200, "body": {"id": "msg-retry-3"}}
+        ],
+        "expected_sleep_seconds": [3],
+        "expected_result": {"id": "msg-retry-3"}
+      },
+      {
+        "name": "defaults_retry_after_to_1_when_missing",
+        "responses": [
+          {"status": 429, "retry_after": null},
+          {"status": 200, "body": {"id": "msg-retry-4"}}
+        ],
+        "expected_sleep_seconds": [1],
+        "expected_result": {"id": "msg-retry-4"}
+      }
+    ]
   }
 }

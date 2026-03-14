@@ -2,9 +2,12 @@ use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
 use std::sync::RwLock;
+use std::time::Duration;
+use tokio::time::sleep;
 
 pub const WEBEX_API_BASE: &str = "https://webexapis.com/v1";
 pub const ADAPTIVE_CARD_CONTENT_TYPE: &str = "application/vnd.microsoft.card.adaptive";
+const MAX_RETRIES: u32 = 3;
 
 static MESSAGES_URL_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
 static ATTACHMENT_ACTIONS_URL_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
@@ -90,20 +93,42 @@ async fn post_message(
     payload: &SendMessagePayload,
     client: &Client,
 ) -> Result<Value, String> {
-    let resp = client
-        .post(&messages_url())
-        .header("Authorization", format!("Bearer {}", token))
-        .json(payload)
-        .send()
-        .await
-        .map_err(|e| format!("send message: {}", e))?;
+    let payload_json = serde_json::to_string(payload)
+        .map_err(|e| format!("serialize payload: {}", e))?;
 
-    let status = resp.status();
-    let body = resp.text().await.map_err(|e| format!("read response: {}", e))?;
-    if !status.is_success() {
-        return Err(format!("HTTP {}: {}", status.as_u16(), body));
+    let mut attempt = 0;
+    loop {
+        let resp = client
+            .post(messages_url())
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Content-Type", "application/json")
+            .body(payload_json.clone())
+            .send()
+            .await
+            .map_err(|e| format!("send message: {}", e))?;
+
+        let status = resp.status();
+
+        if status.as_u16() == 429 && attempt < MAX_RETRIES {
+            let retry_after = resp
+                .headers()
+                .get("Retry-After")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(1);
+
+            sleep(Duration::from_secs(retry_after)).await;
+            attempt += 1;
+            continue;
+        }
+
+        let body = resp.text().await.map_err(|e| format!("read response: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("HTTP {}: {}", status.as_u16(), body));
+        }
+        return serde_json::from_str(&body).map_err(|e| format!("parse response: {}", e));
     }
-    serde_json::from_str(&body).map_err(|e| format!("parse response: {}", e))
 }
 
 pub async fn get_message(
@@ -128,20 +153,38 @@ pub async fn get_attachment_action(
 }
 
 async fn get_json(token: &str, url: &str, client: &Client) -> Result<Value, String> {
-    let resp = client
-        .get(url)
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-        .map_err(|e| format!("GET {}: {}", url, e))?;
+    let mut attempt = 0;
+    loop {
+        let resp = client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Content-Type", "application/json")
+            .send()
+            .await
+            .map_err(|e| format!("GET {}: {}", url, e))?;
 
-    let status = resp.status();
-    let body = resp.text().await.map_err(|e| format!("read response: {}", e))?;
-    if !status.is_success() {
-        return Err(format!("HTTP {}: {}", status.as_u16(), body));
+        let status = resp.status();
+
+        if status.as_u16() == 429 && attempt < MAX_RETRIES {
+            let retry_after = resp
+                .headers()
+                .get("Retry-After")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(1);
+
+            sleep(Duration::from_secs(retry_after)).await;
+            attempt += 1;
+            continue;
+        }
+
+        let body = resp.text().await.map_err(|e| format!("read response: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("HTTP {}: {}", status.as_u16(), body));
+        }
+        return serde_json::from_str(&body).map_err(|e| format!("parse response: {}", e));
     }
-    serde_json::from_str(&body).map_err(|e| format!("parse response: {}", e))
 }
 
 pub fn extract_cards(message: &Value) -> Vec<Value> {

@@ -127,7 +127,7 @@ Implemented in four languages with identical behavior and shared test cases:
 
 ### 1. Register a bot
 
-Go to [developer.webex.com](https://developer.webex.com) and create a bot. You need at minimum two tokens:
+Create a bot on your messaging platform. You need at minimum two tokens:
 - One for the **bot** (the relay/routing service)
 - One **shared token** for senders and receivers (Mode B), or individual tokens per agent (Mode C)
 
@@ -140,16 +140,22 @@ cp python/.env.example python/.env   # or go/, ts/, rust/
 ```env
 # Sender / Receiver
 WGROK_TOKEN=<shared token>
+WGROK_PLATFORM=webex
 WGROK_TARGET=bot@webex.bot
 WGROK_SLUG=myagent
 WGROK_DOMAINS=example.com
 
 # Routing Bot (separate .env)
-WGROK_TOKEN=<bot token>
+WGROK_WEBEX_TOKENS=token1,token2,token3
+WGROK_SLACK_TOKENS=xoxb-token1,xoxb-token2
 WGROK_DOMAINS=example.com
 
 # Agent Registry (Mode C — optional)
 WGROK_ROUTES=deploy:deploy-bot@spark.com,status:status-bot@foo.com
+
+# Webhook endpoint (routing bot — optional)
+WGROK_WEBHOOK_PORT=8080
+WGROK_WEBHOOK_SECRET=shared-secret
 
 # Optional
 WGROK_DEBUG=true
@@ -224,6 +230,76 @@ let receiver = WgrokReceiver::new(cfg, Box::new(|slug, payload, cards| {
 receiver.listen(shutdown_rx).await?;
 ```
 
+## Transport bindings
+
+The protocol is transport-agnostic. Each platform is a transport binding with a send API and a receive mechanism:
+
+| Platform | Send | Receive (Persistent) | Receive (Webhook) | Status |
+|----------|------|---------------------|--------------------|--------|
+| Webex | REST `/v1/messages` | Mercury WebSocket | Webhook registration | Implemented |
+| Slack | `chat.postMessage` | Socket Mode WebSocket | Events API | Planned |
+| Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Interactions endpoint | Planned |
+| IRC | `PRIVMSG` | Persistent TCP/TLS | N/A | Planned |
+
+### Platform tokens
+
+The routing bot supports **multiple platforms simultaneously** and **multiple tokens per platform** for load balancing:
+
+```env
+# Multiple Webex tokens (load balanced across outbound sends)
+WGROK_WEBEX_TOKENS=token1,token2,token3
+
+# Multiple Slack tokens
+WGROK_SLACK_TOKENS=xoxb-token1,xoxb-token2
+
+# Single Discord token
+WGROK_DISCORD_TOKENS=bot-token1
+
+# IRC (connection string format: nick:password@server:port/channel)
+WGROK_IRC_TOKENS=wgrok-bot:pass@irc.libera.chat:6697/#wgrok
+```
+
+Each `WGROK_{PLATFORM}_TOKENS` env var accepts CSV. The routing bot:
+- Opens a WebSocket listener per token (receives messages from all connected platforms)
+- Load balances outbound sends across tokens for the same platform
+- Routes cross-platform: a message arriving on Webex can be delivered to a Slack agent
+
+For senders and receivers (simple case), a single token with explicit platform:
+
+```env
+WGROK_TOKEN=<token>
+WGROK_PLATFORM=webex
+```
+
+`WGROK_PLATFORM` defaults to `webex` for backward compatibility.
+
+### Webhook endpoint
+
+The routing bot can optionally expose an HTTP webhook endpoint for environments that allow inbound traffic:
+
+```env
+WGROK_WEBHOOK_PORT=8080
+WGROK_WEBHOOK_SECRET=shared-secret
+```
+
+When enabled, the routing bot starts an HTTP server that accepts `POST` requests. This is useful for:
+- **Platforms that prefer webhooks** over WebSocket (e.g., Teams Bot Framework)
+- **Non-chat integrations** (CI/CD, monitoring, cron jobs) that want to post to the bus without a messaging platform token
+- **High-throughput environments** where webhook is more efficient than WebSocket
+
+```
+POST /wgrok HTTP/1.1
+Authorization: Bearer <WGROK_WEBHOOK_SECRET>
+Content-Type: application/json
+
+{
+  "text": "./echo:deploy:start deploy",
+  "from": "ci-pipeline@example.com"
+}
+```
+
+The webhook endpoint processes messages through the same pipeline as WebSocket messages — allowlist check, protocol parsing, routing.
+
 ## Allowlist / ACL
 
 The `WGROK_DOMAINS` environment variable controls who can send messages through the system. Granular access control at the library level:
@@ -252,16 +328,6 @@ The routing bot uses this registry to resolve slugs:
 - Slug found in registry → route to registered bot (Mode C)
 - Slug not found → echo back to sender (Mode B fallback)
 
-## Transport bindings
-
-The protocol is transport-agnostic. Any platform with a REST API for sending and a persistent connection for receiving works:
-
-| Platform | Send | Receive | Status |
-|----------|------|---------|--------|
-| Webex | REST `/v1/messages` | Mercury WebSocket | Implemented |
-| Slack | `chat.postMessage` | Socket Mode WebSocket | Planned |
-| Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Planned |
-
 ## Proxy support
 
 All outbound HTTP and WebSocket connections can be routed through a proxy via the `WGROK_PROXY` environment variable:
@@ -283,7 +349,7 @@ Each language implementation wires the proxy through its native HTTP client:
 
 wgrok provides the core message bus protocol. It is deliberately minimal — wrap it with whatever you need.
 
-**In scope:** message bus protocol (three modes), sender/relay/receiver libraries, agent registry, allowlist/ACL, `.env` configuration, outbound proxy support, multi-platform token support on the routing bot.
+**In scope:** message bus protocol (three modes), sender/relay/receiver libraries, agent registry, allowlist/ACL, `.env` configuration, multi-platform multi-token support, webhook endpoint, outbound proxy support.
 
 **Out of scope (wrap these around the library):** secret management (OpenBao, Vault), database-backed ACLs (Postgres), observability backends (OpenTelemetry, Loki), authentication beyond the allowlist, UI/dashboards, agent command vocabularies.
 

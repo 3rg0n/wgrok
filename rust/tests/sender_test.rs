@@ -55,6 +55,7 @@ async fn test_sender_cases() {
             slug: cases.config.slug.clone(),
             domains: vec!["example.com".to_string()],
             debug: false,
+            platform: "webex".to_string(),
         });
 
         let card = if tc.card.is_null() {

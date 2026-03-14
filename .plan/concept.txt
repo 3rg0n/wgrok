@@ -127,19 +127,43 @@ When a message arrives as ./echo:{slug}:{payload}:
 This means Mode B and Mode C coexist on the same routing bot.
 Registered slugs get routed. Unregistered slugs get echoed.
 
-== Routing bot: multi-token support ==
+== Routing bot: multi-platform, multi-token ==
 
-The routing bot should support multiple messaging platform tokens for:
+The routing bot supports multiple platforms simultaneously and multiple
+tokens per platform (CSV) for load balancing:
 
-1. Cross-platform routing — deploy-bot is on Webex, status-bot is on Slack
-2. Load balancing — distribute outbound messages across tokens
-3. Channel isolation — different tokens for different trust zones
+  WGROK_WEBEX_TOKENS=token1,token2,token3
+  WGROK_SLACK_TOKENS=xoxb-token1,xoxb-token2
+  WGROK_DISCORD_TOKENS=bot-token1
 
-  WGROK_TOKEN=<primary bot token>
-  WGROK_TOKEN_SLACK=<slack bot token>
-  WGROK_TOKEN_DISCORD=<discord bot token>
+The routing bot:
+  - Opens a WebSocket listener per token (all platforms simultaneously)
+  - Load balances outbound sends across tokens for the same platform
+  - Routes cross-platform (Webex message → Slack agent)
+  - Resolves target platform from WGROK_ROUTES entries
 
-The routing bot uses the appropriate token based on the target's platform.
+For senders/receivers (simple case), single token + explicit platform:
+  WGROK_TOKEN=<token>
+  WGROK_PLATFORM=webex
+
+WGROK_PLATFORM defaults to webex for backward compatibility.
+
+== Routing bot: webhook endpoint ==
+
+The routing bot can optionally expose an HTTP webhook endpoint:
+
+  WGROK_WEBHOOK_PORT=8080
+  WGROK_WEBHOOK_SECRET=shared-secret
+
+When enabled, accepts POST /wgrok with JSON body:
+  { "text": "./echo:deploy:start", "from": "ci@example.com" }
+
+Useful for:
+  - Platforms that prefer webhook over WebSocket (e.g., Teams Bot Framework)
+  - Non-chat integrations (CI/CD, monitoring, cron) posting to the bus
+  - High-throughput environments where webhook is more efficient
+
+Messages enter the same pipeline: allowlist → parse → route.
 
 == Allowlist / ACLs ==
 
@@ -170,18 +194,24 @@ Only echo is implemented in v1.0.
 
 Minimum: .env file.
 
-  # Sender/Receiver
+  # Sender/Receiver (single platform)
   WGROK_TOKEN=<token>
+  WGROK_PLATFORM=webex
   WGROK_TARGET=bot@domain.tld
   WGROK_SLUG=myagent
   WGROK_DOMAINS=domain.tld,*@trusted.org
 
-  # Routing Bot
-  WGROK_TOKEN=<bot token>
+  # Routing Bot (multi-platform, multi-token)
+  WGROK_WEBEX_TOKENS=token1,token2,token3
+  WGROK_SLACK_TOKENS=xoxb-token1,xoxb-token2
   WGROK_DOMAINS=domain.tld
 
   # Agent Registry (Mode C)
   WGROK_ROUTES=deploy:deploy-bot@spark.com,status:status-bot@foo.com
+
+  # Webhook endpoint (routing bot only)
+  WGROK_WEBHOOK_PORT=8080
+  WGROK_WEBHOOK_SECRET=shared-secret
 
   # Optional
   WGROK_DEBUG=true
@@ -203,6 +233,7 @@ The proxy is used for all outbound HTTP and WebSocket connections.
   Webex:   REST /v1/messages + Mercury WebSocket   [implemented]
   Slack:   chat.postMessage + Socket Mode          [planned]
   Discord: REST /channels/{id}/messages + Gateway  [planned]
+  IRC:     PRIVMSG + Persistent TCP/TLS            [planned]
 
 == Implementations ==
 

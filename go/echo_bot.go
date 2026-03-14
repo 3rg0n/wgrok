@@ -17,6 +17,7 @@ type WgrokEchoBot struct {
 	handler   *wmh.WebexMessageHandler
 	client    *http.Client
 	cancel    context.CancelFunc
+	routes    map[string]string
 }
 
 // NewEchoBot creates a new WgrokEchoBot.
@@ -26,6 +27,7 @@ func NewEchoBot(config *BotConfig) *WgrokEchoBot {
 		allowlist: NewAllowlist(config.Domains),
 		logger:    GetLogger(config.Debug, "wgrok.echo_bot"),
 		client:    &http.Client{},
+		routes:    config.Routes,
 	}
 }
 
@@ -71,6 +73,15 @@ func (b *WgrokEchoBot) Stop(ctx context.Context) {
 	b.logger.Info("Echo bot stopped")
 }
 
+// resolveTarget returns the target email for a slug.
+// If slug is in routes, return the routed target; otherwise return sender (Mode C).
+func (b *WgrokEchoBot) resolveTarget(slug, sender string) string {
+	if target, ok := b.routes[slug]; ok {
+		return target
+	}
+	return sender
+}
+
 // onMessageWithCards is used by tests to inject card data without HTTP fetches.
 func (b *WgrokEchoBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []interface{}) {
 	sender := msg.PersonEmail
@@ -93,13 +104,14 @@ func (b *WgrokEchoBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []inte
 	}
 
 	response := FormatResponse(slug, payload)
+	replyTo := b.resolveTarget(slug, sender)
 
 	if len(cards) > 0 {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", sender, response, len(cards)))
-		_, err = SendCard(b.config.WebexToken, sender, response, cards[0], b.client)
+		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+		_, err = SendCard(b.config.WebexToken, replyTo, response, cards[0], b.client)
 	} else {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", sender, response))
-		_, err = SendMessage(b.config.WebexToken, sender, response, b.client)
+		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+		_, err = SendMessage(b.config.WebexToken, replyTo, response, b.client)
 	}
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to relay message: %v", err))
@@ -127,16 +139,17 @@ func (b *WgrokEchoBot) onMessage(msg wmh.DecryptedMessage) {
 	}
 
 	response := FormatResponse(slug, payload)
+	replyTo := b.resolveTarget(slug, sender)
 
 	// Check for card attachments on the original message
 	cards := b.fetchCards(msg.ID)
 
 	if len(cards) > 0 {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", sender, response, len(cards)))
-		_, err = SendCard(b.config.WebexToken, sender, response, cards[0], b.client)
+		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+		_, err = SendCard(b.config.WebexToken, replyTo, response, cards[0], b.client)
 	} else {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", sender, response))
-		_, err = SendMessage(b.config.WebexToken, sender, response, b.client)
+		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+		_, err = SendMessage(b.config.WebexToken, replyTo, response, b.client)
 	}
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to relay message: %v", err))

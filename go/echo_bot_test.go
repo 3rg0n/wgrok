@@ -15,11 +15,13 @@ type echoBotCases struct {
 	Config struct {
 		Domains []string `json:"domains"`
 	} `json:"config"`
+	Routes map[string]string `json:"routes"`
 	Cases []struct {
 		Name              string        `json:"name"`
 		Sender            string        `json:"sender"`
 		Text              string        `json:"text"`
 		Cards             []interface{} `json:"cards"`
+		UseRoutes         bool          `json:"use_routes"`
 		ExpectSend        bool          `json:"expect_send"`
 		ExpectedReplyTo   string        `json:"expected_reply_to"`
 		ExpectedReplyText string        `json:"expected_reply_text"`
@@ -58,10 +60,17 @@ func TestWgrokEchoBot(t *testing.T) {
 			defer srv.Close()
 			overrideMessagesURL(t, srv.URL)
 
-			bot := NewEchoBot(&BotConfig{
+			config := &BotConfig{
 				WebexToken: "fake-token",
 				Domains:    tc.Config.Domains,
-			})
+			}
+
+			// Apply routes if test case specifies use_routes
+			if c.UseRoutes {
+				config.Routes = tc.Routes
+			}
+
+			bot := NewEchoBot(config)
 			bot.client = srv.Client()
 
 			msg := wmh.DecryptedMessage{

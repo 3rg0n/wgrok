@@ -12,18 +12,20 @@ from wgrok.echo_bot import WgrokEchoBot
 CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "echo_bot_cases.json").read_text())
 
 
-def _make_config():
+def _make_config(use_routes=False):
     return BotConfig(
         webex_token="fake-bot-token",
         domains=CASES["config"]["domains"],
         debug=False,
+        routes=CASES.get("routes", {}) if use_routes else {},
     )
 
 
 class TestWgrokEchoBot:
     @pytest.mark.parametrize("tc", CASES["cases"], ids=lambda tc: tc["name"])
     async def test_cases(self, tc):
-        bot = WgrokEchoBot(_make_config())
+        use_routes = tc.get("use_routes", False)
+        bot = WgrokEchoBot(_make_config(use_routes=use_routes))
         msg = {
             "id": "msg-123",
             "personEmail": tc["sender"],

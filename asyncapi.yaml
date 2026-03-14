@@ -163,14 +163,52 @@ info:
 
     ## Transport bindings
 
-    The protocol is transport-agnostic. Any platform with a REST API for
-    sending and a persistent connection for receiving works:
+    The protocol is transport-agnostic. Each platform is a transport binding
+    with a send API and a receive mechanism:
 
-    | Platform | Send | Receive | Status |
-    |----------|------|---------|--------|
-    | Webex | REST `/v1/messages` | Mercury WebSocket | Implemented |
-    | Slack | `chat.postMessage` | Socket Mode WebSocket | Planned |
-    | Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Planned |
+    | Platform | Send | Receive (Persistent) | Receive (Webhook) | Status |
+    |----------|------|---------------------|--------------------|--------|
+    | Webex | REST `/v1/messages` | Mercury WebSocket | Webhook registration | Implemented |
+    | Slack | `chat.postMessage` | Socket Mode WebSocket | Events API | Planned |
+    | Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Interactions endpoint | Planned |
+    | IRC | `PRIVMSG` | Persistent TCP/TLS | N/A | Planned |
+
+    ### Multi-platform, multi-token
+
+    The routing bot supports multiple platforms simultaneously and multiple
+    tokens per platform (CSV) for load balancing outbound sends:
+
+    ```
+    WGROK_WEBEX_TOKENS=token1,token2,token3
+    WGROK_SLACK_TOKENS=xoxb-token1,xoxb-token2
+    WGROK_DISCORD_TOKENS=bot-token1
+    ```
+
+    The routing bot opens a WebSocket listener per token, load balances
+    outbound sends across tokens for the same platform, and routes
+    cross-platform (Webex message → Slack agent).
+
+    For senders and receivers, a single token with explicit platform:
+
+    ```
+    WGROK_TOKEN=<token>
+    WGROK_PLATFORM=webex
+    ```
+
+    ### Webhook endpoint
+
+    The routing bot can optionally expose an HTTP webhook endpoint:
+
+    ```
+    WGROK_WEBHOOK_PORT=8080
+    WGROK_WEBHOOK_SECRET=shared-secret
+    ```
+
+    When enabled, the routing bot accepts `POST /wgrok` requests with a
+    JSON body containing `text` and `from` fields. This allows non-chat
+    integrations (CI/CD, monitoring, cron jobs) to post to the bus without
+    a messaging platform token. Messages enter the same pipeline as
+    WebSocket messages — allowlist check, protocol parsing, routing.
 
   license:
     name: MIT
@@ -210,6 +248,22 @@ channels:
     messages:
       verbCommand:
         $ref: '#/components/messages/VerbCommand'
+
+  webhookInbound:
+    address: webhook/inbound
+    title: Webhook Inbound
+    description: |
+      HTTP webhook endpoint for the routing bot. When `WGROK_WEBHOOK_PORT`
+      is set, the bot starts an HTTP server accepting `POST /wgrok` requests.
+
+      Messages arrive as JSON with `text` and `from` fields, enter the same
+      processing pipeline as WebSocket messages. Useful for CI/CD, monitoring,
+      cron jobs, or platforms that prefer webhook over WebSocket.
+
+      Authentication via `Authorization: Bearer <WGROK_WEBHOOK_SECRET>`.
+    messages:
+      webhookMessage:
+        $ref: '#/components/messages/WebhookMessage'
 
   agentMessage:
     address: platform/messages/agent-message
@@ -294,6 +348,24 @@ operations:
       4. **Delivery** — send result as Layer 0 format.
     messages:
       - $ref: '#/channels/verbCommand/messages/verbCommand'
+
+  # Webhook operations
+  receiveWebhook:
+    action: receive
+    channel:
+      $ref: '#/channels/webhookInbound'
+    title: Receive Webhook Message
+    summary: Routing bot receives a message via HTTP webhook endpoint.
+    description: |
+      When `WGROK_WEBHOOK_PORT` is configured, the routing bot listens for
+      HTTP POST requests. The message enters the same processing pipeline:
+
+      1. **Authentication** — verify `Authorization: Bearer <secret>` header.
+      2. **Allowlist check** — verify `from` field against domain patterns.
+      3. **Protocol parsing** — parse wgrok command from `text` field.
+      4. **Route** — same routing logic as WebSocket messages.
+    messages:
+      - $ref: '#/channels/webhookInbound/messages/webhookMessage'
 
   # Shared operations
   deliverAgentMessage:
@@ -465,7 +537,51 @@ components:
           payload:
             text: deploy-agent:{"status":"complete","ref":"main"}
 
+    WebhookMessage:
+      name: WebhookMessage
+      title: Webhook Inbound Message
+      summary: |
+        A message received via the HTTP webhook endpoint. Contains a wgrok
+        command in the `text` field and the sender identity in `from`.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WebhookPayload'
+      examples:
+        - name: Echo via webhook
+          summary: CI pipeline sends an echo command via webhook
+          payload:
+            text: ./echo:deploy:start deploy on prod
+            from: ci-pipeline@example.com
+        - name: App command via webhook
+          summary: Monitoring system sends an alert via webhook
+          payload:
+            text: ./grafana:CPU threshold exceeded on prod-api-3
+            from: monitoring@example.com
+
   schemas:
+    WebhookPayload:
+      type: object
+      description: |
+        HTTP webhook request body. The `text` field contains a wgrok command
+        (same format as messaging platform messages). The `from` field
+        identifies the sender for allowlist validation.
+      required:
+        - text
+        - from
+      properties:
+        text:
+          type: string
+          description: wgrok command text (e.g., `./echo:deploy:start`).
+        from:
+          type: string
+          format: email
+          description: Sender identity for allowlist validation.
+        attachments:
+          type: array
+          description: Optional Adaptive Card attachments.
+          items:
+            $ref: '#/components/schemas/CardAttachment'
+
     AppCommandPayload:
       type: object
       description: |
@@ -730,7 +846,17 @@ components:
       properties:
         WGROK_TOKEN:
           type: string
-          description: Messaging platform API token.
+          description: Messaging platform API token (single token).
+        WGROK_PLATFORM:
+          type: string
+          description: |
+            Which messaging platform this token belongs to. Determines which
+            transport binding (REST API + WebSocket) to use.
+          default: webex
+          enum:
+            - webex
+            - slack
+            - discord
         WGROK_TARGET:
           type: string
           format: email
@@ -761,17 +887,50 @@ components:
     BotConfig:
       type: object
       description: |
-        Configuration for the wgrok bot component.
+        Configuration for the wgrok routing/relay bot.
         Mode A: routing bot with app registry (proxies to REST APIs).
         Mode B: relay bot processing verbs (echo back to sender).
         Mode C: routing bot with agent registry (routes to registered bots).
+
+        Supports multiple platforms simultaneously and multiple tokens per
+        platform for load balancing.
       required:
-        - WGROK_TOKEN
         - WGROK_DOMAINS
       properties:
         WGROK_TOKEN:
           type: string
-          description: Platform API token (unique identity for the bot).
+          description: |
+            Single platform token (backward compat). If set without
+            platform-specific tokens, defaults to Webex.
+        WGROK_WEBEX_TOKENS:
+          type: string
+          description: |
+            Comma-separated Webex bot tokens. Multiple tokens for load
+            balancing outbound sends. Each token opens a WebSocket listener.
+          examples:
+            - token1,token2,token3
+        WGROK_SLACK_TOKENS:
+          type: string
+          description: |
+            Comma-separated Slack bot tokens (`xoxb-...`). Each token opens
+            a Socket Mode WebSocket connection.
+          examples:
+            - xoxb-token1,xoxb-token2
+        WGROK_DISCORD_TOKENS:
+          type: string
+          description: |
+            Comma-separated Discord bot tokens. Each token opens a Gateway
+            WebSocket connection.
+          examples:
+            - bot-token1
+        WGROK_IRC_TOKENS:
+          type: string
+          description: |
+            Comma-separated IRC connection strings. Format:
+            `nick:password@server:port/channel`. Each entry opens a
+            persistent TCP/TLS connection to the IRC server.
+          examples:
+            - wgrok-bot:pass@irc.libera.chat:6697/#wgrok
         WGROK_DOMAINS:
           type: string
           description: Comma-separated allowlist patterns. Required.
@@ -788,6 +947,19 @@ components:
             target (Mode C). If not found, the bot echoes back to sender (Mode B).
           examples:
             - deploy:deploy-bot@spark.com,status:status-bot@foo.com,jira:jira-agent@webex.bot
+        WGROK_WEBHOOK_PORT:
+          type: integer
+          description: |
+            When set, the routing bot starts an HTTP server on this port
+            accepting `POST /wgrok` requests. Enables non-chat integrations
+            (CI/CD, monitoring) to post to the bus without a messaging token.
+          examples:
+            - 8080
+        WGROK_WEBHOOK_SECRET:
+          type: string
+          description: |
+            Shared secret for webhook authentication. Clients send it as
+            `Authorization: Bearer <secret>`. Required when webhook is enabled.
         WGROK_DEBUG:
           type: string
           default: 'false'
@@ -806,7 +978,15 @@ components:
       properties:
         WGROK_TOKEN:
           type: string
-          description: Platform API token.
+          description: Platform API token (single token).
+        WGROK_PLATFORM:
+          type: string
+          description: Which messaging platform this token belongs to.
+          default: webex
+          enum:
+            - webex
+            - slack
+            - discord
         WGROK_SLUG:
           type: string
           description: Slug to match incoming messages against.

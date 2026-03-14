@@ -120,3 +120,216 @@ async fn test_webex_http_all() {
         _set_attachment_actions_url(None);
     }
 }
+
+#[tokio::test]
+async fn test_retry_after_retries_on_429_then_succeeds() {
+    let _lock = URL_LOCK.lock().unwrap();
+
+    let server = MockServer::start().await;
+    _set_messages_url(Some(format!("{}/messages", server.uri())));
+
+    // First attempt: 429 with Retry-After
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .append_header("Retry-After", "1")
+                .set_body_string("rate limited"),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // Second attempt: 200 OK
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": "msg-retry-1"})))
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = wgrok::send_message("tok123", "user@example.com", "hello", &client)
+        .await
+        .unwrap();
+    assert_eq!(result["id"], "msg-retry-1");
+
+    _set_messages_url(None);
+}
+
+#[tokio::test]
+async fn test_retry_after_retries_multiple_429s() {
+    let _lock = URL_LOCK.lock().unwrap();
+
+    let server = MockServer::start().await;
+    _set_messages_url(Some(format!("{}/messages", server.uri())));
+
+    // First attempt: 429 with Retry-After: 1
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .append_header("Retry-After", "1")
+                .set_body_string("rate limited 1"),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // Second attempt: 429 with Retry-After: 2
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .append_header("Retry-After", "2")
+                .set_body_string("rate limited 2"),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // Third attempt: 200 OK
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": "msg-retry-2"})))
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = wgrok::send_message("tok123", "user@example.com", "hello", &client)
+        .await
+        .unwrap();
+    assert_eq!(result["id"], "msg-retry-2");
+
+    _set_messages_url(None);
+}
+
+#[tokio::test]
+async fn test_retry_after_raises_after_max_retries() {
+    let _lock = URL_LOCK.lock().unwrap();
+
+    let server = MockServer::start().await;
+    _set_messages_url(Some(format!("{}/messages", server.uri())));
+
+    // All attempts: 429 (4 total attempts before giving up)
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .append_header("Retry-After", "1")
+                .set_body_string("rate limited"),
+        )
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = wgrok::send_message("tok123", "user@example.com", "hello", &client).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("429"));
+
+    _set_messages_url(None);
+}
+
+#[tokio::test]
+async fn test_retry_after_uses_retry_after_header_value() {
+    let _lock = URL_LOCK.lock().unwrap();
+
+    let server = MockServer::start().await;
+    _set_messages_url(Some(format!("{}/messages", server.uri())));
+
+    // First attempt: 429 with Retry-After: 1 (we'll sleep for this)
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .append_header("Retry-After", "1")
+                .set_body_string("rate limited"),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // Second attempt: 200 OK
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": "msg-retry-3"})))
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = wgrok::send_message("tok123", "user@example.com", "hello", &client)
+        .await
+        .unwrap();
+    assert_eq!(result["id"], "msg-retry-3");
+
+    _set_messages_url(None);
+}
+
+#[tokio::test]
+async fn test_retry_after_defaults_retry_after_to_1_when_missing() {
+    let _lock = URL_LOCK.lock().unwrap();
+
+    let server = MockServer::start().await;
+    _set_messages_url(Some(format!("{}/messages", server.uri())));
+
+    // First attempt: 429 without Retry-After header (should default to 1)
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(ResponseTemplate::new(429).set_body_string("rate limited"))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // Second attempt: 200 OK
+    Mock::given(method("POST"))
+        .and(path("/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"id": "msg-retry-4"})))
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = wgrok::send_message("tok123", "user@example.com", "hello", &client)
+        .await
+        .unwrap();
+    assert_eq!(result["id"], "msg-retry-4");
+
+    _set_messages_url(None);
+}
+
+#[tokio::test]
+async fn test_retry_after_get_json() {
+    let _lock = URL_LOCK.lock().unwrap();
+
+    let server = MockServer::start().await;
+    _set_messages_url(Some(format!("{}/messages", server.uri())));
+
+    // First attempt: 429 with Retry-After
+    Mock::given(method("GET"))
+        .and(path("/messages/msg-retry-5"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .append_header("Retry-After", "1")
+                .set_body_string("rate limited"),
+        )
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    // Second attempt: 200 OK
+    Mock::given(method("GET"))
+        .and(path("/messages/msg-retry-5"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"id": "msg-retry-5", "text": "retrieved"})),
+        )
+        .mount(&server)
+        .await;
+
+    let client = reqwest::Client::new();
+    let result = wgrok::get_message("tok", "msg-retry-5", &client)
+        .await
+        .unwrap();
+    assert_eq!(result["id"], "msg-retry-5");
+    assert_eq!(result["text"], "retrieved");
+
+    _set_messages_url(None);
+}

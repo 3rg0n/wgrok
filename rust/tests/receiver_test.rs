@@ -76,6 +76,7 @@ fn test_receiver_cases() {
                 slug: cases.config.slug.clone(),
                 domains: cases.config.domains.clone(),
                 debug: false,
+                platform: "webex".to_string(),
             },
             Box::new(move |slug: &str, payload: &str, cards: &[Value]| {
                 *called_c.lock().unwrap() = true;

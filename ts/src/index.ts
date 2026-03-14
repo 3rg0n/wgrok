@@ -10,6 +10,8 @@ export {
   senderConfigFromEnv,
   botConfigFromEnv,
   receiverConfigFromEnv,
+  parseRoutes,
+  parsePlatformTokens,
 } from './config.js';
 export {
   ECHO_PREFIX,

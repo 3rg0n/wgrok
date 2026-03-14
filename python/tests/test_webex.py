@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import aiohttp
 import pytest
@@ -95,3 +96,87 @@ class TestGetAttachmentAction:
             m.get(f"{WEBEX_ATTACHMENT_ACTIONS_URL}/act-1", payload=action_data)
             result = await get_attachment_action("tok", "act-1")
             assert result == action_data
+
+
+class TestRetryAfter:
+    """Test 429 Retry-After handling driven by shared test cases."""
+
+    retry_cases = CASES.get("retry_after", {}).get("cases", [])
+
+    @pytest.mark.parametrize(
+        "tc",
+        [c for c in retry_cases if c["name"] == "retries_on_429_then_succeeds"],
+        ids=lambda tc: tc["name"],
+    )
+    async def test_retries_on_429_then_succeeds(self, tc):
+        with aioresponses() as m, patch("wgrok.webex.asyncio.sleep", return_value=None) as mock_sleep:
+            for resp in tc["responses"]:
+                if resp["status"] == 429:
+                    headers = {"Retry-After": resp["retry_after"]} if resp.get("retry_after") else {}
+                    m.post(WEBEX_MESSAGES_URL, status=429, headers=headers)
+                else:
+                    m.post(WEBEX_MESSAGES_URL, payload=resp["body"])
+            result = await send_message("tok", "u@x.com", "hi")
+            assert result == tc["expected_result"]
+            assert mock_sleep.call_count == 1
+
+    @pytest.mark.parametrize(
+        "tc",
+        [c for c in retry_cases if c["name"] == "retries_multiple_429s"],
+        ids=lambda tc: tc["name"],
+    )
+    async def test_retries_multiple_429s(self, tc):
+        with aioresponses() as m, patch("wgrok.webex.asyncio.sleep", return_value=None) as mock_sleep:
+            for resp in tc["responses"]:
+                if resp["status"] == 429:
+                    headers = {"Retry-After": resp["retry_after"]} if resp.get("retry_after") else {}
+                    m.post(WEBEX_MESSAGES_URL, status=429, headers=headers)
+                else:
+                    m.post(WEBEX_MESSAGES_URL, payload=resp["body"])
+            result = await send_message("tok", "u@x.com", "hi")
+            assert result == tc["expected_result"]
+            assert mock_sleep.call_count == 2
+
+    @pytest.mark.parametrize(
+        "tc",
+        [c for c in retry_cases if c["name"] == "raises_after_max_retries"],
+        ids=lambda tc: tc["name"],
+    )
+    async def test_raises_after_max_retries(self, tc):
+        with aioresponses() as m, patch("wgrok.webex.asyncio.sleep", return_value=None):
+            for resp in tc["responses"]:
+                headers = {"Retry-After": resp["retry_after"]} if resp.get("retry_after") else {}
+                m.post(WEBEX_MESSAGES_URL, status=429, headers=headers)
+            with pytest.raises(aiohttp.ClientResponseError) as exc_info:
+                await send_message("tok", "u@x.com", "hi")
+            assert "429" in str(exc_info.value.status)
+
+    @pytest.mark.parametrize(
+        "tc",
+        [c for c in retry_cases if c["name"] == "uses_retry_after_header_value"],
+        ids=lambda tc: tc["name"],
+    )
+    async def test_uses_retry_after_header_value(self, tc):
+        with aioresponses() as m, patch("wgrok.webex.asyncio.sleep", return_value=None) as mock_sleep:
+            for resp in tc["responses"]:
+                if resp["status"] == 429:
+                    m.post(WEBEX_MESSAGES_URL, status=429, headers={"Retry-After": resp["retry_after"]})
+                else:
+                    m.post(WEBEX_MESSAGES_URL, payload=resp["body"])
+            await send_message("tok", "u@x.com", "hi")
+            mock_sleep.assert_called_with(tc["expected_sleep_seconds"][0])
+
+    @pytest.mark.parametrize(
+        "tc",
+        [c for c in retry_cases if c["name"] == "defaults_retry_after_to_1_when_missing"],
+        ids=lambda tc: tc["name"],
+    )
+    async def test_defaults_retry_after_to_1_when_missing(self, tc):
+        with aioresponses() as m, patch("wgrok.webex.asyncio.sleep", return_value=None) as mock_sleep:
+            for resp in tc["responses"]:
+                if resp["status"] == 429:
+                    m.post(WEBEX_MESSAGES_URL, status=429)
+                else:
+                    m.post(WEBEX_MESSAGES_URL, payload=resp["body"])
+            await send_message("tok", "u@x.com", "hi")
+            mock_sleep.assert_called_with(1)

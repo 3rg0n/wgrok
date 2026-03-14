@@ -13,7 +13,8 @@
         "target": "bot@example.com",
         "slug": "myslug",
         "domains": ["example.com", "trusted.org"],
-        "debug": true
+        "debug": true,
+        "platform": "webex"
       }
     },
     "missing_token": {
@@ -31,6 +32,14 @@
     "domains_optional": {
       "env": {"WGROK_TOKEN": "tok", "WGROK_TARGET": "bot@x.com", "WGROK_SLUG": "s"},
       "expected_domains": []
+    },
+    "platform_defaults_webex": {
+      "env": {"WGROK_TOKEN": "tok", "WGROK_TARGET": "bot@x.com", "WGROK_SLUG": "s"},
+      "expected_platform": "webex"
+    },
+    "platform_explicit": {
+      "env": {"WGROK_TOKEN": "tok", "WGROK_TARGET": "bot@x.com", "WGROK_SLUG": "s", "WGROK_PLATFORM": "slack"},
+      "expected_platform": "slack"
     }
   },
 
@@ -45,6 +54,53 @@
     "missing_domains": {
       "env": {"WGROK_TOKEN": "bottok"},
       "error_contains": "WGROK_DOMAINS"
+    },
+    "with_routes": {
+      "env": {
+        "WGROK_TOKEN": "bottok",
+        "WGROK_DOMAINS": "example.com",
+        "WGROK_ROUTES": "deploy:deploy-bot@spark.com,status:status-bot@foo.com"
+      },
+      "expected_routes": {
+        "deploy": "deploy-bot@spark.com",
+        "status": "status-bot@foo.com"
+      }
+    },
+    "routes_empty_when_not_set": {
+      "env": {"WGROK_TOKEN": "bottok", "WGROK_DOMAINS": "example.com"},
+      "expected_routes": {}
+    },
+    "with_webhook": {
+      "env": {
+        "WGROK_TOKEN": "bottok",
+        "WGROK_DOMAINS": "example.com",
+        "WGROK_WEBHOOK_PORT": "8080",
+        "WGROK_WEBHOOK_SECRET": "s3cret"
+      },
+      "expected_webhook_port": 8080,
+      "expected_webhook_secret": "s3cret"
+    },
+    "webhook_disabled_by_default": {
+      "env": {"WGROK_TOKEN": "bottok", "WGROK_DOMAINS": "example.com"},
+      "expected_webhook_port": null,
+      "expected_webhook_secret": null
+    },
+    "with_platform_tokens": {
+      "env": {
+        "WGROK_WEBEX_TOKENS": "wt1,wt2,wt3",
+        "WGROK_SLACK_TOKENS": "st1,st2",
+        "WGROK_DOMAINS": "example.com"
+      },
+      "expected_platform_tokens": {
+        "webex": ["wt1", "wt2", "wt3"],
+        "slack": ["st1", "st2"]
+      }
+    },
+    "fallback_single_token": {
+      "env": {"WGROK_TOKEN": "bottok", "WGROK_DOMAINS": "example.com"},
+      "expected_platform_tokens": {
+        "webex": ["bottok"]
+      }
     }
   },
 
@@ -54,8 +110,13 @@
       "expected": {
         "webex_token": "tok",
         "slug": "myslug",
-        "domains": ["example.com"]
+        "domains": ["example.com"],
+        "platform": "webex"
       }
+    },
+    "platform_explicit": {
+      "env": {"WGROK_TOKEN": "tok", "WGROK_SLUG": "myslug", "WGROK_DOMAINS": "example.com", "WGROK_PLATFORM": "discord"},
+      "expected_platform": "discord"
     }
   },
 

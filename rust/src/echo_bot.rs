@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use reqwest::Client;
 use serde_json::Value;
 use tokio::sync::watch;
@@ -14,17 +15,28 @@ pub struct WgrokEchoBot {
     allowlist: Allowlist,
     logger: WgrokLogger,
     client: Client,
+    routes: HashMap<String, String>,
 }
 
 impl WgrokEchoBot {
     pub fn new(config: BotConfig) -> Self {
         let logger = get_logger(config.debug, "wgrok.echo_bot");
         let allowlist = Allowlist::new(&config.domains);
+        let routes = config.routes.clone();
         Self {
             config,
             allowlist,
             logger,
             client: Client::new(),
+            routes,
+        }
+    }
+
+    fn resolve_target(&self, slug: &str, sender: &str) -> String {
+        if let Some(target) = self.routes.get(slug) {
+            target.clone()
+        } else {
+            sender.to_string()
         }
     }
 
@@ -95,18 +107,19 @@ impl WgrokEchoBot {
             }
         };
 
+        let target = self.resolve_target(&slug, sender);
         let response = format_response(&slug, &payload);
 
         let result = if !cards.is_empty() {
             self.logger.info(&format!(
                 "Relaying to {}: {} (with {} card(s))",
-                sender,
+                target,
                 response,
                 cards.len()
             ));
             webex::send_card(
                 &self.config.webex_token,
-                sender,
+                &target,
                 &response,
                 &cards[0],
                 &self.client,
@@ -114,8 +127,8 @@ impl WgrokEchoBot {
             .await
         } else {
             self.logger
-                .info(&format!("Relaying to {}: {}", sender, response));
-            webex::send_message(&self.config.webex_token, sender, &response, &self.client).await
+                .info(&format!("Relaying to {}: {}", target, response));
+            webex::send_message(&self.config.webex_token, &target, &response, &self.client).await
         };
 
         if let Err(e) = result {

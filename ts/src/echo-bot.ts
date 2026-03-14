@@ -11,11 +11,13 @@ export class WgrokEchoBot {
   private logger: Logger;
   private handler?: WebexMessageHandler;
   private abortController?: AbortController;
+  private routes: Record<string, string>;
 
   constructor(config: BotConfig) {
     this.config = config;
     this.allowlist = new Allowlist(config.domains);
     this.logger = getLogger(config.debug, 'wgrok.echo_bot');
+    this.routes = config.routes;
   }
 
   async run(): Promise<void> {
@@ -49,6 +51,14 @@ export class WgrokEchoBot {
     this.logger.info('Echo bot stopped');
   }
 
+  /** Resolve target address based on slug and routing rules */
+  private resolveTarget(slug: string, sender: string): string {
+    if (this.routes[slug]) {
+      return this.routes[slug];
+    }
+    return sender;
+  }
+
   /** Exposed for testing with injected cards */
   async onMessageWithCards(msg: DecryptedMessage, cards: unknown[]): Promise<void> {
     const sender = msg.personEmail;
@@ -72,14 +82,15 @@ export class WgrokEchoBot {
       return;
     }
 
+    const target = this.resolveTarget(slug, sender);
     const response = formatResponse(slug, payload);
 
     if (cards.length > 0) {
-      this.logger.info(`Relaying to ${sender}: ${response} (with ${cards.length} card(s))`);
-      await sendCard(this.config.webexToken, sender, response, cards[0]);
+      this.logger.info(`Relaying to ${target}: ${response} (with ${cards.length} card(s))`);
+      await sendCard(this.config.webexToken, target, response, cards[0]);
     } else {
-      this.logger.info(`Relaying to ${sender}: ${response}`);
-      await sendMessage(this.config.webexToken, sender, response);
+      this.logger.info(`Relaying to ${target}: ${response}`);
+      await sendMessage(this.config.webexToken, target, response);
     }
   }
 

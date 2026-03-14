@@ -3,6 +3,11 @@
     "domains": ["example.com", "*@trusted.org"]
   },
 
+  "routes": {
+    "deploy": "deploy-bot@spark.com",
+    "status": "status-bot@foo.com"
+  },
+
   "cases": [
     {
       "name": "relays_valid_echo_no_cards",
@@ -64,6 +69,50 @@
       "expected_reply_to": "anyone@trusted.org",
       "expected_reply_text": "s:p",
       "expected_reply_card": null
+    },
+    {
+      "name": "routes_registered_slug_mode_c",
+      "sender": "user@example.com",
+      "text": "./echo:deploy:start prod",
+      "cards": [],
+      "use_routes": true,
+      "expect_send": true,
+      "expected_reply_to": "deploy-bot@spark.com",
+      "expected_reply_text": "deploy:start prod",
+      "expected_reply_card": null
+    },
+    {
+      "name": "routes_second_registered_slug",
+      "sender": "user@example.com",
+      "text": "./echo:status:check",
+      "cards": [],
+      "use_routes": true,
+      "expect_send": true,
+      "expected_reply_to": "status-bot@foo.com",
+      "expected_reply_text": "status:check",
+      "expected_reply_card": null
+    },
+    {
+      "name": "unregistered_slug_falls_back_to_sender",
+      "sender": "user@example.com",
+      "text": "./echo:unknown-agent:hello",
+      "cards": [],
+      "use_routes": true,
+      "expect_send": true,
+      "expected_reply_to": "user@example.com",
+      "expected_reply_text": "unknown-agent:hello",
+      "expected_reply_card": null
+    },
+    {
+      "name": "routes_with_card_attachment",
+      "sender": "user@example.com",
+      "text": "./echo:deploy:card payload",
+      "cards": [{"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Deploy"}]}],
+      "use_routes": true,
+      "expect_send": true,
+      "expected_reply_to": "deploy-bot@spark.com",
+      "expected_reply_text": "deploy:card payload",
+      "expected_reply_card": {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Deploy"}]}
     }
   ]
 }

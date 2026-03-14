@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -15,6 +17,21 @@ type webexCases struct {
 		Message  map[string]interface{} `json:"message"`
 		Expected []interface{}          `json:"expected"`
 	} `json:"extract_cards"`
+	RetryAfter struct {
+		MaxRetries int `json:"max_retries"`
+		Cases      []struct {
+			Name              string `json:"name"`
+			Responses         []struct {
+				Status     int                   `json:"status"`
+				RetryAfter interface{}           `json:"retry_after"`
+				Body       map[string]interface{} `json:"body"`
+			} `json:"responses"`
+			ExpectedResult      map[string]interface{} `json:"expected_result"`
+			ExpectedAttempts    int                    `json:"expected_attempts"`
+			ExpectedError       string                 `json:"expected_error_contains"`
+			ExpectedSleepSeconds []int                 `json:"expected_sleep_seconds"`
+		} `json:"cases"`
+	} `json:"retry_after"`
 }
 
 func loadWebexCases(t *testing.T) webexCases {
@@ -178,5 +195,69 @@ func TestGetAttachmentActionHTTP(t *testing.T) {
 	}
 	if result["type"] != "submit" {
 		t.Errorf("result type = %v, want submit", result["type"])
+	}
+}
+
+func TestRetryAfter(t *testing.T) {
+	cases := loadWebexCases(t)
+	for _, tc := range cases.RetryAfter.Cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			responseIndex := 0
+			var mu sync.Mutex
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				defer mu.Unlock()
+
+				if responseIndex >= len(tc.Responses) {
+					t.Errorf("unexpected request: response index %d >= %d", responseIndex, len(tc.Responses))
+					w.WriteHeader(500)
+					return
+				}
+
+				resp := tc.Responses[responseIndex]
+				responseIndex++
+
+				w.Header().Set("Content-Type", "application/json")
+				if resp.RetryAfter != nil {
+					w.Header().Set("Retry-After", resp.RetryAfter.(string))
+				}
+				w.WriteHeader(resp.Status)
+
+				if resp.Body != nil {
+					body, _ := json.Marshal(resp.Body)
+					w.Write(body)
+				} else {
+					w.Write([]byte("{}"))
+				}
+			}))
+			defer srv.Close()
+			overrideMessagesURL(t, srv.URL)
+
+			result, err := SendMessage("tok", "user@example.com", "test", srv.Client())
+
+			if tc.ExpectedResult != nil {
+				if err != nil {
+					t.Errorf("expected success, got error: %v", err)
+				}
+				if result == nil || result["id"] != tc.ExpectedResult["id"] {
+					t.Errorf("result id = %v, want %v", result["id"], tc.ExpectedResult["id"])
+				}
+			}
+
+			if tc.ExpectedError != "" {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tc.ExpectedError)
+				} else if !strings.Contains(err.Error(), tc.ExpectedError) {
+					t.Errorf("error = %v, want to contain %q", err, tc.ExpectedError)
+				}
+			}
+
+			if tc.ExpectedAttempts > 0 {
+				if responseIndex != tc.ExpectedAttempts {
+					t.Errorf("expected %d attempts, got %d", tc.ExpectedAttempts, responseIndex)
+				}
+			}
+		})
 	}
 }

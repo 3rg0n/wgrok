@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 const (
 	WebexAPIBase            = "https://webexapis.com/v1"
 	AdaptiveCardContentType = "application/vnd.microsoft.card.adaptive"
+	MaxRetries              = 3
 )
 
 // Package-level URLs, overridable in tests.
@@ -57,19 +60,40 @@ func postMessage(token string, payload sendMessagePayload, client *http.Client) 
 	if err != nil {
 		return nil, fmt.Errorf("marshal message payload: %w", err)
 	}
-	req, err := http.NewRequest("POST", WebexMessagesURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("send message: %w", err)
+	for attempt := 0; attempt <= MaxRetries; attempt++ {
+		req, err := http.NewRequest("POST", WebexMessagesURL, bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("send message: %w", err)
+		}
+		defer resp.Body.Close()
+
+		// Check for 429 Too Many Requests
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if attempt < MaxRetries {
+				// Read Retry-After header, default to 1 second
+				retryAfter := 1
+				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
+					if parsed, err := strconv.Atoi(retryAfterStr); err == nil {
+						retryAfter = parsed
+					}
+				}
+				time.Sleep(time.Duration(retryAfter) * time.Second)
+				continue
+			}
+			// Max retries exhausted, fall through to readJSONResponse which will handle the error
+		}
+
+		return readJSONResponse(resp)
 	}
-	defer resp.Body.Close()
-	return readJSONResponse(resp)
+	return nil, fmt.Errorf("unreachable")
 }
 
 // GetMessage fetches full message details by ID (includes attachments).
@@ -88,19 +112,40 @@ func getJSON(token, url string, client *http.Client) (map[string]interface{}, er
 	if client == nil {
 		client = http.DefaultClient
 	}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("GET %s: %w", url, err)
+	for attempt := 0; attempt <= MaxRetries; attempt++ {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("GET %s: %w", url, err)
+		}
+		defer resp.Body.Close()
+
+		// Check for 429 Too Many Requests
+		if resp.StatusCode == http.StatusTooManyRequests {
+			if attempt < MaxRetries {
+				// Read Retry-After header, default to 1 second
+				retryAfter := 1
+				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
+					if parsed, err := strconv.Atoi(retryAfterStr); err == nil {
+						retryAfter = parsed
+					}
+				}
+				time.Sleep(time.Duration(retryAfter) * time.Second)
+				continue
+			}
+			// Max retries exhausted, fall through to readJSONResponse which will handle the error
+		}
+
+		return readJSONResponse(resp)
 	}
-	defer resp.Body.Close()
-	return readJSONResponse(resp)
+	return nil, fmt.Errorf("unreachable")
 }
 
 func readJSONResponse(resp *http.Response) (map[string]interface{}, error) {

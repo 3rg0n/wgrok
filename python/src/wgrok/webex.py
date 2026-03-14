@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import aiohttp
 
 WEBEX_API_BASE = "https://webexapis.com/v1"
+MAX_RETRIES = 3
 WEBEX_MESSAGES_URL = f"{WEBEX_API_BASE}/messages"
 WEBEX_ATTACHMENT_ACTIONS_URL = f"{WEBEX_API_BASE}/attachment/actions"
 
@@ -27,6 +30,23 @@ async def _manage_session(session, func):
             await session.close()
 
 
+async def _request_with_retry(session, method, url, headers, **kwargs):
+    """Execute an HTTP request with Retry-After handling for 429 responses."""
+    for attempt in range(MAX_RETRIES + 1):
+        async with session.request(method, url, headers=headers, **kwargs) as resp:
+            if resp.status == 429:
+                if attempt >= MAX_RETRIES:
+                    resp.raise_for_status()
+                retry_after = int(resp.headers.get("Retry-After", "1"))
+                await asyncio.sleep(retry_after)
+                continue
+            resp.raise_for_status()
+            return await resp.json()
+    # Should not reach here, but just in case
+    msg = f"HTTP request to {url} failed after {MAX_RETRIES + 1} attempts"
+    raise aiohttp.ClientResponseError(None, None, message=msg, status=429)
+
+
 async def send_message(
     token: str,
     to_email: str,
@@ -37,9 +57,7 @@ async def send_message(
     payload = {"toPersonEmail": to_email, "text": text}
 
     async def _do(s):
-        async with s.post(WEBEX_MESSAGES_URL, json=payload, headers=_headers(token)) as resp:
-            resp.raise_for_status()
-            return await resp.json()
+        return await _request_with_retry(s, "POST", WEBEX_MESSAGES_URL, _headers(token), json=payload)
 
     return await _manage_session(session, _do)
 
@@ -64,9 +82,7 @@ async def send_card(
     }
 
     async def _do(s):
-        async with s.post(WEBEX_MESSAGES_URL, json=payload, headers=_headers(token)) as resp:
-            resp.raise_for_status()
-            return await resp.json()
+        return await _request_with_retry(s, "POST", WEBEX_MESSAGES_URL, _headers(token), json=payload)
 
     return await _manage_session(session, _do)
 
@@ -80,9 +96,7 @@ async def get_message(
     url = f"{WEBEX_MESSAGES_URL}/{message_id}"
 
     async def _do(s):
-        async with s.get(url, headers=_headers(token)) as resp:
-            resp.raise_for_status()
-            return await resp.json()
+        return await _request_with_retry(s, "GET", url, _headers(token))
 
     return await _manage_session(session, _do)
 
@@ -96,9 +110,7 @@ async def get_attachment_action(
     url = f"{WEBEX_ATTACHMENT_ACTIONS_URL}/{action_id}"
 
     async def _do(s):
-        async with s.get(url, headers=_headers(token)) as resp:
-            resp.raise_for_status()
-            return await resp.json()
+        return await _request_with_retry(s, "GET", url, _headers(token))
 
     return await _manage_session(session, _do)
 

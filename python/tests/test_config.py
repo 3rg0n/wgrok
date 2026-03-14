@@ -31,6 +31,7 @@ class TestSenderConfig:
         assert cfg.slug == exp["slug"]
         assert cfg.domains == exp["domains"]
         assert cfg.debug is exp["debug"]
+        assert cfg.platform == exp["platform"]
 
     def test_missing_token_raises(self, monkeypatch):
         for k, v in CASES["sender"]["missing_token"]["env"].items():
@@ -56,6 +57,18 @@ class TestSenderConfig:
         cfg = SenderConfig.from_env()
         assert cfg.domains == CASES["sender"]["domains_optional"]["expected_domains"]
 
+    def test_platform_defaults_webex(self, monkeypatch):
+        for k, v in CASES["sender"]["platform_defaults_webex"]["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = SenderConfig.from_env()
+        assert cfg.platform == CASES["sender"]["platform_defaults_webex"]["expected_platform"]
+
+    def test_platform_explicit(self, monkeypatch):
+        for k, v in CASES["sender"]["platform_explicit"]["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = SenderConfig.from_env()
+        assert cfg.platform == CASES["sender"]["platform_explicit"]["expected_platform"]
+
 
 @pytest.mark.usefixtures("_clean_env")
 class TestBotConfig:
@@ -73,6 +86,48 @@ class TestBotConfig:
         with pytest.raises(ValueError, match=CASES["bot"]["missing_domains"]["error_contains"]):
             BotConfig.from_env()
 
+    def test_with_routes(self, monkeypatch):
+        for k, v in CASES["bot"]["with_routes"]["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = BotConfig.from_env()
+        assert cfg.routes == CASES["bot"]["with_routes"]["expected_routes"]
+
+    def test_routes_empty_when_not_set(self, monkeypatch):
+        for k, v in CASES["bot"]["routes_empty_when_not_set"]["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = BotConfig.from_env()
+        assert cfg.routes == CASES["bot"]["routes_empty_when_not_set"]["expected_routes"]
+
+    def test_with_webhook(self, monkeypatch):
+        tc = CASES["bot"]["with_webhook"]
+        for k, v in tc["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = BotConfig.from_env()
+        assert cfg.webhook_port == tc["expected_webhook_port"]
+        assert cfg.webhook_secret == tc["expected_webhook_secret"]
+
+    def test_webhook_disabled_by_default(self, monkeypatch):
+        tc = CASES["bot"]["webhook_disabled_by_default"]
+        for k, v in tc["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = BotConfig.from_env()
+        assert cfg.webhook_port is None
+        assert cfg.webhook_secret is None
+
+    def test_with_platform_tokens(self, monkeypatch):
+        tc = CASES["bot"]["with_platform_tokens"]
+        for k, v in tc["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = BotConfig.from_env()
+        assert cfg.platform_tokens == tc["expected_platform_tokens"]
+
+    def test_fallback_single_token(self, monkeypatch):
+        tc = CASES["bot"]["fallback_single_token"]
+        for k, v in tc["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = BotConfig.from_env()
+        assert cfg.platform_tokens == tc["expected_platform_tokens"]
+
 
 @pytest.mark.usefixtures("_clean_env")
 class TestReceiverConfig:
@@ -84,6 +139,14 @@ class TestReceiverConfig:
         assert cfg.webex_token == exp["webex_token"]
         assert cfg.slug == exp["slug"]
         assert cfg.domains == exp["domains"]
+        assert cfg.platform == exp["platform"]
+
+    def test_platform_explicit(self, monkeypatch):
+        tc = CASES["receiver"]["platform_explicit"]
+        for k, v in tc["env"].items():
+            monkeypatch.setenv(k, v)
+        cfg = ReceiverConfig.from_env()
+        assert cfg.platform == tc["expected_platform"]
 
     def test_debug_values(self, monkeypatch):
         base_env = CASES["receiver"]["valid"]["env"]

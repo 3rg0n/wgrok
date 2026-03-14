@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::fs;
 use webex_message_handler::{DecryptedMessage, MercuryActivity};
 use wiremock::matchers::{method, path};
@@ -9,6 +10,7 @@ use wgrok::{BotConfig, WgrokEchoBot, _set_messages_url};
 #[derive(Deserialize)]
 struct EchoBotCases {
     config: EchoBotConfig,
+    routes: HashMap<String, String>,
     cases: Vec<EchoBotCase>,
 }
 
@@ -27,6 +29,8 @@ struct EchoBotCase {
     expected_reply_to: Option<String>,
     expected_reply_text: Option<String>,
     expected_reply_card: Option<Value>,
+    #[serde(default)]
+    use_routes: bool,
 }
 
 fn load_cases() -> EchoBotCases {
@@ -70,10 +74,24 @@ async fn test_echo_bot_cases() {
             .mount(&server)
             .await;
 
+        let routes = if tc.use_routes {
+            cases.routes.clone()
+        } else {
+            HashMap::new()
+        };
+
         let bot = WgrokEchoBot::new(BotConfig {
             webex_token: "fake-token".to_string(),
             domains: cases.config.domains.clone(),
             debug: false,
+            routes,
+            platform_tokens: {
+                let mut map = HashMap::new();
+                map.insert("webex".to_string(), vec!["fake-token".to_string()]);
+                map
+            },
+            webhook_port: None,
+            webhook_secret: None,
         });
 
         let msg = fake_msg(&tc.sender, &tc.text);

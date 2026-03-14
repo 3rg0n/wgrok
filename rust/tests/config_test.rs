@@ -16,12 +16,28 @@ struct ConfigCases {
 }
 
 #[derive(Deserialize)]
+struct SenderPlatformDefaults {
+    env: HashMap<String, String>,
+    expected_platform: String,
+}
+
+#[derive(Deserialize)]
+struct SenderPlatformExplicit {
+    env: HashMap<String, String>,
+    expected_platform: String,
+}
+
+#[derive(Deserialize)]
 struct SenderCases {
     valid: ValidSender,
     missing_token: ErrorCase,
     missing_target: ErrorCase,
     debug_defaults_false: DebugDefaultCase,
     domains_optional: DomainsOptionalCase,
+    #[serde(default)]
+    platform_defaults_webex: Option<SenderPlatformDefaults>,
+    #[serde(default)]
+    platform_explicit: Option<SenderPlatformExplicit>,
 }
 
 #[derive(Deserialize)]
@@ -37,6 +53,7 @@ struct ExpectedSender {
     slug: String,
     domains: Vec<String>,
     debug: bool,
+    platform: String,
 }
 
 #[derive(Deserialize)]
@@ -61,6 +78,18 @@ struct DomainsOptionalCase {
 struct BotCases {
     valid: ValidBot,
     missing_domains: ErrorCase,
+    #[serde(default)]
+    with_routes: Option<BotWithRoutes>,
+    #[serde(default)]
+    routes_empty_when_not_set: Option<BotRoutesEmpty>,
+    #[serde(default)]
+    with_webhook: Option<BotWithWebhook>,
+    #[serde(default)]
+    webhook_disabled_by_default: Option<BotWebhookDisabled>,
+    #[serde(default)]
+    with_platform_tokens: Option<BotWithPlatformTokens>,
+    #[serde(default)]
+    fallback_single_token: Option<BotFallbackToken>,
 }
 
 #[derive(Deserialize)]
@@ -76,8 +105,48 @@ struct ExpectedBot {
 }
 
 #[derive(Deserialize)]
+struct BotWithRoutes {
+    env: HashMap<String, String>,
+    expected_routes: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct BotRoutesEmpty {
+    env: HashMap<String, String>,
+    expected_routes: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct BotWithWebhook {
+    env: HashMap<String, String>,
+    expected_webhook_port: Option<u16>,
+    expected_webhook_secret: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct BotWebhookDisabled {
+    env: HashMap<String, String>,
+    expected_webhook_port: Option<u16>,
+    expected_webhook_secret: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct BotWithPlatformTokens {
+    env: HashMap<String, String>,
+    expected_platform_tokens: HashMap<String, Vec<String>>,
+}
+
+#[derive(Deserialize)]
+struct BotFallbackToken {
+    env: HashMap<String, String>,
+    expected_platform_tokens: HashMap<String, Vec<String>>,
+}
+
+#[derive(Deserialize)]
 struct ReceiverCases {
     valid: ValidReceiver,
+    #[serde(default)]
+    platform_explicit: Option<SenderPlatformExplicit>,
 }
 
 #[derive(Deserialize)]
@@ -91,6 +160,7 @@ struct ExpectedReceiver {
     webex_token: String,
     slug: String,
     domains: Vec<String>,
+    platform: String,
 }
 
 fn load_cases() -> ConfigCases {
@@ -132,6 +202,7 @@ fn test_all_config() {
     assert_eq!(cfg.slug, exp.slug);
     assert_eq!(cfg.domains, exp.domains);
     assert_eq!(cfg.debug, exp.debug);
+    assert_eq!(cfg.platform, exp.platform);
 
     // Sender missing token
     clear_env();
@@ -165,6 +236,22 @@ fn test_all_config() {
     let cfg = SenderConfig::from_env().unwrap();
     assert_eq!(cfg.domains, cases.sender.domains_optional.expected_domains);
 
+    // Sender platform defaults webex
+    if let Some(tc) = &cases.sender.platform_defaults_webex {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = SenderConfig::from_env().unwrap();
+        assert_eq!(cfg.platform, tc.expected_platform);
+    }
+
+    // Sender platform explicit
+    if let Some(tc) = &cases.sender.platform_explicit {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = SenderConfig::from_env().unwrap();
+        assert_eq!(cfg.platform, tc.expected_platform);
+    }
+
     // Bot valid
     clear_env();
     set_env(&cases.bot.valid.env);
@@ -178,6 +265,56 @@ fn test_all_config() {
     let result = BotConfig::from_env();
     assert!(result.is_err());
 
+    // Bot with routes
+    if let Some(tc) = &cases.bot.with_routes {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = BotConfig::from_env().unwrap();
+        assert_eq!(cfg.routes, tc.expected_routes);
+    }
+
+    // Bot routes empty when not set
+    if let Some(tc) = &cases.bot.routes_empty_when_not_set {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = BotConfig::from_env().unwrap();
+        assert_eq!(cfg.routes, tc.expected_routes);
+    }
+
+    // Bot with webhook
+    if let Some(tc) = &cases.bot.with_webhook {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = BotConfig::from_env().unwrap();
+        assert_eq!(cfg.webhook_port, tc.expected_webhook_port);
+        assert_eq!(cfg.webhook_secret, tc.expected_webhook_secret);
+    }
+
+    // Bot webhook disabled by default
+    if let Some(tc) = &cases.bot.webhook_disabled_by_default {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = BotConfig::from_env().unwrap();
+        assert_eq!(cfg.webhook_port, tc.expected_webhook_port);
+        assert_eq!(cfg.webhook_secret, tc.expected_webhook_secret);
+    }
+
+    // Bot with platform tokens
+    if let Some(tc) = &cases.bot.with_platform_tokens {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = BotConfig::from_env().unwrap();
+        assert_eq!(cfg.platform_tokens, tc.expected_platform_tokens);
+    }
+
+    // Bot fallback single token
+    if let Some(tc) = &cases.bot.fallback_single_token {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = BotConfig::from_env().unwrap();
+        assert_eq!(cfg.platform_tokens, tc.expected_platform_tokens);
+    }
+
     // Receiver valid
     clear_env();
     set_env(&cases.receiver.valid.env);
@@ -185,6 +322,15 @@ fn test_all_config() {
     assert_eq!(cfg.webex_token, cases.receiver.valid.expected.webex_token);
     assert_eq!(cfg.slug, cases.receiver.valid.expected.slug);
     assert_eq!(cfg.domains, cases.receiver.valid.expected.domains);
+    assert_eq!(cfg.platform, cases.receiver.valid.expected.platform);
+
+    // Receiver platform explicit
+    if let Some(tc) = &cases.receiver.platform_explicit {
+        clear_env();
+        set_env(&tc.env);
+        let cfg = ReceiverConfig::from_env().unwrap();
+        assert_eq!(cfg.platform, tc.expected_platform);
+    }
 
     clear_env();
 }

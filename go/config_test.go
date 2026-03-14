@@ -16,6 +16,7 @@ type configCases struct {
 				Slug       string   `json:"slug"`
 				Domains    []string `json:"domains"`
 				Debug      bool     `json:"debug"`
+				Platform   string   `json:"platform"`
 			} `json:"expected"`
 		} `json:"valid"`
 		MissingToken struct {
@@ -34,6 +35,14 @@ type configCases struct {
 			Env             map[string]string `json:"env"`
 			ExpectedDomains []string          `json:"expected_domains"`
 		} `json:"domains_optional"`
+		PlatformDefaultsWebex struct {
+			Env              map[string]string `json:"env"`
+			ExpectedPlatform string            `json:"expected_platform"`
+		} `json:"platform_defaults_webex"`
+		PlatformExplicit struct {
+			Env              map[string]string `json:"env"`
+			ExpectedPlatform string            `json:"expected_platform"`
+		} `json:"platform_explicit"`
 	} `json:"sender"`
 	Bot struct {
 		Valid struct {
@@ -47,6 +56,32 @@ type configCases struct {
 			Env           map[string]string `json:"env"`
 			ErrorContains string            `json:"error_contains"`
 		} `json:"missing_domains"`
+		WithRoutes struct {
+			Env            map[string]string `json:"env"`
+			ExpectedRoutes map[string]string `json:"expected_routes"`
+		} `json:"with_routes"`
+		RoutesEmptyWhenNotSet struct {
+			Env            map[string]string `json:"env"`
+			ExpectedRoutes map[string]string `json:"expected_routes"`
+		} `json:"routes_empty_when_not_set"`
+		WithWebhook struct {
+			Env                   map[string]string `json:"env"`
+			ExpectedWebhookPort   int               `json:"expected_webhook_port"`
+			ExpectedWebhookSecret string            `json:"expected_webhook_secret"`
+		} `json:"with_webhook"`
+		WebhookDisabledByDefault struct {
+			Env                   map[string]string `json:"env"`
+			ExpectedWebhookPort   interface{}       `json:"expected_webhook_port"`
+			ExpectedWebhookSecret interface{}       `json:"expected_webhook_secret"`
+		} `json:"webhook_disabled_by_default"`
+		WithPlatformTokens struct {
+			Env                  map[string]string `json:"env"`
+			ExpectedPlatformTokens map[string][]string `json:"expected_platform_tokens"`
+		} `json:"with_platform_tokens"`
+		FallbackSingleToken struct {
+			Env                  map[string]string `json:"env"`
+			ExpectedPlatformTokens map[string][]string `json:"expected_platform_tokens"`
+		} `json:"fallback_single_token"`
 	} `json:"bot"`
 	Receiver struct {
 		Valid struct {
@@ -55,8 +90,13 @@ type configCases struct {
 				WebexToken string   `json:"webex_token"`
 				Slug       string   `json:"slug"`
 				Domains    []string `json:"domains"`
+				Platform   string   `json:"platform"`
 			} `json:"expected"`
 		} `json:"valid"`
+		PlatformExplicit struct {
+			Env              map[string]string `json:"env"`
+			ExpectedPlatform string            `json:"expected_platform"`
+		} `json:"platform_explicit"`
 	} `json:"receiver"`
 	DebugTruthyValues []string `json:"debug_truthy_values"`
 	DebugFalsyValues  []string `json:"debug_falsy_values"`
@@ -114,6 +154,34 @@ func sliceEqual(a, b []string) bool {
 	return true
 }
 
+func mapEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func platformTokensEqual(a, b map[string][]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for platform, tokens := range a {
+		bTokens, ok := b[platform]
+		if !ok {
+			return false
+		}
+		if !sliceEqual(tokens, bTokens) {
+			return false
+		}
+	}
+	return true
+}
+
 func TestSenderConfigFromEnv(t *testing.T) {
 	cases := loadConfigCases(t)
 
@@ -138,6 +206,9 @@ func TestSenderConfigFromEnv(t *testing.T) {
 		}
 		if cfg.Debug != exp.Debug {
 			t.Errorf("Debug = %v, want %v", cfg.Debug, exp.Debug)
+		}
+		if cfg.Platform != exp.Platform {
+			t.Errorf("Platform = %q, want %q", cfg.Platform, exp.Platform)
 		}
 	})
 
@@ -184,6 +255,28 @@ func TestSenderConfigFromEnv(t *testing.T) {
 			t.Errorf("Domains = %v, want %v", cfg.Domains, cases.Sender.DomainsOptional.ExpectedDomains)
 		}
 	})
+
+	t.Run("platform_defaults_webex", func(t *testing.T) {
+		setEnv(t, cases.Sender.PlatformDefaultsWebex.Env)
+		cfg, err := SenderConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Platform != cases.Sender.PlatformDefaultsWebex.ExpectedPlatform {
+			t.Errorf("Platform = %q, want %q", cfg.Platform, cases.Sender.PlatformDefaultsWebex.ExpectedPlatform)
+		}
+	})
+
+	t.Run("platform_explicit", func(t *testing.T) {
+		setEnv(t, cases.Sender.PlatformExplicit.Env)
+		cfg, err := SenderConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Platform != cases.Sender.PlatformExplicit.ExpectedPlatform {
+			t.Errorf("Platform = %q, want %q", cfg.Platform, cases.Sender.PlatformExplicit.ExpectedPlatform)
+		}
+	})
 }
 
 func TestBotConfigFromEnv(t *testing.T) {
@@ -214,6 +307,86 @@ func TestBotConfigFromEnv(t *testing.T) {
 			t.Errorf("error %q should contain %q", err.Error(), cases.Bot.MissingDomains.ErrorContains)
 		}
 	})
+
+	t.Run("with_routes", func(t *testing.T) {
+		setEnv(t, cases.Bot.WithRoutes.Env)
+		cfg, err := BotConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mapEqual(cfg.Routes, cases.Bot.WithRoutes.ExpectedRoutes) {
+			t.Errorf("Routes = %v, want %v", cfg.Routes, cases.Bot.WithRoutes.ExpectedRoutes)
+		}
+	})
+
+	t.Run("routes_empty_when_not_set", func(t *testing.T) {
+		setEnv(t, cases.Bot.RoutesEmptyWhenNotSet.Env)
+		cfg, err := BotConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mapEqual(cfg.Routes, cases.Bot.RoutesEmptyWhenNotSet.ExpectedRoutes) {
+			t.Errorf("Routes = %v, want %v", cfg.Routes, cases.Bot.RoutesEmptyWhenNotSet.ExpectedRoutes)
+		}
+	})
+
+	t.Run("with_webhook", func(t *testing.T) {
+		setEnv(t, cases.Bot.WithWebhook.Env)
+		cfg, err := BotConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.WebhookPort == nil || *cfg.WebhookPort != cases.Bot.WithWebhook.ExpectedWebhookPort {
+			var got int
+			if cfg.WebhookPort != nil {
+				got = *cfg.WebhookPort
+			}
+			t.Errorf("WebhookPort = %v, want %v", got, cases.Bot.WithWebhook.ExpectedWebhookPort)
+		}
+		if cfg.WebhookSecret == nil || *cfg.WebhookSecret != cases.Bot.WithWebhook.ExpectedWebhookSecret {
+			var got string
+			if cfg.WebhookSecret != nil {
+				got = *cfg.WebhookSecret
+			}
+			t.Errorf("WebhookSecret = %q, want %q", got, cases.Bot.WithWebhook.ExpectedWebhookSecret)
+		}
+	})
+
+	t.Run("webhook_disabled_by_default", func(t *testing.T) {
+		setEnv(t, cases.Bot.WebhookDisabledByDefault.Env)
+		cfg, err := BotConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.WebhookPort != nil {
+			t.Errorf("WebhookPort = %v, want nil", *cfg.WebhookPort)
+		}
+		if cfg.WebhookSecret != nil {
+			t.Errorf("WebhookSecret = %q, want nil", *cfg.WebhookSecret)
+		}
+	})
+
+	t.Run("with_platform_tokens", func(t *testing.T) {
+		setEnv(t, cases.Bot.WithPlatformTokens.Env)
+		cfg, err := BotConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !platformTokensEqual(cfg.PlatformTokens, cases.Bot.WithPlatformTokens.ExpectedPlatformTokens) {
+			t.Errorf("PlatformTokens = %v, want %v", cfg.PlatformTokens, cases.Bot.WithPlatformTokens.ExpectedPlatformTokens)
+		}
+	})
+
+	t.Run("fallback_single_token", func(t *testing.T) {
+		setEnv(t, cases.Bot.FallbackSingleToken.Env)
+		cfg, err := BotConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !platformTokensEqual(cfg.PlatformTokens, cases.Bot.FallbackSingleToken.ExpectedPlatformTokens) {
+			t.Errorf("PlatformTokens = %v, want %v", cfg.PlatformTokens, cases.Bot.FallbackSingleToken.ExpectedPlatformTokens)
+		}
+	})
 }
 
 func TestReceiverConfigFromEnv(t *testing.T) {
@@ -234,6 +407,20 @@ func TestReceiverConfigFromEnv(t *testing.T) {
 		}
 		if !sliceEqual(cfg.Domains, exp.Domains) {
 			t.Errorf("Domains = %v, want %v", cfg.Domains, exp.Domains)
+		}
+		if cfg.Platform != exp.Platform {
+			t.Errorf("Platform = %q, want %q", cfg.Platform, exp.Platform)
+		}
+	})
+
+	t.Run("platform_explicit", func(t *testing.T) {
+		setEnv(t, cases.Receiver.PlatformExplicit.Env)
+		cfg, err := ReceiverConfigFromEnv()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Platform != cases.Receiver.PlatformExplicit.ExpectedPlatform {
+			t.Errorf("Platform = %q, want %q", cfg.Platform, cases.Receiver.PlatformExplicit.ExpectedPlatform)
 		}
 	})
 }
