@@ -70,3 +70,21 @@ go run ./cmd/sender <payload>  # run sender
 go run ./cmd/echobot           # run echo bot
 go run ./cmd/receiver          # run receiver
 ```
+
+### TypeScript
+
+```bash
+cd ts
+npm install                    # install dependencies
+npx tsc --noEmit               # typecheck
+npx jest                       # all tests
+```
+
+### Rust
+
+```bash
+cd rust
+cargo build                    # build
+cargo test                     # all tests
+cargo clippy                   # lint
+```

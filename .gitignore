@@ -13,6 +13,13 @@ build/
 *.whl
 .pytest_cache/
 
+# Node/TypeScript
+node_modules/
+ts/dist/
+
+# Rust
+rust/target/
+
 # IDE
 .vscode/
 .idea/
