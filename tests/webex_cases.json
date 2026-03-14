@@ -1,0 +1,63 @@
+{
+  "extract_cards": [
+    {
+      "name": "extracts_adaptive_cards",
+      "message": {
+        "attachments": [
+          {
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {"type": "AdaptiveCard", "body": []}
+          }
+        ]
+      },
+      "expected": [{"type": "AdaptiveCard", "body": []}]
+    },
+    {
+      "name": "ignores_non_card_attachments",
+      "message": {
+        "attachments": [
+          {"contentType": "image/png", "content": {}}
+        ]
+      },
+      "expected": []
+    },
+    {
+      "name": "handles_no_attachments_key",
+      "message": {},
+      "expected": []
+    },
+    {
+      "name": "handles_empty_attachments",
+      "message": {"attachments": []},
+      "expected": []
+    },
+    {
+      "name": "multiple_cards",
+      "message": {
+        "attachments": [
+          {
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "1"}]}
+          },
+          {
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "2"}]}
+          }
+        ]
+      },
+      "expected": [
+        {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "1"}]},
+        {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "2"}]}
+      ]
+    }
+  ],
+
+  "send_message": {
+    "expected_payload_fields": ["toPersonEmail", "text"],
+    "expected_auth_header_prefix": "Bearer "
+  },
+
+  "send_card": {
+    "expected_attachment_content_type": "application/vnd.microsoft.card.adaptive"
+  }
+}

@@ -1,59 +1,46 @@
-"""Tests for wgrok.receiver - WgrokReceiver message handling."""
+"""Tests for wgrok.receiver - driven by shared test cases."""
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from wgrok.config import ReceiverConfig
 from wgrok.receiver import WgrokReceiver
+
+CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "receiver_cases.json").read_text())
+
+
+def _make_config():
+    return ReceiverConfig(
+        webex_token="fake-token",
+        slug=CASES["config"]["slug"],
+        domains=CASES["config"]["domains"],
+        debug=False,
+    )
 
 
 class TestWgrokReceiver:
-    async def test_calls_handler_on_slug_match(self, receiver_config, fake_message):
+    @pytest.mark.parametrize("tc", CASES["cases"], ids=lambda tc: tc["name"])
+    async def test_cases(self, tc):
         handler = AsyncMock()
-        receiver = WgrokReceiver(receiver_config, handler)
-        msg = fake_message("testagent:hello world")
+        receiver = WgrokReceiver(_make_config(), handler)
+        msg = {
+            "id": "msg-123",
+            "personEmail": tc["sender"],
+            "text": tc["text"],
+            "roomId": "room-abc",
+        }
 
-        with patch.object(receiver, "_fetch_cards", return_value=[]):
+        with patch.object(receiver, "_fetch_cards", return_value=tc["cards"]):
             await receiver._on_message(msg)
-        handler.assert_called_once_with("testagent", "hello world", [])
 
-    async def test_ignores_wrong_slug(self, receiver_config, fake_message):
-        handler = AsyncMock()
-        receiver = WgrokReceiver(receiver_config, handler)
-        msg = fake_message("otheragent:payload")
-
-        await receiver._on_message(msg)
-        handler.assert_not_called()
-
-    async def test_rejects_disallowed_sender(self, receiver_config, fake_message):
-        handler = AsyncMock()
-        receiver = WgrokReceiver(receiver_config, handler)
-        msg = fake_message("testagent:payload", sender="hacker@evil.com")
-
-        await receiver._on_message(msg)
-        handler.assert_not_called()
-
-    async def test_handles_payload_with_colons(self, receiver_config, fake_message):
-        handler = AsyncMock()
-        receiver = WgrokReceiver(receiver_config, handler)
-        msg = fake_message("testagent:a:b:c")
-
-        with patch.object(receiver, "_fetch_cards", return_value=[]):
-            await receiver._on_message(msg)
-        handler.assert_called_once_with("testagent", "a:b:c", [])
-
-    async def test_ignores_unparseable_message(self, receiver_config, fake_message):
-        handler = AsyncMock()
-        receiver = WgrokReceiver(receiver_config, handler)
-        msg = fake_message(":no slug")
-
-        await receiver._on_message(msg)
-        handler.assert_not_called()
-
-    async def test_passes_cards_to_handler(self, receiver_config, fake_message):
-        handler = AsyncMock()
-        receiver = WgrokReceiver(receiver_config, handler)
-        msg = fake_message("testagent:data")
-        sample_card = {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}
-
-        with patch.object(receiver, "_fetch_cards", return_value=[sample_card]):
-            await receiver._on_message(msg)
-        handler.assert_called_once_with("testagent", "data", [sample_card])
+        if tc["expect_handler"]:
+            handler.assert_called_once_with(
+                tc["expected_slug"],
+                tc["expected_payload"],
+                tc["expected_cards"],
+            )
+        else:
+            handler.assert_not_called()

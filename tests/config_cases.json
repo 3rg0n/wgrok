@@ -1,0 +1,64 @@
+{
+  "sender": {
+    "valid": {
+      "env": {
+        "WGROK_TOKEN": "tok123",
+        "WGROK_TARGET": "bot@example.com",
+        "WGROK_SLUG": "myslug",
+        "WGROK_DOMAINS": "example.com,trusted.org",
+        "WGROK_DEBUG": "true"
+      },
+      "expected": {
+        "webex_token": "tok123",
+        "target": "bot@example.com",
+        "slug": "myslug",
+        "domains": ["example.com", "trusted.org"],
+        "debug": true
+      }
+    },
+    "missing_token": {
+      "env": {"WGROK_TARGET": "bot@example.com", "WGROK_SLUG": "myslug"},
+      "error_contains": "WGROK_TOKEN"
+    },
+    "missing_target": {
+      "env": {"WGROK_TOKEN": "tok123", "WGROK_SLUG": "myslug"},
+      "error_contains": "WGROK_TARGET"
+    },
+    "debug_defaults_false": {
+      "env": {"WGROK_TOKEN": "tok", "WGROK_TARGET": "bot@x.com", "WGROK_SLUG": "s"},
+      "expected_debug": false
+    },
+    "domains_optional": {
+      "env": {"WGROK_TOKEN": "tok", "WGROK_TARGET": "bot@x.com", "WGROK_SLUG": "s"},
+      "expected_domains": []
+    }
+  },
+
+  "bot": {
+    "valid": {
+      "env": {"WGROK_TOKEN": "bottok", "WGROK_DOMAINS": "example.com"},
+      "expected": {
+        "webex_token": "bottok",
+        "domains": ["example.com"]
+      }
+    },
+    "missing_domains": {
+      "env": {"WGROK_TOKEN": "bottok"},
+      "error_contains": "WGROK_DOMAINS"
+    }
+  },
+
+  "receiver": {
+    "valid": {
+      "env": {"WGROK_TOKEN": "tok", "WGROK_SLUG": "myslug", "WGROK_DOMAINS": "example.com"},
+      "expected": {
+        "webex_token": "tok",
+        "slug": "myslug",
+        "domains": ["example.com"]
+      }
+    }
+  },
+
+  "debug_truthy_values": ["true", "1", "yes", "True", "YES"],
+  "debug_falsy_values": ["false", "0", "no", ""]
+}

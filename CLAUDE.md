@@ -41,6 +41,10 @@ domains=domain.tld,*@domain.tld
 {slug}=agentid
 ```
 
+## Shared Test Cases
+
+Test cases are defined as JSON in `tests/` at the repo root (e.g., `tests/protocol_cases.json`). Each language has thin shims that load these JSON files and run assertions. Fix a test case once, it applies to all languages.
+
 ## Build & Test Commands
 
 ### Python
@@ -52,4 +56,17 @@ ruff check src/ tests/ tests_e2e/  # lint
 pytest tests/ -v               # unit tests
 pytest tests_e2e/ -v           # e2e tests
 pytest tests/ tests_e2e/ -v    # all tests
+```
+
+### Go
+
+```bash
+cd go
+go mod tidy                    # resolve dependencies
+go build ./...                 # build all packages
+go vet ./...                   # lint
+go test ./... -v               # all tests
+go run ./cmd/sender <payload>  # run sender
+go run ./cmd/echobot           # run echo bot
+go run ./cmd/receiver          # run receiver
 ```

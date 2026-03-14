@@ -1,0 +1,60 @@
+{
+  "config": {
+    "slug": "testagent",
+    "domains": ["example.com"]
+  },
+
+  "cases": [
+    {
+      "name": "calls_handler_on_slug_match",
+      "sender": "user@example.com",
+      "text": "testagent:hello world",
+      "cards": [],
+      "expect_handler": true,
+      "expected_slug": "testagent",
+      "expected_payload": "hello world",
+      "expected_cards": []
+    },
+    {
+      "name": "ignores_wrong_slug",
+      "sender": "user@example.com",
+      "text": "otheragent:payload",
+      "cards": [],
+      "expect_handler": false
+    },
+    {
+      "name": "rejects_disallowed_sender",
+      "sender": "hacker@evil.com",
+      "text": "testagent:payload",
+      "cards": [],
+      "expect_handler": false
+    },
+    {
+      "name": "handles_payload_with_colons",
+      "sender": "user@example.com",
+      "text": "testagent:a:b:c",
+      "cards": [],
+      "expect_handler": true,
+      "expected_slug": "testagent",
+      "expected_payload": "a:b:c",
+      "expected_cards": []
+    },
+    {
+      "name": "ignores_unparseable_message",
+      "sender": "user@example.com",
+      "text": ":no slug",
+      "cards": [],
+      "expect_handler": false
+    },
+    {
+      "name": "passes_cards_to_handler",
+      "sender": "user@example.com",
+      "text": "testagent:data",
+      "cards": [{"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}],
+      "expect_handler": true,
+      "expected_slug": "testagent",
+      "expected_payload": "data",
+      "expected_cards": [{"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}]
+    }
+  ]
+}

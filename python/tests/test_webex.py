@@ -1,4 +1,7 @@
-"""Tests for wgrok.webex - Webex REST client."""
+"""Tests for wgrok.webex - driven by shared test cases for extract_cards."""
+
+import json
+from pathlib import Path
 
 import aiohttp
 import pytest
@@ -15,6 +18,15 @@ from wgrok.webex import (
     send_card,
     send_message,
 )
+
+CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "webex_cases.json").read_text())
+
+
+class TestExtractCards:
+    @pytest.mark.parametrize("tc", CASES["extract_cards"], ids=lambda tc: tc["name"])
+    def test_cases(self, tc):
+        result = extract_cards(tc["message"])
+        assert result == tc["expected"]
 
 
 class TestSendMessage:
@@ -83,38 +95,3 @@ class TestGetAttachmentAction:
             m.get(f"{WEBEX_ATTACHMENT_ACTIONS_URL}/act-1", payload=action_data)
             result = await get_attachment_action("tok", "act-1")
             assert result == action_data
-
-
-class TestExtractCards:
-    def test_extracts_adaptive_cards(self):
-        card = {"type": "AdaptiveCard", "body": []}
-        msg = {
-            "attachments": [
-                {"contentType": ADAPTIVE_CARD_CONTENT_TYPE, "content": card},
-            ]
-        }
-        assert extract_cards(msg) == [card]
-
-    def test_ignores_non_card_attachments(self):
-        msg = {
-            "attachments": [
-                {"contentType": "image/png", "content": {}},
-            ]
-        }
-        assert extract_cards(msg) == []
-
-    def test_handles_no_attachments(self):
-        assert extract_cards({}) == []
-        assert extract_cards({"attachments": None}) == []
-        assert extract_cards({"attachments": []}) == []
-
-    def test_multiple_cards(self):
-        card1 = {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "1"}]}
-        card2 = {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "2"}]}
-        msg = {
-            "attachments": [
-                {"contentType": ADAPTIVE_CARD_CONTENT_TYPE, "content": card1},
-                {"contentType": ADAPTIVE_CARD_CONTENT_TYPE, "content": card2},
-            ]
-        }
-        assert extract_cards(msg) == [card1, card2]

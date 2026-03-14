@@ -1,0 +1,82 @@
+{
+  "cases": [
+    {
+      "name": "domain_match",
+      "patterns": ["example.com"],
+      "email": "user@example.com",
+      "expected": true
+    },
+    {
+      "name": "domain_no_match",
+      "patterns": ["example.com"],
+      "email": "user@other.com",
+      "expected": false
+    },
+    {
+      "name": "wildcard_match",
+      "patterns": ["*@example.com"],
+      "email": "anyone@example.com",
+      "expected": true
+    },
+    {
+      "name": "exact_match_positive",
+      "patterns": ["admin@example.com"],
+      "email": "admin@example.com",
+      "expected": true
+    },
+    {
+      "name": "exact_match_negative",
+      "patterns": ["admin@example.com"],
+      "email": "other@example.com",
+      "expected": false
+    },
+    {
+      "name": "case_insensitive",
+      "patterns": ["Example.COM"],
+      "email": "User@EXAMPLE.com",
+      "expected": true
+    },
+    {
+      "name": "multiple_patterns_domain",
+      "patterns": ["example.com", "user@trusted.org"],
+      "email": "anyone@example.com",
+      "expected": true
+    },
+    {
+      "name": "multiple_patterns_exact",
+      "patterns": ["example.com", "user@trusted.org"],
+      "email": "user@trusted.org",
+      "expected": true
+    },
+    {
+      "name": "multiple_patterns_rejected",
+      "patterns": ["example.com", "user@trusted.org"],
+      "email": "other@trusted.org",
+      "expected": false
+    },
+    {
+      "name": "empty_patterns",
+      "patterns": [],
+      "email": "user@example.com",
+      "expected": false
+    },
+    {
+      "name": "whitespace_stripped_domain",
+      "patterns": ["  example.com  ", " user@test.com "],
+      "email": "a@example.com",
+      "expected": true
+    },
+    {
+      "name": "whitespace_stripped_exact",
+      "patterns": ["  example.com  ", " user@test.com "],
+      "email": "user@test.com",
+      "expected": true
+    },
+    {
+      "name": "empty_string_pattern_ignored",
+      "patterns": ["", "example.com", "  "],
+      "email": "a@example.com",
+      "expected": true
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "config": {
+    "domains": ["example.com", "*@trusted.org"]
+  },
+
+  "cases": [
+    {
+      "name": "relays_valid_echo_no_cards",
+      "sender": "user@example.com",
+      "text": "./echo:myslug:hello",
+      "cards": [],
+      "expect_send": true,
+      "expected_reply_to": "user@example.com",
+      "expected_reply_text": "myslug:hello",
+      "expected_reply_card": null
+    },
+    {
+      "name": "relays_echo_with_card",
+      "sender": "user@example.com",
+      "text": "./echo:myslug:hello",
+      "cards": [{"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}],
+      "expect_send": true,
+      "expected_reply_to": "user@example.com",
+      "expected_reply_text": "myslug:hello",
+      "expected_reply_card": {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}
+    },
+    {
+      "name": "rejects_disallowed_sender",
+      "sender": "hacker@evil.com",
+      "text": "./echo:slug:payload",
+      "cards": [],
+      "expect_send": false
+    },
+    {
+      "name": "ignores_non_echo",
+      "sender": "user@example.com",
+      "text": "just a regular message",
+      "cards": [],
+      "expect_send": false
+    },
+    {
+      "name": "handles_malformed_echo",
+      "sender": "user@example.com",
+      "text": "./echo::payload",
+      "cards": [],
+      "expect_send": false
+    },
+    {
+      "name": "preserves_colons_in_payload",
+      "sender": "user@example.com",
+      "text": "./echo:slug:a:b:c",
+      "cards": [],
+      "expect_send": true,
+      "expected_reply_to": "user@example.com",
+      "expected_reply_text": "slug:a:b:c",
+      "expected_reply_card": null
+    },
+    {
+      "name": "trusted_org_wildcard",
+      "sender": "anyone@trusted.org",
+      "text": "./echo:s:p",
+      "cards": [],
+      "expect_send": true,
+      "expected_reply_to": "anyone@trusted.org",
+      "expected_reply_text": "s:p",
+      "expected_reply_card": null
+    }
+  ]
+}

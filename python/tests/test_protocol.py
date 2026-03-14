@@ -1,4 +1,7 @@
-"""Tests for wgrok.protocol - message format, parse, and validate."""
+"""Tests for wgrok.protocol - driven by shared test cases."""
+
+import json
+from pathlib import Path
 
 import pytest
 
@@ -11,94 +14,69 @@ from wgrok.protocol import (
     parse_response,
 )
 
+CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "protocol_cases.json").read_text())
+
+
+class TestEchoPrefix:
+    def test_constant(self):
+        assert CASES["echo_prefix"] == ECHO_PREFIX
+
 
 class TestFormatEcho:
-    def test_basic(self):
-        assert format_echo("myslug", "hello") == "./echo:myslug:hello"
-
-    def test_empty_payload(self):
-        assert format_echo("myslug", "") == "./echo:myslug:"
-
-    def test_payload_with_colons(self):
-        assert format_echo("slug", "a:b:c") == "./echo:slug:a:b:c"
+    @pytest.mark.parametrize("tc", CASES["format_echo"], ids=lambda tc: tc["expected"])
+    def test_cases(self, tc):
+        assert format_echo(tc["slug"], tc["payload"]) == tc["expected"]
 
 
 class TestParseEcho:
-    def test_basic(self):
-        slug, payload = parse_echo("./echo:myslug:hello")
-        assert slug == "myslug"
-        assert payload == "hello"
+    @pytest.mark.parametrize("tc", CASES["parse_echo"]["valid"], ids=lambda tc: tc["input"])
+    def test_valid(self, tc):
+        slug, payload = parse_echo(tc["input"])
+        assert slug == tc["slug"]
+        assert payload == tc["payload"]
 
-    def test_empty_payload(self):
-        slug, payload = parse_echo("./echo:myslug:")
-        assert slug == "myslug"
-        assert payload == ""
-
-    def test_colons_in_payload(self):
-        slug, payload = parse_echo("./echo:slug:a:b:c")
-        assert slug == "slug"
-        assert payload == "a:b:c"
-
-    def test_not_echo_raises(self):
-        with pytest.raises(ValueError, match="Not an echo message"):
-            parse_echo("plain text")
-
-    def test_empty_slug_raises(self):
-        with pytest.raises(ValueError, match="Empty slug"):
-            parse_echo("./echo::payload")
-
-    def test_roundtrip(self):
-        original_slug, original_payload = "agent1", "some data here"
-        text = format_echo(original_slug, original_payload)
-        slug, payload = parse_echo(text)
-        assert slug == original_slug
-        assert payload == original_payload
+    @pytest.mark.parametrize("tc", CASES["parse_echo"]["errors"], ids=lambda tc: tc["input"])
+    def test_errors(self, tc):
+        with pytest.raises(ValueError, match="(?i)" + tc["error_contains"]):
+            parse_echo(tc["input"])
 
 
 class TestIsEcho:
-    def test_echo_message(self):
-        assert is_echo("./echo:slug:payload") is True
-
-    def test_not_echo(self):
-        assert is_echo("slug:payload") is False
-
-    def test_empty_string(self):
-        assert is_echo("") is False
-
-    def test_prefix_constant(self):
-        assert ECHO_PREFIX == "./echo:"
+    @pytest.mark.parametrize("tc", CASES["is_echo"], ids=lambda tc: tc["input"] or "(empty)")
+    def test_cases(self, tc):
+        assert is_echo(tc["input"]) is tc["expected"]
 
 
 class TestFormatResponse:
-    def test_basic(self):
-        assert format_response("myslug", "hello") == "myslug:hello"
-
-    def test_empty_payload(self):
-        assert format_response("myslug", "") == "myslug:"
+    @pytest.mark.parametrize("tc", CASES["format_response"], ids=lambda tc: tc["expected"])
+    def test_cases(self, tc):
+        assert format_response(tc["slug"], tc["payload"]) == tc["expected"]
 
 
 class TestParseResponse:
-    def test_basic(self):
-        slug, payload = parse_response("myslug:hello")
-        assert slug == "myslug"
-        assert payload == "hello"
+    @pytest.mark.parametrize("tc", CASES["parse_response"]["valid"], ids=lambda tc: tc["input"])
+    def test_valid(self, tc):
+        slug, payload = parse_response(tc["input"])
+        assert slug == tc["slug"]
+        assert payload == tc["payload"]
 
-    def test_colons_in_payload(self):
-        slug, payload = parse_response("slug:a:b:c")
-        assert slug == "slug"
-        assert payload == "a:b:c"
+    @pytest.mark.parametrize("tc", CASES["parse_response"]["errors"], ids=lambda tc: tc["input"])
+    def test_errors(self, tc):
+        with pytest.raises(ValueError, match="(?i)" + tc["error_contains"]):
+            parse_response(tc["input"])
 
-    def test_no_colon(self):
-        slug, payload = parse_response("justslug")
-        assert slug == "justslug"
-        assert payload == ""
 
-    def test_empty_slug_raises(self):
-        with pytest.raises(ValueError, match="Empty slug"):
-            parse_response(":payload")
+class TestRoundtrips:
+    @pytest.mark.parametrize("tc", CASES["roundtrips"]["echo"])
+    def test_echo(self, tc):
+        text = format_echo(tc["slug"], tc["payload"])
+        slug, payload = parse_echo(text)
+        assert slug == tc["slug"]
+        assert payload == tc["payload"]
 
-    def test_roundtrip(self):
-        text = format_response("agent1", "data")
+    @pytest.mark.parametrize("tc", CASES["roundtrips"]["response"])
+    def test_response(self, tc):
+        text = format_response(tc["slug"], tc["payload"])
         slug, payload = parse_response(text)
-        assert slug == "agent1"
-        assert payload == "data"
+        assert slug == tc["slug"]
+        assert payload == tc["payload"]

@@ -1,0 +1,52 @@
+{
+  "echo_prefix": "./echo:",
+
+  "format_echo": [
+    {"slug": "myslug", "payload": "hello", "expected": "./echo:myslug:hello"},
+    {"slug": "myslug", "payload": "", "expected": "./echo:myslug:"},
+    {"slug": "slug", "payload": "a:b:c", "expected": "./echo:slug:a:b:c"}
+  ],
+
+  "parse_echo": {
+    "valid": [
+      {"input": "./echo:myslug:hello", "slug": "myslug", "payload": "hello"},
+      {"input": "./echo:myslug:", "slug": "myslug", "payload": ""},
+      {"input": "./echo:slug:a:b:c", "slug": "slug", "payload": "a:b:c"}
+    ],
+    "errors": [
+      {"input": "plain text", "error_contains": "not an echo"},
+      {"input": "./echo::payload", "error_contains": "empty slug"}
+    ]
+  },
+
+  "is_echo": [
+    {"input": "./echo:slug:payload", "expected": true},
+    {"input": "slug:payload", "expected": false},
+    {"input": "", "expected": false}
+  ],
+
+  "format_response": [
+    {"slug": "myslug", "payload": "hello", "expected": "myslug:hello"},
+    {"slug": "myslug", "payload": "", "expected": "myslug:"}
+  ],
+
+  "parse_response": {
+    "valid": [
+      {"input": "myslug:hello", "slug": "myslug", "payload": "hello"},
+      {"input": "slug:a:b:c", "slug": "slug", "payload": "a:b:c"},
+      {"input": "justslug", "slug": "justslug", "payload": ""}
+    ],
+    "errors": [
+      {"input": ":payload", "error_contains": "empty slug"}
+    ]
+  },
+
+  "roundtrips": {
+    "echo": [
+      {"slug": "agent1", "payload": "some data here"}
+    ],
+    "response": [
+      {"slug": "agent1", "payload": "data"}
+    ]
+  }
+}
