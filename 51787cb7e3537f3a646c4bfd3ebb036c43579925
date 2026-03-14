@@ -1,0 +1,59 @@
+python/tests/conftest.py
+  fc445375822781d8 12
+python/tests_e2e/test_full_flow.py
+  fc445375822781d8 1,9,15,18,25,36,43,51,69,84,117,128,145-146,153
+asyncapi.yaml
+  fc445375822781d8 242,460,474,514
+tests/sender_cases.json
+  fc445375822781d8 4,14,22,30,38
+python/tests_e2e/conftest.py
+  fc445375822781d8 12
+rust/src/router_bot.rs
+  fc445375822781d8 13,21,23,81
+CLAUDE.md
+  fc445375822781d8 14,22,34,70
+go/router_bot_test.go
+  fc445375822781d8 14,45-46,73
+python/src/wgrok/__init__.py
+  fc445375822781d8 5,15
+ts/src/router-bot.ts
+  fc445375822781d8 8,19,51
+go/cmd/routerbot/main.go
+  fc445375822781d8 15,23
+python/src/wgrok/router_bot.py
+  fc445375822781d8 25,46,67
+go/router_bot.go
+  fc445375822781d8 23-25,28,59,64-65,86,121,159
+rust/tests/router_bot_test.rs
+  fc445375822781d8 11-12,14,18,23,36-38,64,83
+README.md
+  fc445375822781d8 44,46,110,386,425
+python/run_routerbot.py
+  fc445375822781d8 1-27
+ts/tests/router-bot.test.ts
+  fc445375822781d8 21,37,39,59
+python/tests/test_router_bot.py
+  fc445375822781d8 1,10-12,24,28,37-38
+tests/run_all.sh
+  fc445375822781d8 22,31,33,45,56,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "51787cb7e3537f3a646c4bfd3ebb036c43579925",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 145,
+      "total_deletions": 118,
+      "accepted_lines": 118,
+      "overriden_lines": 2
+    }
+  }
+}
