@@ -1,0 +1,97 @@
+ts/tests/sender.test.ts
+  fc445375822781d8 1-63
+rust/src/sender.rs
+  fc445375822781d8 1-38
+ts/tests/allowlist.test.ts
+  fc445375822781d8 1-15
+rust/tests/webex_test.rs
+  fc445375822781d8 1-30
+rust/tests/config_test.rs
+  fc445375822781d8 1-201
+ts/tests/receiver.test.ts
+  fc445375822781d8 1-69
+ts/src/logging.ts
+  fc445375822781d8 1-39
+rust/tests/protocol_test.rs
+  fc445375822781d8 1-160
+rust/.env.example
+  fc445375822781d8 1-16
+ts/tests/protocol.test.ts
+  fc445375822781d8 1-99
+ts/src/sender.ts
+  fc445375822781d8 1-25
+ts/src/protocol.ts
+  fc445375822781d8 1-37
+ts/tsconfig.json
+  fc445375822781d8 1-17
+ts/tests/echo-bot.test.ts
+  fc445375822781d8 1-85
+ts/src/receiver.ts
+  fc445375822781d8 1-106
+rust/src/lib.rs
+  fc445375822781d8 1-17
+ts/tests/config.test.ts
+  fc445375822781d8 1-99
+ts/tests/webex.test.ts
+  fc445375822781d8 1-18
+rust/src/protocol.rs
+  fc445375822781d8 1-39
+rust/src/logging.rs
+  fc445375822781d8 1-104
+ts/tests/helpers.ts
+  fc445375822781d8 1-11
+ts/package.json
+  fc445375822781d8 1-33
+rust/Cargo.toml
+  fc445375822781d8 1-18
+rust/src/config.rs
+  fc445375822781d8 1-74
+ts/src/webex.ts
+  fc445375822781d8 1-118
+CLAUDE.md
+  fc445375822781d8 73-90
+rust/src/receiver.rs
+  fc445375822781d8 1-138
+rust/src/allowlist.rs
+  fc445375822781d8 1-59
+ts/src/allowlist.ts
+  fc445375822781d8 1-20
+rust/src/webex.rs
+  fc445375822781d8 1-139
+rust/tests/allowlist_test.rs
+  fc445375822781d8 1-37
+ts/src/index.ts
+  fc445375822781d8 1-32
+.gitignore
+  fc445375822781d8 16-22
+ts/src/echo-bot.ts
+  fc445375822781d8 1-101
+ts/jest.config.cjs
+  fc445375822781d8 3,6,9-19
+ts/.env.example
+  fc445375822781d8 1-16
+ts/src/config.ts
+  fc445375822781d8 1-74
+rust/src/echo_bot.rs
+  fc445375822781d8 1-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "afd0c88bb1a7a6fc64d2e9757dc0d684e447c5d0",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 2458,
+      "total_deletions": 104,
+      "accepted_lines": 2355,
+      "overriden_lines": 0
+    }
+  }
+}
