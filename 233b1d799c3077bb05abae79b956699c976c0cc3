@@ -1,0 +1,29 @@
+python/pyproject.toml
+  fc445375822781d8 11-12,18-19,21
+ts/eslint.config.js
+  fc445375822781d8 1-19
+rust/Cargo.toml
+  fc445375822781d8 4,6
+go/go.mod
+  fc445375822781d8 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "233b1d799c3077bb05abae79b956699c976c0cc3",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 8,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  }
+}
