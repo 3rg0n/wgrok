@@ -11,7 +11,7 @@ from .allowlist import Allowlist
 from .config import BotConfig
 from .logging import get_logger
 from .protocol import format_response, is_echo, parse_echo
-from .webex import send_message
+from .webex import extract_cards, get_message, send_card, send_message
 
 
 class WgrokEchoBot:
@@ -30,7 +30,7 @@ class WgrokEchoBot:
         self._handler = WebexMessageHandler(wmh_config)
 
         @self._handler.on("message:created")
-        async def on_message(message: dict) -> None:
+        async def on_message(message) -> None:
             await self._on_message(message)
 
         self._logger.info("Echo bot starting")
@@ -50,8 +50,13 @@ class WgrokEchoBot:
         self._logger.info("Echo bot stopped")
 
     async def _on_message(self, message) -> None:
-        """Process an incoming message: check allowlist, parse echo, relay response."""
+        """Process an incoming message: check allowlist, parse echo, relay response.
+
+        If the original message includes adaptive card attachments, they are
+        fetched via REST API and relayed alongside the response text.
+        """
         sender = message.person_email if hasattr(message, "person_email") else message.get("personEmail", "")
+        msg_id = message.id if hasattr(message, "id") else message.get("id", "")
         raw_text = message.text if hasattr(message, "text") else message.get("text", "")
         text = (raw_text or "").strip()
 
@@ -70,5 +75,24 @@ class WgrokEchoBot:
             return
 
         response = format_response(slug, payload)
-        self._logger.info(f"Relaying to {sender}: {response}")
-        await send_message(self._config.webex_token, sender, response, self._session)
+
+        # Check for card attachments on the original message
+        cards = await self._fetch_cards(msg_id)
+
+        if cards:
+            self._logger.info(f"Relaying to {sender}: {response} (with {len(cards)} card(s))")
+            await send_card(self._config.webex_token, sender, response, cards[0], self._session)
+        else:
+            self._logger.info(f"Relaying to {sender}: {response}")
+            await send_message(self._config.webex_token, sender, response, self._session)
+
+    async def _fetch_cards(self, message_id: str) -> list[dict]:
+        """Fetch card attachments from the original message via REST API."""
+        if not message_id:
+            return []
+        try:
+            full_msg = await get_message(self._config.webex_token, message_id, self._session)
+            return extract_cards(full_msg)
+        except Exception as e:
+            self._logger.debug(f"Could not fetch message attachments: {e}")
+            return []

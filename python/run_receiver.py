@@ -9,8 +9,10 @@ from wgrok.receiver import WgrokReceiver
 ENV_FILE = Path(__file__).parent / ".env.receiver"
 
 
-async def on_message(slug: str, payload: str) -> None:
+async def on_message(slug: str, payload: str, cards: list[dict]) -> None:
     print(f"[RECEIVED] slug={slug!r} payload={payload!r}")
+    if cards:
+        print(f"  with {len(cards)} adaptive card(s)")
 
 
 async def main() -> None:

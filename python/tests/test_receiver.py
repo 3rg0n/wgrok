@@ -1,6 +1,6 @@
 """Tests for wgrok.receiver - WgrokReceiver message handling."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from wgrok.receiver import WgrokReceiver
 
@@ -11,8 +11,9 @@ class TestWgrokReceiver:
         receiver = WgrokReceiver(receiver_config, handler)
         msg = fake_message("testagent:hello world")
 
-        await receiver._on_message(msg)
-        handler.assert_called_once_with("testagent", "hello world")
+        with patch.object(receiver, "_fetch_cards", return_value=[]):
+            await receiver._on_message(msg)
+        handler.assert_called_once_with("testagent", "hello world", [])
 
     async def test_ignores_wrong_slug(self, receiver_config, fake_message):
         handler = AsyncMock()
@@ -35,8 +36,9 @@ class TestWgrokReceiver:
         receiver = WgrokReceiver(receiver_config, handler)
         msg = fake_message("testagent:a:b:c")
 
-        await receiver._on_message(msg)
-        handler.assert_called_once_with("testagent", "a:b:c")
+        with patch.object(receiver, "_fetch_cards", return_value=[]):
+            await receiver._on_message(msg)
+        handler.assert_called_once_with("testagent", "a:b:c", [])
 
     async def test_ignores_unparseable_message(self, receiver_config, fake_message):
         handler = AsyncMock()
@@ -45,3 +47,13 @@ class TestWgrokReceiver:
 
         await receiver._on_message(msg)
         handler.assert_not_called()
+
+    async def test_passes_cards_to_handler(self, receiver_config, fake_message):
+        handler = AsyncMock()
+        receiver = WgrokReceiver(receiver_config, handler)
+        msg = fake_message("testagent:data")
+        sample_card = {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}
+
+        with patch.object(receiver, "_fetch_cards", return_value=[sample_card]):
+            await receiver._on_message(msg)
+        handler.assert_called_once_with("testagent", "data", [sample_card])

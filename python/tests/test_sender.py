@@ -33,7 +33,39 @@ class TestWgrokSender:
         finally:
             await sender.close()
 
+    async def test_send_with_card(self, sender_config):
+        sender = WgrokSender(sender_config)
+        card = {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}
+        try:
+            with patch("wgrok.sender.send_card", new_callable=AsyncMock) as mock_card:
+                mock_card.return_value = {"id": "card-1"}
+                result = await sender.send("hello", card=card)
+
+                assert result == {"id": "card-1"}
+                mock_card.assert_called_once()
+                args = mock_card.call_args
+                assert args[0][0] == "fake-token"
+                assert args[0][1] == "echobot@example.com"
+                assert args[0][2] == "./echo:testagent:hello"
+                assert args[0][3] == card
+        finally:
+            await sender.close()
+
+    async def test_send_without_card_uses_send_message(self, sender_config):
+        sender = WgrokSender(sender_config)
+        try:
+            with (
+                patch("wgrok.sender.send_message", new_callable=AsyncMock) as mock_msg,
+                patch("wgrok.sender.send_card", new_callable=AsyncMock) as mock_card,
+            ):
+                mock_msg.return_value = {"id": "msg-3"}
+                await sender.send("no card")
+                mock_msg.assert_called_once()
+                mock_card.assert_not_called()
+        finally:
+            await sender.close()
+
     async def test_close_idempotent(self, sender_config):
         sender = WgrokSender(sender_config)
         await sender.close()
-        await sender.close()  # should not raise
+        await sender.close()
