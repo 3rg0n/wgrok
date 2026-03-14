@@ -1,0 +1,438 @@
+asyncapi: 3.0.0
+
+info:
+  title: wgrok
+  version: 1.0.0
+  description: |
+    An ngrok-style tunnel that uses the Webex API as a message bus.
+
+    wgrok enables agents, services, and registered endpoints to send and receive
+    messages between systems even when firewalls or network rules prevent direct
+    webhooks. It uses Cisco Webex as the transport layer — messages are sent via
+    the Webex REST API and received via the Webex Mercury WebSocket.
+
+    ## How it works
+
+    ```
+    Sender ──./echo:{slug}:{payload}──► Echo Bot ──{slug}:{payload}──► Receiver
+                  (Webex REST)              │           (Webex WebSocket)
+                                            │
+                                       Validates allowlist
+                                       Strips ./echo: prefix
+                                       Replies to sender
+    ```
+
+    1. **Sender** formats the payload as `./echo:{slug}:{payload}` and POSTs it
+       to the echo bot's Webex account via the Webex Messages API.
+    2. **Echo bot** receives the message over a persistent WebSocket connection,
+       validates the sender against a domain allowlist, strips the `./echo:` prefix,
+       and sends the response `{slug}:{payload}` back to the originating sender.
+    3. **Receiver** listens on its own WebSocket, checks the allowlist, matches
+       the slug to its configured value, and delivers the payload to the application.
+
+    ## Protocol version
+
+    This document describes wgrok protocol **v1.0**.
+  license:
+    name: MIT
+  contact:
+    name: wgrok
+    url: https://github.com/3rg0n/wgrok
+
+defaultContentType: text/plain
+
+channels:
+  echoRequest:
+    address: webex/messages/echo-request
+    title: Echo Request
+    description: |
+      Channel from sender to echo bot. The sender POSTs a Webex message
+      to the echo bot's email address. The message text contains the echo
+      request in the format `./echo:{slug}:{payload}`.
+
+      Transport: Webex Messages REST API (`POST /v1/messages`).
+    messages:
+      echoRequest:
+        $ref: '#/components/messages/EchoRequest'
+
+  echoResponse:
+    address: webex/messages/echo-response
+    title: Echo Response
+    description: |
+      Channel from echo bot back to the sender/receiver. The echo bot
+      sends a Webex message to the original sender's email address.
+      The message text contains the response in the format `{slug}:{payload}`.
+
+      Transport: Webex Messages REST API (`POST /v1/messages`), received
+      by the receiver over the Webex Mercury WebSocket.
+    messages:
+      echoResponse:
+        $ref: '#/components/messages/EchoResponse'
+
+operations:
+  sendEchoRequest:
+    action: send
+    channel:
+      $ref: '#/channels/echoRequest'
+    title: Send Echo Request
+    summary: Sender formats and transmits an echo request to the echo bot.
+    description: |
+      The sender wraps the payload with the echo prefix and slug, then
+      sends it as a Webex message to the configured echo bot target email.
+
+      The message may optionally include an Adaptive Card attachment,
+      which the echo bot will forward along with the text response.
+    messages:
+      - $ref: '#/channels/echoRequest/messages/echoRequest'
+
+  receiveEchoRequest:
+    action: receive
+    channel:
+      $ref: '#/channels/echoRequest'
+    title: Receive Echo Request
+    summary: Echo bot receives and validates an incoming echo request.
+    description: |
+      The echo bot receives the message over its Webex Mercury WebSocket
+      connection. Processing steps:
+
+      1. **Allowlist check** — verify `personEmail` matches configured domain patterns.
+         If rejected, the message is silently dropped.
+      2. **Echo prefix check** — verify the message text starts with `./echo:`.
+         Non-echo messages are silently ignored.
+      3. **Parse** — extract `{slug}` and `{payload}` from the echo format.
+         Malformed messages (empty slug) are dropped with an error log.
+      4. **Relay** — format the response as `{slug}:{payload}` and send it
+         back to the original sender's email address. If the original message
+         had Adaptive Card attachments, the first card is forwarded.
+    messages:
+      - $ref: '#/channels/echoRequest/messages/echoRequest'
+
+  sendEchoResponse:
+    action: send
+    channel:
+      $ref: '#/channels/echoResponse'
+    title: Send Echo Response
+    summary: Echo bot relays the stripped message back to the sender.
+    messages:
+      - $ref: '#/channels/echoResponse/messages/echoResponse'
+
+  receiveEchoResponse:
+    action: receive
+    channel:
+      $ref: '#/channels/echoResponse'
+    title: Receive Echo Response
+    summary: Receiver matches the slug and delivers the payload to the application.
+    description: |
+      The receiver listens on its Webex Mercury WebSocket and processes
+      incoming messages:
+
+      1. **Allowlist check** — verify the sender is authorized.
+      2. **Parse response** — extract `{slug}` and `{payload}` from the text.
+         Messages that cannot be parsed are silently ignored.
+      3. **Slug match** — compare the extracted slug to the receiver's configured slug.
+         Non-matching slugs are ignored (allows multiple receivers on the same account).
+      4. **Deliver** — invoke the application handler with the slug, payload,
+         and any Adaptive Card attachments.
+    messages:
+      - $ref: '#/channels/echoResponse/messages/echoResponse'
+
+components:
+  messages:
+    EchoRequest:
+      name: EchoRequest
+      title: Echo Request Message
+      summary: A message sent from a sender to the echo bot for relay.
+      contentType: text/plain
+      payload:
+        $ref: '#/components/schemas/EchoRequestPayload'
+      headers:
+        $ref: '#/components/schemas/WebexMessageEnvelope'
+      examples:
+        - name: Simple text
+          summary: Basic echo request with a text payload
+          headers:
+            personEmail: sender@example.com
+            toPersonEmail: echobot@webex.bot
+          payload:
+            text: ./echo:myagent:hello world
+        - name: With colons in payload
+          summary: Payload containing colon characters (split on first colon after slug)
+          headers:
+            personEmail: sender@example.com
+            toPersonEmail: echobot@webex.bot
+          payload:
+            text: ./echo:myagent:key:value:data
+        - name: With Adaptive Card
+          summary: Echo request carrying an Adaptive Card attachment
+          headers:
+            personEmail: sender@example.com
+            toPersonEmail: echobot@webex.bot
+          payload:
+            text: ./echo:myagent:card payload
+            attachments:
+              - contentType: application/vnd.microsoft.card.adaptive
+                content:
+                  type: AdaptiveCard
+                  body:
+                    - type: TextBlock
+                      text: Hello from sender
+
+    EchoResponse:
+      name: EchoResponse
+      title: Echo Response Message
+      summary: A message relayed from the echo bot back to the sender/receiver.
+      contentType: text/plain
+      payload:
+        $ref: '#/components/schemas/EchoResponsePayload'
+      headers:
+        $ref: '#/components/schemas/WebexMessageEnvelope'
+      examples:
+        - name: Simple response
+          summary: Basic response after echo prefix is stripped
+          headers:
+            personEmail: echobot@webex.bot
+            toPersonEmail: sender@example.com
+          payload:
+            text: myagent:hello world
+        - name: With forwarded card
+          summary: Response with Adaptive Card attachment forwarded from the request
+          headers:
+            personEmail: echobot@webex.bot
+            toPersonEmail: sender@example.com
+          payload:
+            text: myagent:card payload
+            attachments:
+              - contentType: application/vnd.microsoft.card.adaptive
+                content:
+                  type: AdaptiveCard
+                  body:
+                    - type: TextBlock
+                      text: Hello from sender
+
+  schemas:
+    EchoRequestPayload:
+      type: object
+      description: |
+        The body of an echo request Webex message. The `text` field contains
+        the wgrok echo format: `./echo:{slug}:{payload}`.
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: |
+            The echo-formatted message text. Must match the pattern
+            `./echo:{slug}:{payload}` where slug is non-empty.
+            The payload is everything after the second colon and may
+            contain additional colons.
+          pattern: '^\./echo:[^:]+:.*$'
+          examples:
+            - ./echo:myagent:hello world
+            - ./echo:deploy:{"service":"api","version":"2.1.0"}
+            - ./echo:otel:trace_id=abc123
+        attachments:
+          type: array
+          description: Optional Adaptive Card attachments forwarded through the relay.
+          items:
+            $ref: '#/components/schemas/CardAttachment'
+
+    EchoResponsePayload:
+      type: object
+      description: |
+        The body of an echo response Webex message. The `text` field contains
+        the response format: `{slug}:{payload}` (echo prefix stripped).
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: |
+            The response message text. Format is `{slug}:{payload}` where
+            the `./echo:` prefix has been removed by the echo bot.
+            If the original payload was empty, format is `{slug}:`.
+          pattern: '^[^:]+:.*$'
+          examples:
+            - myagent:hello world
+            - deploy:{"service":"api","version":"2.1.0"}
+        attachments:
+          type: array
+          description: Adaptive Card attachments forwarded from the original request.
+          items:
+            $ref: '#/components/schemas/CardAttachment'
+
+    CardAttachment:
+      type: object
+      description: A Webex Adaptive Card attachment.
+      required:
+        - contentType
+        - content
+      properties:
+        contentType:
+          type: string
+          const: application/vnd.microsoft.card.adaptive
+          description: Must be `application/vnd.microsoft.card.adaptive`.
+        content:
+          type: object
+          description: |
+            The Adaptive Card JSON body. Follows the Microsoft Adaptive Card
+            schema (https://adaptivecards.io/schemas/adaptive-card.json).
+          properties:
+            type:
+              type: string
+              const: AdaptiveCard
+            body:
+              type: array
+              items:
+                type: object
+          required:
+            - type
+
+    WebexMessageEnvelope:
+      type: object
+      description: |
+        Webex message metadata available on both sent and received messages.
+        These fields come from the Webex Messages API, not the wgrok protocol itself.
+      properties:
+        personEmail:
+          type: string
+          format: email
+          description: Email address of the message sender.
+          examples:
+            - sender@example.com
+            - echobot@webex.bot
+        toPersonEmail:
+          type: string
+          format: email
+          description: Email address of the message recipient (used when sending).
+          examples:
+            - echobot@webex.bot
+            - sender@example.com
+        id:
+          type: string
+          description: Unique Webex message ID.
+        roomId:
+          type: string
+          description: Webex room/conversation ID.
+        personId:
+          type: string
+          description: Webex user ID of the sender.
+        created:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of message creation.
+
+    Slug:
+      type: string
+      description: |
+        A message bus routing tag. Each receiver is configured with a slug
+        and only processes messages matching that slug. The slug must be
+        non-empty and must not contain a colon as the first character.
+
+        Slugs enable multiple independent agents to share the same echo bot
+        and Webex account without interfering with each other.
+      minLength: 1
+      pattern: '^[^:]+$'
+      examples:
+        - myagent
+        - deploy-service
+        - otel-collector
+
+    AllowlistPattern:
+      type: string
+      description: |
+        A pattern used to authorize message senders. The allowlist prevents
+        unauthorized users from relaying messages through the echo bot.
+
+        Three pattern formats are supported:
+        - **Domain**: `example.com` — matches any `*@example.com`
+        - **Wildcard**: `*@example.com` — explicit wildcard, same as domain
+        - **Exact**: `user@example.com` — matches only that specific email
+
+        Pattern matching is case-insensitive. Leading/trailing whitespace is trimmed.
+        Empty patterns are ignored.
+      examples:
+        - example.com
+        - '*@example.com'
+        - admin@example.com
+
+    SenderConfig:
+      type: object
+      description: Configuration for the wgrok sender component.
+      required:
+        - WGROK_TOKEN
+        - WGROK_TARGET
+        - WGROK_SLUG
+      properties:
+        WGROK_TOKEN:
+          type: string
+          description: Webex API token for sending messages.
+        WGROK_TARGET:
+          type: string
+          format: email
+          description: Email address of the echo bot to send messages to.
+        WGROK_SLUG:
+          type: string
+          description: Slug to tag outgoing messages with.
+          $ref: '#/components/schemas/Slug'
+        WGROK_DOMAINS:
+          type: string
+          description: |
+            Comma-separated list of allowlist patterns. Optional for sender
+            (required for echo bot and receiver).
+          examples:
+            - example.com,trusted.org
+            - '*@example.com,admin@other.com'
+        WGROK_DEBUG:
+          type: string
+          description: |
+            Enable NDJSON debug logging to stderr. Truthy values: `true`, `1`, `yes`.
+            Falsy values: `false`, `0`, `no`, empty string. Defaults to false.
+          enum:
+            - 'true'
+            - 'false'
+            - '1'
+            - '0'
+            - 'yes'
+            - 'no'
+          default: 'false'
+
+    BotConfig:
+      type: object
+      description: Configuration for the wgrok echo bot component.
+      required:
+        - WGROK_TOKEN
+        - WGROK_DOMAINS
+      properties:
+        WGROK_TOKEN:
+          type: string
+          description: |
+            Webex API token for the echo bot. This should be a unique token
+            (different from sender/receiver) as the bot needs its own identity.
+        WGROK_DOMAINS:
+          type: string
+          description: Comma-separated list of allowlist patterns. Required.
+        WGROK_DEBUG:
+          type: string
+          default: 'false'
+
+    ReceiverConfig:
+      type: object
+      description: Configuration for the wgrok receiver component.
+      required:
+        - WGROK_TOKEN
+        - WGROK_SLUG
+        - WGROK_DOMAINS
+      properties:
+        WGROK_TOKEN:
+          type: string
+          description: Webex API token for the receiver.
+        WGROK_SLUG:
+          type: string
+          description: Slug to match incoming messages against.
+          $ref: '#/components/schemas/Slug'
+        WGROK_DOMAINS:
+          type: string
+          description: Comma-separated list of allowlist patterns. Required.
+        WGROK_DEBUG:
+          type: string
+          default: 'false'
