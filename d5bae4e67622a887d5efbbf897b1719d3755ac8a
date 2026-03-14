@@ -1,0 +1,103 @@
+rust/src/slack.rs
+  fc445375822781d8 1-110
+python/tests/test_router_bot.py
+  fc445375822781d8 21,38-39,50-52,56-58
+python/src/wgrok/platform.py
+  fc445375822781d8 1-31
+rust/src/router_bot.rs
+  fc445375822781d8 10
+python/src/wgrok/discord.py
+  fc445375822781d8 1-85
+ts/tests/slack.test.ts
+  fc445375822781d8 1-117
+rust/tests/irc_test.rs
+  fc445375822781d8 1-88
+tests/irc_cases.json
+  fc445375822781d8 1-57
+python/src/wgrok/irc.py
+  fc445375822781d8 1-183
+python/tests/test_irc.py
+  fc445375822781d8 1-30
+ts/src/slack.ts
+  fc445375822781d8 1-83
+ts/src/discord.ts
+  fc445375822781d8 1-83
+tests/slack_cases.json
+  fc445375822781d8 1-39
+rust/src/platform.rs
+  fc445375822781d8 1-40
+rust/src/sender.rs
+  fc445375822781d8 6,31-33,37,42-44,47
+tests/discord_cases.json
+  fc445375822781d8 1-38
+rust/src/discord.rs
+  fc445375822781d8 1-109
+python/src/wgrok/slack.py
+  fc445375822781d8 1-80
+python/tests/test_slack.py
+  fc445375822781d8 1-85
+ts/tests/platform.test.ts
+  fc445375822781d8 1-118
+python/tests/test_platform.py
+  fc445375822781d8 1-55
+ts/src/index.ts
+  fc445375822781d8 35-55
+rust/src/irc.rs
+  fc445375822781d8 1-89
+python/src/wgrok/__init__.py
+  fc445375822781d8 6,8,20-21
+ts/src/platform.ts
+  fc445375822781d8 1-53
+rust/tests/slack_test.rs
+  fc445375822781d8 1-89,92,94-126
+ts/tests/irc.test.ts
+  fc445375822781d8 1-51
+tests/platform_dispatch_cases.json
+  fc445375822781d8 1-30
+python/src/wgrok/router_bot.py
+  fc445375822781d8 21,119-129,153,159-160,162-163
+ts/src/router-bot.ts
+  fc445375822781d8 6-7,63-80,106,110,113
+rust/tests/discord_test.rs
+  fc445375822781d8 1-124
+ts/tests/discord.test.ts
+  fc445375822781d8 1-116
+ts/src/sender.ts
+  fc445375822781d8 5,20-21,23
+python/src/wgrok/sender.py
+  fc445375822781d8 1,9,33-36,38-40
+python/tests/test_discord.py
+  fc445375822781d8 1-86
+rust/src/lib.rs
+  fc445375822781d8 6-9,19-22
+ts/src/irc.ts
+  fc445375822781d8 1-76
+python/tests/test_sender.py
+  fc445375822781d8 30,34-36,38,42-44
+tests/run_all.sh
+  fc445375822781d8 24-27,39-42,55-58,70-73,85
+ts/tests/sender.test.ts
+  fc445375822781d8 3,5,8-10,32-33,43,49-51,55-57
+rust/tests/platform_test.rs
+  fc445375822781d8 1-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "d5bae4e67622a887d5efbbf897b1719d3755ac8a",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 2572,
+      "total_deletions": 99,
+      "accepted_lines": 2492,
+      "overriden_lines": 3
+    }
+  }
+}
