@@ -7,12 +7,13 @@ without inbound webhooks.
 == Scope ==
 
 In scope:
-  - Message bus protocol (two modes)
-  - Sender library, relay bot, receiver library
+  - Message bus protocol (three modes)
+  - Sender library, relay/routing bot, receiver library
+  - Agent registry (slug-to-bot mapping for Mode C)
   - Allowlist / ACL (email, domain, TLD, wildcard/regex)
   - .env configuration (minimum viable config)
   - Outbound network proxy support
-  - Multi-platform token support on the central bot
+  - Multi-platform token support on the routing bot
 
 Out of scope (developer wraps these around the library):
   - Secret management (OpenBao, Vault, etc.)
@@ -20,6 +21,7 @@ Out of scope (developer wraps these around the library):
   - Observability backends (OpenTelemetry, Loki, Jaeger, etc.)
   - Authentication/authorization beyond the allowlist
   - UI, dashboards, admin interfaces
+  - Command vocabularies (what agents accept — that's the agent's job)
 
 Philosophy: we provide wheels, chassis, engine, gas tank. If you want
 seats, windshield, gearbox, or other features — wrap them around this
@@ -31,23 +33,36 @@ core library. Same concept as webex-message-handler.
 
 The ./ prefix signals "this is a wgrok command".
 
+The payload is opaque — wgrok never inspects or transforms it.
+JSON, CSV, NDJSON, plain text, base64, YAML, binary-as-text — whatever
+the sender puts in, the receiver gets out verbatim. The protocol only
+defines the structure around the payload (prefix, verb, slug, colons).
+
 == Deployment modes ==
 
-Both modes require a minimum of two bots:
+All modes require a minimum of two bots:
   1. Bot for sending/receiving (the application's identity)
-  2. Bot for message processing and reflection (the relay/router)
+  2. Bot for message processing, routing, or reflection
 
-Mode A — Platform Bot (app routing):
+Mode A — App Routing (REST API proxy):
   ./{app}:{payload}
-  Central bot routes messages to backend applications by app name.
+  Central bot proxies to internal REST APIs that will never be on the bus.
   The bot maintains a registry of apps and their internal endpoints.
+  Services don't need to know about wgrok — the bot translates.
 
-  Developer -> ./jira:create ticket -> Central Bot -> Jira (internal)
-  Developer <- ./jira:PROJ-456 created <- Central Bot <- Jira response
+  Developer -> ./jira:create ticket -> Routing Bot -> Jira REST API
+  Developer <- ./jira:PROJ-456 created <- Routing Bot <- Jira response
 
-Mode B — Agent Bus (pure message bus):
+  Developer -> ./github:create issue repo=foo title=bar -> Routing Bot -> GitHub API
+  Developer <- ./github:issue #42 created <- Routing Bot <- GitHub response
+
+  The developer sends one message. The bot handles the REST call, auth,
+  pagination, error handling — whatever the target API requires. The
+  developer never touches the API directly.
+
+Mode B — Agent Bus (shared token):
   ./{verb}:{slug}:{payload}
-  No central routing. Agents share the same token, all see all messages.
+  Agents share the same token, all see all messages.
   Verb tells the relay bot what to do (echo = reflect back).
   Slug is how agents filter: "is this message for me?"
 
@@ -55,23 +70,76 @@ Mode B — Agent Bus (pure message bus):
   Receiver <- deploy-agent:start <- Echo Bot
   (only deploy-agent processes because slug matches)
 
+  Simple, lightweight. Best for same trust zone, same boundary.
+  No registry needed — agents self-select by slug.
+
+Mode C — Registered Agents (own bots, cross-boundary):
+  ./{verb}:{slug}:{payload}
+  Agents have their own bot identities and register with the routing bot.
+  The routing bot maintains a registry: slug -> bot identity.
+  Agents don't need shared tokens. Cross-platform possible.
+
+  Routing bot registry (CSV, same format from .env or database):
+    WGROK_ROUTES=deploy:deploy-bot@spark.com,status:status-bot@foo.com,jira:jira-agent@webex.bot
+
+  Sender -> ./echo:deploy:start -> Routing Bot
+  Routing Bot looks up "deploy" -> deploy-bot@spark.com
+  deploy-bot@spark.com <- deploy:start <- Routing Bot
+
+  This is how an agent "joins the bus" with its own identity. A Jira
+  agent could wrap the Jira REST API and participate as a first-class
+  bus citizen — accepting commands like ticket, create, delete, append,
+  list, search, and returning structured responses. Same for GitHub,
+  ServiceNow, or any other service.
+
+  The difference from Mode A: Mode A proxies to dumb REST APIs.
+  Mode C routes to smart agents that chose to participate on the bus.
+
 == Protocol layers ==
 
 Layer 0:  {slug}:{payload}                ← base: what receivers consume
-Layer 1a: ./{app}:{payload}               ← platform bot: app routing
+Layer 1a: ./{app}:{payload}               ← app routing: REST API proxy
 Layer 1b: ./{verb}:{slug}:{payload}       ← agent bus: verb + slug filtering
 
 After bot processing, the ./ prefix is always stripped. Receivers always
 see Layer 0 format.
 
-== Central bot: multi-token support ==
+Mode B and Mode C share the same wire format (Layer 1b). The difference
+is how the routing bot resolves the slug:
+  - Mode B: echo back to sender (agents self-select by slug)
+  - Mode C: look up slug in registry, route to registered bot
 
-The central bot (echo/routing/etc) should support multiple messaging
-platform tokens for:
+== Routing bot: registry ==
 
-1. Load balancing — distribute outbound messages across tokens
-2. Channel support — bot@webex.com, bot@slack.com, bot@discord.com
-3. Cross-channel routing — message arrives on Webex, response goes to Slack
+The routing bot maintains a mapping of slugs to bot identities as CSV:
+
+  WGROK_ROUTES=deploy:deploy-bot@spark.com,status:status-bot@foo.com,jira:jira-agent@webex.bot
+
+Same format whether loaded from .env, a database column, or an API.
+Parse: split on comma, split each on first colon → slug:target map.
+
+When a message arrives as ./echo:{slug}:{payload}:
+  1. Check allowlist
+  2. Parse verb and slug
+  3. If slug is in registry → route to registered bot
+  4. If slug is NOT in registry → echo back to sender (Mode B fallback)
+
+This means Mode B and Mode C coexist on the same routing bot.
+Registered slugs get routed. Unregistered slugs get echoed.
+
+== Routing bot: multi-token support ==
+
+The routing bot should support multiple messaging platform tokens for:
+
+1. Cross-platform routing — deploy-bot is on Webex, status-bot is on Slack
+2. Load balancing — distribute outbound messages across tokens
+3. Channel isolation — different tokens for different trust zones
+
+  WGROK_TOKEN=<primary bot token>
+  WGROK_TOKEN_SLACK=<slack bot token>
+  WGROK_TOKEN_DISCORD=<discord bot token>
+
+The routing bot uses the appropriate token based on the target's platform.
 
 == Allowlist / ACLs ==
 
@@ -82,15 +150,16 @@ Granular access control at the library level:
   Specific TLD(s):     *.com, *.internal
   Wildcard/regex:      *@*.domain.com, *@trusted.*
 
-Both modes enforce allowlist. Can bot@webex.com talk to bot@slack.com?
+All modes enforce allowlist. Can bot@webex.com talk to bot@slack.com?
 The allowlist decides.
 
 At a minimum a .env file must exist. Developer can implement their own
 ACL solution (OpenBao, Postgres, LDAP, etc.) wrapping the library.
 
-== Built-in verbs (Mode B) ==
+== Built-in verbs (Mode B / Mode C) ==
 
-  echo      — reflect message back to sender
+  echo      — reflect message back to sender (Mode B) or route to
+              registered agent (Mode C)
   route     — forward to internal system by slug (future)
   broadcast — fan out to all matching subscribers (future)
   store     — persist payload for later retrieval (future)
@@ -107,9 +176,12 @@ Minimum: .env file.
   WGROK_SLUG=myagent
   WGROK_DOMAINS=domain.tld,*@trusted.org
 
-  # Bot
+  # Routing Bot
   WGROK_TOKEN=<bot token>
   WGROK_DOMAINS=domain.tld
+
+  # Agent Registry (Mode C)
+  WGROK_ROUTES=deploy:deploy-bot@spark.com,status:status-bot@foo.com
 
   # Optional
   WGROK_DEBUG=true

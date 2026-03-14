@@ -2,11 +2,11 @@ asyncapi: 3.0.0
 
 info:
   title: wgrok
-  version: 2.0.0
+  version: 3.0.0
   description: |
     A message bus protocol that uses social messaging platforms (Webex, Slack,
     Discord) as transport. Enables agents, services, and orchestrators to
-    communicate across firewalls without inbound webhooks.
+    communicate across network boundaries without inbound webhooks.
 
     ## Message format
 
@@ -19,35 +19,43 @@ info:
     The `./` prefix signals that this is a wgrok command, not a plain message.
     What follows the `./` depends on the deployment mode.
 
+    The payload is opaque — wgrok never inspects or transforms it. JSON, CSV,
+    NDJSON, plain text, base64, YAML — whatever the sender puts in, the
+    receiver gets out verbatim. The protocol only defines the structure around
+    the payload (prefix, verb, slug, colons).
+
     ## Deployment modes
 
-    ### Mode A — Platform Bot
+    All modes require a minimum of two bots:
+    1. Bot for sending/receiving (the application's identity)
+    2. Bot for message processing, routing, or reflection
+
+    ### Mode A — App Routing
 
     ```
     ./{app}:{payload}
     ```
 
-    A central bot acts as a gateway. Developers use one SDK that talks to
-    one bot — the bot routes to backend services on their behalf.
+    A routing bot proxies to internal REST APIs that will never be on the bus.
+    The bot maintains a registry of apps and their internal endpoints.
+    Services don't need to know about wgrok — the bot translates.
 
     - `./{app}` identifies which backend application to route to
     - The bot receives the message, looks up the app in its registry,
-      and forwards the payload to the app's internal webhook
-    - When the app responds through the bot, it sends `./{app}:{response}`
-      so the original sender knows which app is responding
+      and forwards the payload to the app's internal endpoint
+    - When the app responds, the bot sends `{app}:{response}` back
 
-    **Example: Developer platform**
+    **Example: REST API proxy**
     ```
-    Developer ──./jira:create ticket for PROJ-123──► Platform Bot
-                                                        │
-                                                        ├──► Jira webhook (internal)
-                                                        │
-    Developer ◄──./jira:PROJ-456 created───────────── Platform Bot
+    Developer ──./jira:create ticket──► Routing Bot ──► Jira REST API
+    Developer ◄──jira:PROJ-456 created──────────────── Routing Bot
+
+    Developer ──./github:create issue repo=foo──► Routing Bot ──► GitHub API
+    Developer ◄──github:issue #42 created────────────── Routing Bot
     ```
 
-    The platform bot is the single integration point. It handles the
-    WebSocket connection and routes messages to backend services.
-    Developers only need a token and the SDK.
+    The developer sends one message. The bot handles the REST call, auth,
+    pagination, error handling — whatever the target API requires.
 
     ### Mode B — Agent Bus
 
@@ -55,9 +63,9 @@ info:
     ./{verb}:{slug}:{payload}
     ```
 
-    No central routing bot. Multiple agents share the same messaging token
-    and all receive all messages. The verb tells a relay agent what to do,
-    and the slug identifies which agent should process the result.
+    Agents share the same messaging token and all receive all messages.
+    The verb tells a relay bot what to do, and the slug identifies which
+    agent should process the result.
 
     This is needed because all agents on the shared token see every message.
     The slug is how an agent filters: "is this message for me?"
@@ -74,22 +82,56 @@ info:
     (only processes because slug matches "deploy-agent")
     ```
 
-    All agents on the bus receive the echo bot's response, but only the
-    agent configured with slug `deploy-agent` processes it.
+    Simple, lightweight. Best for same trust zone, same network boundary.
+    No registry needed — agents self-select by slug.
+
+    ### Mode C — Registered Agents
+
+    ```
+    ./{verb}:{slug}:{payload}
+    ```
+
+    Agents have their own bot identities and register with the routing bot.
+    The routing bot maintains a registry mapping slugs to bot identities.
+    Agents don't need shared tokens. Cross-platform routing is possible.
+
+    - `WGROK_ROUTES` maps slugs to bot identities (CSV format)
+    - The routing bot resolves the slug and delivers to the registered bot
+    - A Jira agent, GitHub agent, or any service can join the bus as a
+      first-class participant with its own identity and command vocabulary
+
+    **Example: Cross-boundary routing**
+    ```
+    Registry: deploy=deploy-bot@spark.com, jira=jira-agent@webex.bot
+
+    Sender ──./echo:deploy:start──► Routing Bot
+                                        │ (looks up "deploy" → deploy-bot@spark.com)
+    deploy-bot@spark.com ◄──deploy:start── Routing Bot
+    ```
+
+    The difference from Mode A: Mode A proxies to REST APIs that will never
+    be on the bus. Mode C routes to smart agents that chose to participate.
 
     ## Protocol layers
 
-    The two modes compose into a layered format:
+    The three modes compose into a layered format:
 
     ```
-    Layer 0:  {slug}:{payload}                ← base: agent-to-agent direct
-    Layer 1a: ./{app}:{payload}               ← platform bot: central routing
-    Layer 1b: ./{verb}:{slug}:{payload}       ← agent bus: verb + agent filtering
+    Layer 0:  {slug}:{payload}                ← base: what receivers consume
+    Layer 1a: ./{app}:{payload}               ← Mode A: REST API proxy
+    Layer 1b: ./{verb}:{slug}:{payload}       ← Mode B/C: verb + slug filtering
     ```
 
     **Layer 0** is the response format that receivers always consume,
     regardless of which mode sent it. After bot processing, the `./` prefix
     and routing context are stripped, leaving `{slug}:{payload}`.
+
+    Mode B and Mode C share the same wire format (Layer 1b). The difference
+    is how the routing bot resolves the slug:
+    - **Mode B**: echo back to sender (agents self-select by slug)
+    - **Mode C**: look up slug in registry, route to registered bot
+    - **Fallback**: registered slugs get routed, unregistered slugs get
+      echoed — Mode B and C coexist on the same routing bot
 
     ### How the bot decides
 
@@ -98,17 +140,21 @@ info:
 
     | Bot mode | First segment after `./` | Parsing |
     |----------|--------------------------|---------|
-    | Platform bot | App name from registry | `./{app}:{payload}` — two segments |
-    | Agent relay | Known verb (echo, route, etc.) | `./{verb}:{slug}:{payload}` — three segments |
+    | App routing (A) | App name from registry | `./{app}:{payload}` — two segments |
+    | Agent relay (B/C) | Known verb (echo, route, etc.) | `./{verb}:{slug}:{payload}` — three segments |
+
+    For Mode B/C, the routing bot checks `WGROK_ROUTES`:
+    - Slug found → deliver to registered bot (Mode C)
+    - Slug not found → echo back to sender (Mode B)
 
     Unrecognized contexts are silently ignored.
 
-    ## Built-in verbs (Mode B)
+    ## Built-in verbs (Mode B / Mode C)
 
     | Verb | Behavior | Use case |
     |------|----------|----------|
-    | `echo` | Reflect message back to sender | Firewall traversal — agents behind firewalls relay through the echo bot |
-    | `route` | Forward to internal system by slug | Orchestrator-to-orchestrator — GitHub Actions to on-prem |
+    | `echo` | Reflect back (B) or route to registered agent (C) | Firewall traversal, cross-boundary routing |
+    | `route` | Forward to internal system by slug | Orchestrator-to-orchestrator |
     | `broadcast` | Fan out to all matching subscribers | Event notification across multiple agents |
     | `store` | Persist payload for later retrieval | Async message queue |
 
@@ -135,28 +181,32 @@ info:
 defaultContentType: text/plain
 
 channels:
-  platformCommand:
-    address: platform/messages/platform-command
-    title: Platform Command (Mode A)
+  appCommand:
+    address: platform/messages/app-command
+    title: App Command (Mode A)
     description: |
-      Mode A channel: developer to platform bot. The message text contains
-      a platform command in the format `./{app}:{payload}`.
+      Mode A channel: developer to routing bot. The message text contains
+      an app command in the format `./{app}:{payload}`.
 
-      The bot looks up `{app}` in its registry and forwards the payload
-      to the app's internal webhook.
+      The bot looks up `{app}` in its app registry and proxies the payload
+      to the app's internal REST API endpoint.
     messages:
-      platformCommand:
-        $ref: '#/components/messages/PlatformCommand'
+      appCommand:
+        $ref: '#/components/messages/AppCommand'
 
   verbCommand:
     address: platform/messages/verb-command
-    title: Verb Command (Mode B)
+    title: Verb Command (Mode B / Mode C)
     description: |
-      Mode B channel: sender to relay agent. The message text contains
-      a verb-routed command in the format `./{verb}:{slug}:{payload}`.
+      Mode B/C channel: sender to relay/routing bot. The message text
+      contains a verb-routed command in the format `./{verb}:{slug}:{payload}`.
 
-      The relay agent (e.g., echo bot) parses the verb, acts accordingly,
-      and delivers `{slug}:{payload}` to the destination.
+      Mode B: the relay bot (e.g., echo bot) reflects `{slug}:{payload}`
+      back to the sender. Agents self-select by slug.
+
+      Mode C: the routing bot looks up the slug in `WGROK_ROUTES` and
+      delivers `{slug}:{payload}` to the registered bot identity.
+      If the slug is not registered, falls back to Mode B (echo).
     messages:
       verbCommand:
         $ref: '#/components/messages/VerbCommand'
@@ -171,55 +221,56 @@ channels:
       Used for:
       - Bot responses after processing (stripped of `./` prefix)
       - Direct agent-to-agent messaging without bot routing
-      - Platform bot responses: `./{app}:{response}` → receiver sees `{app}:{response}`
+      - App routing responses: `./{app}:{response}` → receiver sees `{app}:{response}`
+      - Registered agent delivery: routing bot sends to registered bot identity
     messages:
       agentMessage:
         $ref: '#/components/messages/AgentMessage'
 
 operations:
   # Mode A operations
-  sendPlatformCommand:
+  sendAppCommand:
     action: send
     channel:
-      $ref: '#/channels/platformCommand'
-    title: Send Platform Command
-    summary: Developer sends a command to the platform bot for routing to a backend app.
+      $ref: '#/channels/appCommand'
+    title: Send App Command
+    summary: Developer sends a command to the routing bot for proxying to a backend REST API.
     description: |
       The developer SDK wraps the payload with the app identifier and sends
-      it to the platform bot. The bot handles all platform complexity
-      (authentication, routing, webhook delivery) on behalf of the developer.
+      it to the routing bot. The bot handles all API complexity (authentication,
+      pagination, error handling) on behalf of the developer.
     messages:
-      - $ref: '#/channels/platformCommand/messages/platformCommand'
+      - $ref: '#/channels/appCommand/messages/appCommand'
 
-  processPlatformCommand:
+  processAppCommand:
     action: receive
     channel:
-      $ref: '#/channels/platformCommand'
-    title: Process Platform Command
-    summary: Platform bot receives, validates, and routes to the backend app.
+      $ref: '#/channels/appCommand'
+    title: Process App Command
+    summary: Routing bot receives, validates, and proxies to the backend REST API.
     description: |
-      The platform bot processes the command:
+      The routing bot processes the command:
 
       1. **Allowlist check** — verify sender is authorized.
       2. **App lookup** — match `{app}` against the registered app registry.
-      3. **Forward** — POST the payload to the app's internal webhook.
-      4. When the app responds, the bot sends `./{app}:{response}` back.
+      3. **Proxy** — translate to REST API call and forward.
+      4. When the API responds, the bot sends `{app}:{response}` back.
     messages:
-      - $ref: '#/channels/platformCommand/messages/platformCommand'
+      - $ref: '#/channels/appCommand/messages/appCommand'
 
-  # Mode B operations
+  # Mode B / Mode C operations
   sendVerbCommand:
     action: send
     channel:
       $ref: '#/channels/verbCommand'
     title: Send Verb Command
-    summary: Sender formats and transmits a verb-routed command to the relay agent.
+    summary: Sender formats and transmits a verb-routed command to the relay/routing bot.
     description: |
       The sender wraps the payload with a verb and slug, then sends it
-      to the relay agent (e.g., echo bot).
+      to the relay/routing bot.
 
       The message may optionally include an Adaptive Card attachment,
-      which the relay agent will forward to the destination.
+      which the bot will forward to the destination.
     messages:
       - $ref: '#/channels/verbCommand/messages/verbCommand'
 
@@ -228,14 +279,16 @@ operations:
     channel:
       $ref: '#/channels/verbCommand'
     title: Process Verb Command
-    summary: Relay agent receives, validates, and routes based on verb.
+    summary: Relay/routing bot receives, validates, and routes based on verb and registry.
     description: |
-      The relay agent processes the command:
+      The bot processes the command:
 
       1. **Allowlist check** — verify sender matches configured domain patterns.
       2. **Command detection** — check for `./` prefix.
       3. **Verb dispatch**:
-         - `echo`: strip prefix, send `{slug}:{payload}` back to sender
+         - `echo`: check `WGROK_ROUTES` for slug
+           - Found → deliver to registered bot (Mode C)
+           - Not found → echo back to sender (Mode B)
          - `route`: forward to configured internal system
          - Unknown verbs: log and ignore
       4. **Delivery** — send result as Layer 0 format.
@@ -281,59 +334,67 @@ operations:
 
 components:
   messages:
-    PlatformCommand:
-      name: PlatformCommand
-      title: Platform Command Message (Mode A)
+    AppCommand:
+      name: AppCommand
+      title: App Command Message (Mode A)
       summary: |
-        A message from a developer to the platform bot. Format: `./{app}:{payload}`.
-        The bot routes to the named app's internal webhook.
+        A message from a developer to the routing bot. Format: `./{app}:{payload}`.
+        The bot proxies to the named app's internal REST API.
       contentType: text/plain
       payload:
-        $ref: '#/components/schemas/PlatformCommandPayload'
+        $ref: '#/components/schemas/AppCommandPayload'
       headers:
         $ref: '#/components/schemas/MessageEnvelope'
       examples:
         - name: Jira integration
-          summary: Developer creates a Jira ticket through the platform
+          summary: Developer creates a Jira ticket through the routing bot
           headers:
-            personEmail: developer@bigcorp.com
-            toPersonEmail: platform-bot@webex.bot
+            personEmail: developer@example.com
+            toPersonEmail: routing-bot@webex.bot
           payload:
             text: ./jira:create ticket for PROJ-123
+        - name: GitHub integration
+          summary: Developer creates a GitHub issue
+          headers:
+            personEmail: developer@example.com
+            toPersonEmail: routing-bot@webex.bot
+          payload:
+            text: ./github:create issue repo=foo title=bar
         - name: Deploy trigger
           summary: CI/CD pipeline triggers a deployment
           headers:
-            personEmail: github-actions@bigcorp.com
-            toPersonEmail: platform-bot@webex.bot
+            personEmail: github-actions@example.com
+            toPersonEmail: routing-bot@webex.bot
           payload:
             text: ./deploy:{"ref":"main","env":"prod","service":"api"}
-        - name: Monitoring alert
-          summary: App sends an alert through the platform
-          headers:
-            personEmail: platform-bot@webex.bot
-            toPersonEmail: developer@bigcorp.com
-          payload:
-            text: ./grafana:CPU threshold exceeded on prod-api-3
 
     VerbCommand:
       name: VerbCommand
-      title: Verb Command Message (Mode B)
+      title: Verb Command Message (Mode B / Mode C)
       summary: |
-        A message sent to a relay agent. Format: `./{verb}:{slug}:{payload}`.
+        A message sent to a relay/routing bot. Format: `./{verb}:{slug}:{payload}`.
         The verb determines the action; the slug identifies the target agent.
+        In Mode C, the slug is resolved via `WGROK_ROUTES` registry.
       contentType: text/plain
       payload:
         $ref: '#/components/schemas/VerbCommandPayload'
       headers:
         $ref: '#/components/schemas/MessageEnvelope'
       examples:
-        - name: Echo command
+        - name: Echo command (Mode B)
           summary: Reflect a message back to the sender for agent filtering
           headers:
             personEmail: sender@example.com
             toPersonEmail: echo-bot@webex.bot
           payload:
             text: ./echo:deploy-agent:start deploy on prod
+        - name: Echo with routing (Mode C)
+          summary: Route to a registered agent via slug lookup
+          headers:
+            personEmail: sender@example.com
+            toPersonEmail: routing-bot@webex.bot
+          payload:
+            text: ./echo:deploy:start deploy on prod
         - name: Echo with card
           summary: Echo with an Adaptive Card attachment
           headers:
@@ -348,13 +409,20 @@ components:
                   body:
                     - type: TextBlock
                       text: Hello from sender
-        - name: Route command (future)
-          summary: Forward to an internal system
+        - name: JSON payload
+          summary: Structured JSON as payload (opaque to wgrok)
           headers:
-            personEmail: github-actions@example.com
-            toPersonEmail: relay-bot@webex.bot
+            personEmail: orchestrator@example.com
+            toPersonEmail: routing-bot@webex.bot
           payload:
-            text: ./route:onprem-orchestrator:{"action":"deploy","ref":"main"}
+            text: ./echo:deploy:{"action":"deploy","ref":"main","env":"prod"}
+        - name: CSV payload
+          summary: CSV data as payload (opaque to wgrok)
+          headers:
+            personEmail: etl-agent@example.com
+            toPersonEmail: routing-bot@webex.bot
+          payload:
+            text: ./echo:data-agent:host,cpu,mem\nweb-1,45,2048\nweb-2,72,4096
 
     AgentMessage:
       name: AgentMessage
@@ -368,18 +436,25 @@ components:
       headers:
         $ref: '#/components/schemas/MessageEnvelope'
       examples:
-        - name: Echo response
+        - name: Echo response (Mode B)
           summary: Echo bot reflects message back, slug identifies target agent
           headers:
             personEmail: echo-bot@webex.bot
             toPersonEmail: sender@example.com
           payload:
             text: deploy-agent:start deploy on prod
-        - name: Platform bot response
-          summary: Platform bot relays app response back to developer
+        - name: Routed response (Mode C)
+          summary: Routing bot delivers to registered agent
           headers:
-            personEmail: platform-bot@webex.bot
-            toPersonEmail: developer@bigcorp.com
+            personEmail: routing-bot@webex.bot
+            toPersonEmail: deploy-bot@spark.com
+          payload:
+            text: deploy:start deploy on prod
+        - name: App routing response (Mode A)
+          summary: Routing bot relays REST API response back to developer
+          headers:
+            personEmail: routing-bot@webex.bot
+            toPersonEmail: developer@example.com
           payload:
             text: jira:PROJ-456 created successfully
         - name: Direct agent message
@@ -391,22 +466,25 @@ components:
             text: deploy-agent:{"status":"complete","ref":"main"}
 
   schemas:
-    PlatformCommandPayload:
+    AppCommandPayload:
       type: object
       description: |
-        Mode A message body. The `text` field contains a platform command
+        Mode A message body. The `text` field contains an app command
         in the format `./{app}:{payload}`.
 
         The `{app}` identifier maps to a registered backend application
-        in the platform bot's registry. The bot forwards `{payload}` to
-        the app's internal webhook.
+        in the routing bot's app registry. The bot proxies `{payload}` to
+        the app's internal REST API endpoint.
+
+        The payload is opaque — JSON, CSV, NDJSON, plain text, or any
+        other format. wgrok passes it through verbatim.
       required:
         - text
       properties:
         text:
           type: string
           description: |
-            Platform command text. Format: `./{app}:{payload}`.
+            App command text. Format: `./{app}:{payload}`.
 
             - `{app}`: registered application identifier
             - `{payload}`: everything after the first colon, forwarded to the app
@@ -418,7 +496,7 @@ components:
           examples:
             - ./jira:create ticket for PROJ-123
             - ./deploy:{"ref":"main","env":"prod"}
-            - ./grafana:query cpu_usage last 1h
+            - ./github:create issue repo=foo title=bar
         attachments:
           type: array
           description: Optional Adaptive Card attachments.
@@ -428,12 +506,20 @@ components:
     VerbCommandPayload:
       type: object
       description: |
-        Mode B message body. The `text` field contains a verb-routed command
+        Mode B/C message body. The `text` field contains a verb-routed command
         in the format `./{verb}:{slug}:{payload}`.
 
-        The verb tells the relay agent what to do. The slug identifies which
-        agent should process the result. All agents on the shared token see
-        every message — the slug is how they filter "is this for me?"
+        The verb tells the relay/routing bot what to do. The slug identifies
+        which agent should process the result.
+
+        In Mode B, all agents on the shared token see every message — the
+        slug is how they filter "is this for me?"
+
+        In Mode C, the routing bot resolves the slug via `WGROK_ROUTES`
+        and delivers to the registered bot identity.
+
+        The payload is opaque — JSON, CSV, NDJSON, plain text, or any
+        other format. wgrok passes it through verbatim.
       required:
         - text
       properties:
@@ -442,7 +528,7 @@ components:
           description: |
             Verb command text. Format: `./{verb}:{slug}:{payload}`.
 
-            - `{verb}`: action for the relay agent (e.g., `echo`, `route`)
+            - `{verb}`: action for the relay/routing bot (e.g., `echo`, `route`)
             - `{slug}`: target agent identifier
             - `{payload}`: everything after the second colon (may contain colons)
 
@@ -452,8 +538,8 @@ components:
           pattern: '^\./[a-z]+:[^:]+:.*$'
           examples:
             - ./echo:deploy-agent:start deploy on prod
-            - ./echo:otel-collector:trace_id=abc123
-            - ./route:onprem-agent:trigger deploy
+            - ./echo:deploy:{"action":"deploy","ref":"main"}
+            - ./echo:data-agent:host,cpu,mem\nweb-1,45,2048
         attachments:
           type: array
           description: Optional Adaptive Card attachments forwarded through the relay.
@@ -483,7 +569,7 @@ components:
           examples:
             - deploy-agent:start deploy on prod
             - jira:PROJ-456 created successfully
-            - otel-collector:trace_id=abc123
+            - deploy:{"status":"complete","ref":"main"}
         attachments:
           type: array
           description: Adaptive Card attachments.
@@ -548,11 +634,11 @@ components:
     Verb:
       type: string
       description: |
-        The action for the relay agent to execute (Mode B only).
+        The action for the relay/routing bot to execute (Mode B/C only).
 
         | Verb | Status | Behavior |
         |------|--------|----------|
-        | `echo` | Implemented | Reflect message back to sender |
+        | `echo` | Implemented | Reflect back (B) or route to registered agent (C) |
         | `route` | Reserved | Forward to internal system by slug |
         | `broadcast` | Reserved | Fan out to all matching subscribers |
         | `store` | Reserved | Persist payload for later retrieval |
@@ -567,24 +653,26 @@ components:
     AppIdentifier:
       type: string
       description: |
-        A registered application name in the platform bot's registry (Mode A).
-        Maps to an internal webhook endpoint. The platform bot maintains the
+        A registered application name in the routing bot's app registry (Mode A).
+        Maps to an internal REST API endpoint. The routing bot maintains the
         mapping between app identifiers and their backend URLs.
       minLength: 1
       pattern: '^[^:]+$'
       examples:
         - jira
         - deploy
+        - github
         - grafana
-        - servicenow
 
     Slug:
       type: string
       description: |
-        An agent/service identifier, analogous to a NATS subject (Mode B).
-        Each agent is configured with a slug and only processes messages
-        matching that slug. This is how agents on a shared token filter
-        messages intended for them.
+        An agent/service identifier (Mode B/C).
+
+        In Mode B, agents self-select by slug — each agent is configured with
+        a slug and only processes messages matching that slug.
+
+        In Mode C, the slug maps to a registered bot identity via `WGROK_ROUTES`.
 
         Rules:
         - Must be non-empty
@@ -594,7 +682,8 @@ components:
       pattern: '^[^:]+$'
       examples:
         - deploy-agent
-        - otel-collector
+        - deploy
+        - jira-agent
         - github-orchestrator
 
     AllowlistPattern:
@@ -618,6 +707,19 @@ components:
         - '*.internal'
         - '*@*.domain.com'
 
+    RouteEntry:
+      type: string
+      description: |
+        A single route mapping in the agent registry (Mode C).
+        Format: `{slug}:{target}` where target is the bot identity (email).
+
+        Example: `deploy:deploy-bot@spark.com`
+      pattern: '^[^:]+:[^,]+$'
+      examples:
+        - deploy:deploy-bot@spark.com
+        - status:status-bot@foo.com
+        - jira:jira-agent@webex.bot
+
     SenderConfig:
       type: object
       description: Configuration for the wgrok sender component.
@@ -636,8 +738,9 @@ components:
         WGROK_SLUG:
           type: string
           description: |
-            Slug to tag outgoing messages with (Mode B).
+            Slug to tag outgoing messages with.
             In Mode A, this maps to the app identifier.
+            In Mode B/C, this is the agent identifier.
         WGROK_DOMAINS:
           type: string
           description: Comma-separated allowlist patterns. Optional for sender.
@@ -659,8 +762,9 @@ components:
       type: object
       description: |
         Configuration for the wgrok bot component.
-        Mode A: platform bot with app registry.
-        Mode B: relay agent processing verbs.
+        Mode A: routing bot with app registry (proxies to REST APIs).
+        Mode B: relay bot processing verbs (echo back to sender).
+        Mode C: routing bot with agent registry (routes to registered bots).
       required:
         - WGROK_TOKEN
         - WGROK_DOMAINS
@@ -671,6 +775,19 @@ components:
         WGROK_DOMAINS:
           type: string
           description: Comma-separated allowlist patterns. Required.
+        WGROK_ROUTES:
+          type: string
+          description: |
+            Comma-separated agent registry for Mode C. Format: `slug:target,slug:target`.
+            Each entry maps a slug to a bot identity (email).
+
+            Same format whether loaded from `.env`, a database column, or an API.
+            Parse: split on `,`, split each on first `:`.
+
+            If a slug is found in the registry, the bot routes to the registered
+            target (Mode C). If not found, the bot echoes back to sender (Mode B).
+          examples:
+            - deploy:deploy-bot@spark.com,status:status-bot@foo.com,jira:jira-agent@webex.bot
         WGROK_DEBUG:
           type: string
           default: 'false'
