@@ -1,16 +1,40 @@
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::Value;
+use std::sync::RwLock;
 
 pub const WEBEX_API_BASE: &str = "https://webexapis.com/v1";
 pub const ADAPTIVE_CARD_CONTENT_TYPE: &str = "application/vnd.microsoft.card.adaptive";
 
+static MESSAGES_URL_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
+static ATTACHMENT_ACTIONS_URL_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
+
 fn messages_url() -> String {
+    if let Ok(guard) = MESSAGES_URL_OVERRIDE.read() {
+        if let Some(url) = guard.as_ref() {
+            return url.clone();
+        }
+    }
     format!("{}/messages", WEBEX_API_BASE)
 }
 
 fn attachment_actions_url() -> String {
+    if let Ok(guard) = ATTACHMENT_ACTIONS_URL_OVERRIDE.read() {
+        if let Some(url) = guard.as_ref() {
+            return url.clone();
+        }
+    }
     format!("{}/attachment/actions", WEBEX_API_BASE)
+}
+
+/// Override messages URL for testing. Pass None to reset.
+pub fn _set_messages_url(url: Option<String>) {
+    *MESSAGES_URL_OVERRIDE.write().unwrap() = url;
+}
+
+/// Override attachment actions URL for testing. Pass None to reset.
+pub fn _set_attachment_actions_url(url: Option<String>) {
+    *ATTACHMENT_ACTIONS_URL_OVERRIDE.write().unwrap() = url;
 }
 
 #[derive(Serialize)]

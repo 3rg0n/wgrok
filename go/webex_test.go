@@ -37,6 +37,13 @@ func overrideMessagesURL(t *testing.T, url string) {
 	t.Cleanup(func() { WebexMessagesURL = orig })
 }
 
+func overrideAttachmentActionsURL(t *testing.T, url string) {
+	t.Helper()
+	orig := WebexAttachmentActionsURL
+	WebexAttachmentActionsURL = url
+	t.Cleanup(func() { WebexAttachmentActionsURL = orig })
+}
+
 func TestExtractCards(t *testing.T) {
 	cases := loadWebexCases(t)
 	for _, tc := range cases.ExtractCards {
@@ -151,5 +158,25 @@ func TestGetMessageHTTP(t *testing.T) {
 	}
 	if result["id"] != "msg-1" {
 		t.Errorf("result id = %v, want msg-1", result["id"])
+	}
+}
+
+func TestGetAttachmentActionHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"act-1","type":"submit","inputs":{"name":"test"}}`))
+	}))
+	defer srv.Close()
+	overrideAttachmentActionsURL(t, srv.URL)
+
+	result, err := GetAttachmentAction("tok", "act-1", srv.Client())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result["id"] != "act-1" {
+		t.Errorf("result id = %v, want act-1", result["id"])
+	}
+	if result["type"] != "submit" {
+		t.Errorf("result type = %v, want submit", result["type"])
 	}
 }
