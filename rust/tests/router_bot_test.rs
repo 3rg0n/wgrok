@@ -5,22 +5,22 @@ use std::fs;
 use webex_message_handler::{DecryptedMessage, MercuryActivity};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-use wgrok::{BotConfig, WgrokEchoBot, _set_messages_url};
+use wgrok::{BotConfig, WgrokRouterBot, _set_messages_url};
 
 #[derive(Deserialize)]
-struct EchoBotCases {
-    config: EchoBotConfig,
+struct RouterBotCases {
+    config: RouterBotConfig,
     routes: HashMap<String, String>,
-    cases: Vec<EchoBotCase>,
+    cases: Vec<RouterBotCase>,
 }
 
 #[derive(Deserialize)]
-struct EchoBotConfig {
+struct RouterBotConfig {
     domains: Vec<String>,
 }
 
 #[derive(Deserialize)]
-struct EchoBotCase {
+struct RouterBotCase {
     name: String,
     sender: String,
     text: String,
@@ -33,9 +33,9 @@ struct EchoBotCase {
     use_routes: bool,
 }
 
-fn load_cases() -> EchoBotCases {
-    let data = fs::read_to_string("../tests/echo_bot_cases.json").expect("load echo bot cases");
-    serde_json::from_str(&data).expect("parse echo bot cases")
+fn load_cases() -> RouterBotCases {
+    let data = fs::read_to_string("../tests/router_bot_cases.json").expect("load router bot cases");
+    serde_json::from_str(&data).expect("parse router bot cases")
 }
 
 fn fake_msg(sender: &str, text: &str) -> DecryptedMessage {
@@ -61,7 +61,7 @@ fn fake_msg(sender: &str, text: &str) -> DecryptedMessage {
 }
 
 #[tokio::test]
-async fn test_echo_bot_cases() {
+async fn test_router_bot_cases() {
     let cases = load_cases();
 
     for tc in &cases.cases {
@@ -80,7 +80,7 @@ async fn test_echo_bot_cases() {
             HashMap::new()
         };
 
-        let bot = WgrokEchoBot::new(BotConfig {
+        let bot = WgrokRouterBot::new(BotConfig {
             webex_token: "fake-token".to_string(),
             domains: cases.config.domains.clone(),
             debug: false,

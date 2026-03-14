@@ -9,8 +9,8 @@ import (
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
 
-// WgrokEchoBot listens for echo messages, validates allowlist, strips prefix, relays back.
-type WgrokEchoBot struct {
+// WgrokRouterBot listens for messages, validates allowlist, strips prefix, relays back.
+type WgrokRouterBot struct {
 	config    *BotConfig
 	allowlist *Allowlist
 	logger    wmh.Logger
@@ -20,19 +20,19 @@ type WgrokEchoBot struct {
 	routes    map[string]string
 }
 
-// NewEchoBot creates a new WgrokEchoBot.
-func NewEchoBot(config *BotConfig) *WgrokEchoBot {
-	return &WgrokEchoBot{
+// NewRouterBot creates a new WgrokRouterBot.
+func NewRouterBot(config *BotConfig) *WgrokRouterBot {
+	return &WgrokRouterBot{
 		config:    config,
 		allowlist: NewAllowlist(config.Domains),
-		logger:    GetLogger(config.Debug, "wgrok.echo_bot"),
+		logger:    GetLogger(config.Debug, "wgrok.router_bot"),
 		client:    &http.Client{},
 		routes:    config.Routes,
 	}
 }
 
-// Run connects to Webex and listens for echo messages. Blocks until ctx is cancelled or Stop is called.
-func (b *WgrokEchoBot) Run(ctx context.Context) error {
+// Run connects to Webex and listens for messages. Blocks until ctx is cancelled or Stop is called.
+func (b *WgrokRouterBot) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	b.cancel = cancel
 
@@ -50,19 +50,19 @@ func (b *WgrokEchoBot) Run(ctx context.Context) error {
 		b.onMessage(msg)
 	})
 
-	b.logger.Info("Echo bot starting")
+	b.logger.Info("Router bot starting")
 	if err := h.Connect(ctx); err != nil {
 		cancel()
 		return fmt.Errorf("connect: %w", err)
 	}
-	b.logger.Info("Echo bot connected")
+	b.logger.Info("Router bot connected")
 
 	<-ctx.Done()
 	return ctx.Err()
 }
 
-// Stop disconnects the echo bot.
-func (b *WgrokEchoBot) Stop(ctx context.Context) {
+// Stop disconnects the router bot.
+func (b *WgrokRouterBot) Stop(ctx context.Context) {
 	if b.cancel != nil {
 		b.cancel()
 	}
@@ -70,12 +70,12 @@ func (b *WgrokEchoBot) Stop(ctx context.Context) {
 		_ = b.handler.Disconnect(ctx)
 		b.handler = nil
 	}
-	b.logger.Info("Echo bot stopped")
+	b.logger.Info("Router bot stopped")
 }
 
 // resolveTarget returns the target email for a slug.
 // If slug is in routes, return the routed target; otherwise return sender (Mode C).
-func (b *WgrokEchoBot) resolveTarget(slug, sender string) string {
+func (b *WgrokRouterBot) resolveTarget(slug, sender string) string {
 	if target, ok := b.routes[slug]; ok {
 		return target
 	}
@@ -83,7 +83,7 @@ func (b *WgrokEchoBot) resolveTarget(slug, sender string) string {
 }
 
 // onMessageWithCards is used by tests to inject card data without HTTP fetches.
-func (b *WgrokEchoBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []interface{}) {
+func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []interface{}) {
 	sender := msg.PersonEmail
 	text := strings.TrimSpace(msg.Text)
 
@@ -118,7 +118,7 @@ func (b *WgrokEchoBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []inte
 	}
 }
 
-func (b *WgrokEchoBot) onMessage(msg wmh.DecryptedMessage) {
+func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 	sender := msg.PersonEmail
 	text := strings.TrimSpace(msg.Text)
 
@@ -156,7 +156,7 @@ func (b *WgrokEchoBot) onMessage(msg wmh.DecryptedMessage) {
 	}
 }
 
-func (b *WgrokEchoBot) fetchCards(messageID string) []interface{} {
+func (b *WgrokRouterBot) fetchCards(messageID string) []interface{} {
 	if messageID == "" {
 		return nil
 	}

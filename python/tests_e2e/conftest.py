@@ -9,7 +9,7 @@ from wgrok.config import BotConfig, ReceiverConfig, SenderConfig
 def e2e_sender_config():
     return SenderConfig(
         webex_token="fake-sender-token",
-        target="echobot@example.com",
+        target="routerbot@example.com",
         slug="e2e-slug",
         domains=["example.com"],
         debug=True,

@@ -1,4 +1,4 @@
-"""E2E test: sender -> echo bot -> receiver full round-trip.
+"""E2E test: sender -> router bot -> receiver full round-trip.
 
 Tests the full protocol without any real Webex API calls by simulating
 the message flow through each component's internal handler.
@@ -6,23 +6,23 @@ the message flow through each component's internal handler.
 
 from unittest.mock import patch
 
-from wgrok.echo_bot import WgrokEchoBot
+from wgrok.router_bot import WgrokRouterBot
 from wgrok.receiver import WgrokReceiver
 from wgrok.sender import WgrokSender
 
 
 class TestFullFlow:
-    async def test_sender_to_echo_bot_to_receiver(
+    async def test_sender_to_router_bot_to_receiver(
         self, e2e_sender_config, e2e_bot_config, e2e_receiver_config
     ):
-        """Full text-only round-trip: sender -> echo bot -> receiver."""
+        """Full text-only round-trip: sender -> router bot -> receiver."""
         received_payloads: list[tuple] = []
 
         async def on_receive(slug: str, payload: str, cards: list[dict]) -> None:
             received_payloads.append((slug, payload, cards))
 
         sender = WgrokSender(e2e_sender_config)
-        bot = WgrokEchoBot(e2e_bot_config)
+        bot = WgrokRouterBot(e2e_bot_config)
         receiver = WgrokReceiver(e2e_receiver_config, on_receive)
 
         sent_messages: list[dict] = []
@@ -33,14 +33,14 @@ class TestFullFlow:
 
         with (
             patch("wgrok.sender.send_message", side_effect=capture_send),
-            patch("wgrok.echo_bot.send_message", side_effect=capture_send),
+            patch("wgrok.router_bot.send_message", side_effect=capture_send),
             patch.object(bot, "_fetch_cards", return_value=[]),
             patch.object(receiver, "_fetch_cards", return_value=[]),
         ):
             await sender.send("hello")
             assert len(sent_messages) == 1
             assert sent_messages[0]["text"] == "./echo:e2e-slug:hello"
-            assert sent_messages[0]["to"] == "echobot@example.com"
+            assert sent_messages[0]["to"] == "routerbot@example.com"
 
             echo_input = {"personEmail": "user@example.com", "text": sent_messages[0]["text"], "id": "m1"}
             await bot._on_message(echo_input)
@@ -48,7 +48,7 @@ class TestFullFlow:
             assert sent_messages[1]["text"] == "e2e-slug:hello"
             assert sent_messages[1]["to"] == "user@example.com"
 
-            receiver_input = {"personEmail": "echobot@example.com", "text": sent_messages[1]["text"], "id": "m2"}
+            receiver_input = {"personEmail": "routerbot@example.com", "text": sent_messages[1]["text"], "id": "m2"}
             await receiver._on_message(receiver_input)
             assert len(received_payloads) == 1
             assert received_payloads[0] == ("e2e-slug", "hello", [])
@@ -66,7 +66,7 @@ class TestFullFlow:
             received.append((slug, payload, cards))
 
         sender = WgrokSender(e2e_sender_config)
-        bot = WgrokEchoBot(e2e_bot_config)
+        bot = WgrokRouterBot(e2e_bot_config)
         receiver = WgrokReceiver(e2e_receiver_config, on_receive)
 
         sent: list[dict] = []
@@ -81,7 +81,7 @@ class TestFullFlow:
 
         with (
             patch("wgrok.sender.send_card", side_effect=capture_card),
-            patch("wgrok.echo_bot.send_card", side_effect=capture_card),
+            patch("wgrok.router_bot.send_card", side_effect=capture_card),
             patch.object(bot, "_fetch_cards", return_value=[card]),
             patch.object(receiver, "_fetch_cards", return_value=[card]),
         ):
@@ -114,7 +114,7 @@ class TestFullFlow:
             received.append((slug, payload, cards))
 
         sender = WgrokSender(e2e_sender_config)
-        bot = WgrokEchoBot(e2e_bot_config)
+        bot = WgrokRouterBot(e2e_bot_config)
         receiver = WgrokReceiver(e2e_receiver_config, on_receive)
 
         sent: list[dict] = []
@@ -125,7 +125,7 @@ class TestFullFlow:
 
         with (
             patch("wgrok.sender.send_message", side_effect=capture),
-            patch("wgrok.echo_bot.send_message", side_effect=capture),
+            patch("wgrok.router_bot.send_message", side_effect=capture),
             patch.object(bot, "_fetch_cards", return_value=[]),
             patch.object(receiver, "_fetch_cards", return_value=[]),
         ):
@@ -142,15 +142,15 @@ class TestFullFlow:
     async def test_disallowed_sender_blocks_flow(
         self, e2e_sender_config, e2e_bot_config, e2e_receiver_config
     ):
-        """Messages from disallowed senders are dropped at the echo bot."""
-        bot = WgrokEchoBot(e2e_bot_config)
+        """Messages from disallowed senders are dropped at the router bot."""
+        bot = WgrokRouterBot(e2e_bot_config)
         sent: list[dict] = []
 
         async def capture(token, to_email, text, session=None):
             sent.append({"text": text})
             return {"id": "x"}
 
-        with patch("wgrok.echo_bot.send_message", side_effect=capture):
+        with patch("wgrok.router_bot.send_message", side_effect=capture):
             await bot._on_message({
                 "personEmail": "hacker@evil.com",
                 "text": "./echo:e2e-slug:pwned",

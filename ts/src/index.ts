@@ -1,5 +1,5 @@
 export { Allowlist } from './allowlist.js';
-export { WgrokEchoBot } from './echo-bot.js';
+export { WgrokRouterBot } from './router-bot.js';
 export { WgrokReceiver, type MessageHandler } from './receiver.js';
 export { WgrokSender } from './sender.js';
 export { NdjsonLogger, noopLogger, getLogger } from './logging.js';

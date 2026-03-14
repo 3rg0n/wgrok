@@ -11,7 +11,7 @@ wgrok is an ngrok clone that uses the Webex API as a message bus. It enables age
 Three components, each implemented in Python, Go, Rust, and TypeScript:
 
 1. **Sending library** - Reads `webex_token` from `.env`, wraps input with `./echo:<slug>:<payload>`, sends to the configured `target` via Webex webhook API.
-2. **Echo bot** - A relay service using [webex-message-handler](https://github.com/3rg0n/webex-message-handler) for WebSocket connections. Listens for messages, checks allowlist, strips `./echo:` prefix, and sends the payload back to the originator.
+2. **Router bot** - A relay/routing service using [webex-message-handler](https://github.com/3rg0n/webex-message-handler) for WebSocket connections. Listens for messages, checks allowlist, strips `./echo:` prefix, routes to registered agents (Mode C) or echoes back to sender (Mode B).
 3. **Receiving library** - Checks message sender against allowlist, matches slug to `.env` config, and processes or ignores the message.
 
 ## Message Protocol (v1.0)
@@ -19,7 +19,7 @@ Three components, each implemented in Python, Go, Rust, and TypeScript:
 ```
 Sending:   <./echo:<{slug}:payload>>
 Receiving: <{slug}:<payload>>
-Routing:   sender@domain > ./echo:{slug}:<payload> > echo bot strips ./echo: > sender@domain <message>
+Routing:   sender@domain > ./echo:{slug}:<payload> > router bot strips ./echo: > sender@domain <message>
 ```
 
 The `{slug}` acts as a message bus tag — agents/services only act on messages matching their configured slug.
@@ -31,7 +31,7 @@ The `{slug}` acts as a message bus tag — agents/services only act on messages 
 webex_token=<shared token>
 target=bot@domain.tld
 
-# Echo bot
+# Router bot
 webex_token=<unique token>
 
 # Allowlist
@@ -67,7 +67,7 @@ go build ./...                 # build all packages
 go vet ./...                   # lint
 go test ./... -v               # all tests
 go run ./cmd/sender <payload>  # run sender
-go run ./cmd/echobot           # run echo bot
+go run ./cmd/routerbot         # run router bot
 go run ./cmd/receiver          # run receiver
 ```
 

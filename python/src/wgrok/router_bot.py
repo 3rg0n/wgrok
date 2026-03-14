@@ -1,4 +1,4 @@
-"""WgrokEchoBot - listens for echo messages, validates allowlist, strips prefix, relays back.
+"""WgrokRouterBot - listens for messages, validates allowlist, strips prefix, relays back.
 
 Supports Mode B (echo back to sender) and Mode C (route to registered agent).
 When WGROK_ROUTES is configured, registered slugs are routed to their target bot.
@@ -22,12 +22,12 @@ from .protocol import format_response, is_echo, parse_echo
 from .webex import extract_cards, get_message, send_card, send_message
 
 
-class WgrokEchoBot:
+class WgrokRouterBot:
     def __init__(self, config: BotConfig) -> None:
         self._config = config
         self._allowlist = Allowlist(config.domains)
         self._routes = config.routes
-        self._logger = get_logger(config.debug, "wgrok.echo_bot")
+        self._logger = get_logger(config.debug, "wgrok.router_bot")
         self._handler: WebexMessageHandler | None = None
         self._session: aiohttp.ClientSession | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
@@ -43,13 +43,13 @@ class WgrokEchoBot:
         async def on_message(message) -> None:
             await self._on_message(message)
 
-        self._logger.info("Echo bot starting")
+        self._logger.info("Router bot starting")
 
         if self._config.webhook_port is not None:
             await self._start_webhook()
 
         await self._handler.connect()
-        self._logger.info("Echo bot connected")
+        self._logger.info("Router bot connected")
         await self._stop_event.wait()
 
     async def stop(self) -> None:
@@ -64,7 +64,7 @@ class WgrokEchoBot:
         if self._session:
             await self._session.close()
             self._session = None
-        self._logger.info("Echo bot stopped")
+        self._logger.info("Router bot stopped")
 
     async def _start_webhook(self) -> None:
         """Start the HTTP webhook endpoint."""

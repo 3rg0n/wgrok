@@ -239,7 +239,7 @@ channels:
       Mode B/C channel: sender to relay/routing bot. The message text
       contains a verb-routed command in the format `./{verb}:{slug}:{payload}`.
 
-      Mode B: the relay bot (e.g., echo bot) reflects `{slug}:{payload}`
+      Mode B: the relay bot (e.g., router bot) reflects `{slug}:{payload}`
       back to the sender. Agents self-select by slug.
 
       Mode C: the routing bot looks up the slug in `WGROK_ROUTES` and
@@ -457,7 +457,7 @@ components:
           summary: Reflect a message back to the sender for agent filtering
           headers:
             personEmail: sender@example.com
-            toPersonEmail: echo-bot@webex.bot
+            toPersonEmail: router-bot@webex.bot
           payload:
             text: ./echo:deploy-agent:start deploy on prod
         - name: Echo with routing (Mode C)
@@ -471,7 +471,7 @@ components:
           summary: Echo with an Adaptive Card attachment
           headers:
             personEmail: sender@example.com
-            toPersonEmail: echo-bot@webex.bot
+            toPersonEmail: router-bot@webex.bot
           payload:
             text: ./echo:myagent:card payload
             attachments:
@@ -511,7 +511,7 @@ components:
         - name: Echo response (Mode B)
           summary: Echo bot reflects message back, slug identifies target agent
           headers:
-            personEmail: echo-bot@webex.bot
+            personEmail: router-bot@webex.bot
             toPersonEmail: sender@example.com
           payload:
             text: deploy-agent:start deploy on prod

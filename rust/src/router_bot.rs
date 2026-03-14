@@ -10,7 +10,7 @@ use crate::logging::{get_logger, WgrokLogger};
 use crate::protocol::{format_response, is_echo, parse_echo};
 use crate::webex;
 
-pub struct WgrokEchoBot {
+pub struct WgrokRouterBot {
     config: BotConfig,
     allowlist: Allowlist,
     logger: WgrokLogger,
@@ -18,9 +18,9 @@ pub struct WgrokEchoBot {
     routes: HashMap<String, String>,
 }
 
-impl WgrokEchoBot {
+impl WgrokRouterBot {
     pub fn new(config: BotConfig) -> Self {
-        let logger = get_logger(config.debug, "wgrok.echo_bot");
+        let logger = get_logger(config.debug, "wgrok.router_bot");
         let allowlist = Allowlist::new(&config.domains);
         let routes = config.routes.clone();
         Self {
@@ -57,7 +57,7 @@ impl WgrokEchoBot {
             .await
             .map_err(|e| format!("connect: {}", e))?;
 
-        self.logger.info("Echo bot connected");
+        self.logger.info("Router bot connected");
 
         loop {
             tokio::select! {
@@ -78,7 +78,7 @@ impl WgrokEchoBot {
         }
 
         handler.disconnect().await;
-        self.logger.info("Echo bot stopped");
+        self.logger.info("Router bot stopped");
         Ok(())
     }
 

@@ -41,9 +41,9 @@ The developer sends one message. The bot handles the REST call, auth, pagination
 Agents share the same messaging token — all see all messages. The verb tells a relay bot what to do, and the slug identifies which agent should process the result.
 
 ```text
-Sender ──./echo:deploy-agent:start deploy──► Echo Bot
+Sender ──./echo:deploy-agent:start deploy──► Router Bot
                                                 │
-Receiver ◄──deploy-agent:start deploy────────── Echo Bot
+Receiver ◄──deploy-agent:start deploy────────── Router Bot
 (only processes because slug matches "deploy-agent")
 ```
 
@@ -107,7 +107,7 @@ Mode B and Mode C share the same wire format (Layer 1b). The difference is how t
 
 **App routing** — One bot, every internal API behind it. `./jira:...`, `./deploy:...`, `./grafana:...` — developers integrate with one SDK instead of building individual integrations for each service.
 
-**Firewall traversal** — GitHub Actions orchestrator talks to on-prem orchestrator. Both share a token, echo bot relays through Webex. `./echo:{slug}:{payload}` traverses the firewall without inbound ports.
+**Firewall traversal** — GitHub Actions orchestrator talks to on-prem orchestrator. Both share a token, router bot relays through Webex. `./echo:{slug}:{payload}` traverses the firewall without inbound ports.
 
 **Multi-agent pub/sub** — Multiple agents on one account, each with a unique slug. All agents see all messages but only process their own slug. NATS-style message bus over a chat platform.
 
@@ -383,7 +383,7 @@ pytest tests/ -v
 cd go
 go test ./... -v
 go run ./cmd/sender <payload>
-go run ./cmd/echobot
+go run ./cmd/routerbot
 go run ./cmd/receiver
 ```
 
@@ -422,7 +422,7 @@ tests/
 ├── config_cases.json
 ├── webex_cases.json
 ├── sender_cases.json
-├── echo_bot_cases.json
+├── router_bot_cases.json
 └── receiver_cases.json
 ```
 

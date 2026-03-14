@@ -9,7 +9,7 @@ from wgrok.config import BotConfig, ReceiverConfig, SenderConfig
 def sender_config():
     return SenderConfig(
         webex_token="fake-token",
-        target="echobot@example.com",
+        target="routerbot@example.com",
         slug="testagent",
         domains=["example.com"],
         debug=False,

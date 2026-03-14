@@ -1,4 +1,4 @@
-"""Tests for wgrok.echo_bot - driven by shared test cases."""
+"""Tests for wgrok.router_bot - driven by shared test cases."""
 
 import json
 from pathlib import Path
@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from wgrok.config import BotConfig
-from wgrok.echo_bot import WgrokEchoBot
+from wgrok.router_bot import WgrokRouterBot
 
-CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "echo_bot_cases.json").read_text())
+CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "router_bot_cases.json").read_text())
 
 
 def _make_config(use_routes=False):
@@ -21,11 +21,11 @@ def _make_config(use_routes=False):
     )
 
 
-class TestWgrokEchoBot:
+class TestWgrokRouterBot:
     @pytest.mark.parametrize("tc", CASES["cases"], ids=lambda tc: tc["name"])
     async def test_cases(self, tc):
         use_routes = tc.get("use_routes", False)
-        bot = WgrokEchoBot(_make_config(use_routes=use_routes))
+        bot = WgrokRouterBot(_make_config(use_routes=use_routes))
         msg = {
             "id": "msg-123",
             "personEmail": tc["sender"],
@@ -34,8 +34,8 @@ class TestWgrokEchoBot:
         }
 
         with (
-            patch("wgrok.echo_bot.send_message", new_callable=AsyncMock) as mock_send,
-            patch("wgrok.echo_bot.send_card", new_callable=AsyncMock) as mock_card,
+            patch("wgrok.router_bot.send_message", new_callable=AsyncMock) as mock_send,
+            patch("wgrok.router_bot.send_card", new_callable=AsyncMock) as mock_card,
             patch.object(bot, "_fetch_cards", return_value=tc["cards"]),
         ):
             mock_send.return_value = {"id": "reply-1"}

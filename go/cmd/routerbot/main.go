@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load(".env.echobot")
+	_ = godotenv.Load(".env.routerbot")
 
 	config, err := wgrok.BotConfigFromEnv()
 	if err != nil {
@@ -20,7 +20,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	bot := wgrok.NewEchoBot(config)
+	bot := wgrok.NewRouterBot(config)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

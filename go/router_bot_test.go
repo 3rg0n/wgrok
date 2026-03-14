@@ -11,7 +11,7 @@ import (
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
 
-type echoBotCases struct {
+type routerBotCases struct {
 	Config struct {
 		Domains []string `json:"domains"`
 	} `json:"config"`
@@ -29,21 +29,21 @@ type echoBotCases struct {
 	} `json:"cases"`
 }
 
-func loadEchoBotCases(t *testing.T) echoBotCases {
+func loadRouterBotCases(t *testing.T) routerBotCases {
 	t.Helper()
-	data, err := os.ReadFile("../tests/echo_bot_cases.json")
+	data, err := os.ReadFile("../tests/router_bot_cases.json")
 	if err != nil {
-		t.Fatalf("load echo bot cases: %v", err)
+		t.Fatalf("load router bot cases: %v", err)
 	}
-	var cases echoBotCases
+	var cases routerBotCases
 	if err := json.Unmarshal(data, &cases); err != nil {
-		t.Fatalf("parse echo bot cases: %v", err)
+		t.Fatalf("parse router bot cases: %v", err)
 	}
 	return cases
 }
 
-func TestWgrokEchoBot(t *testing.T) {
-	tc := loadEchoBotCases(t)
+func TestWgrokRouterBot(t *testing.T) {
+	tc := loadRouterBotCases(t)
 
 	for _, c := range tc.Cases {
 		t.Run(c.Name, func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestWgrokEchoBot(t *testing.T) {
 				config.Routes = tc.Routes
 			}
 
-			bot := NewEchoBot(config)
+			bot := NewRouterBot(config)
 			bot.client = srv.Client()
 
 			msg := wmh.DecryptedMessage{

@@ -16,7 +16,7 @@ type SenderConfig struct {
 	Debug      bool
 }
 
-// BotConfig holds configuration for WgrokEchoBot.
+// BotConfig holds configuration for WgrokRouterBot.
 type BotConfig struct {
 	WebexToken    string
 	Domains       []string

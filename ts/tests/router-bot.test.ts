@@ -15,10 +15,10 @@ jest.unstable_mockModule('../src/webex', () => ({
   _setMessagesUrl: jest.fn(),
 }));
 
-const { WgrokEchoBot } = await import('../src/echo-bot');
+const { WgrokRouterBot } = await import('../src/router-bot');
 import { loadCases } from './helpers';
 
-interface EchoBotCases {
+interface RouterBotCases {
   config: { domains: string[] };
   routes: Record<string, string>;
   cases: Array<{
@@ -34,7 +34,7 @@ interface EchoBotCases {
   }>;
 }
 
-const CASES = loadCases<EchoBotCases>('echo_bot_cases.json');
+const CASES = loadCases<RouterBotCases>('router_bot_cases.json');
 
 function fakeMsg(sender: string, text: string): DecryptedMessage {
   return {
@@ -48,7 +48,7 @@ function fakeMsg(sender: string, text: string): DecryptedMessage {
   };
 }
 
-describe('WgrokEchoBot', () => {
+describe('WgrokRouterBot', () => {
   beforeEach(() => {
     mockSendMessage.mockClear();
     mockSendCard.mockClear();
@@ -56,7 +56,7 @@ describe('WgrokEchoBot', () => {
 
   it.each(CASES.cases)('$name', async (tc) => {
     const routes = tc.use_routes ? CASES.routes : {};
-    const bot = new WgrokEchoBot({
+    const bot = new WgrokRouterBot({
       webexToken: 'fake-token',
       domains: CASES.config.domains,
       debug: false,

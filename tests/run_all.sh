@@ -19,7 +19,7 @@ py_config=$(python -m pytest python/tests/test_config.py -q --no-header 2>&1; ec
 py_logging=$(python -m pytest python/tests/test_logging.py -q --no-header 2>&1; echo $?)
 py_webex=$(python -m pytest python/tests/test_webex.py -q --no-header 2>&1; echo $?)
 py_sender=$(python -m pytest python/tests/test_sender.py -q --no-header 2>&1; echo $?)
-py_echobot=$(python -m pytest python/tests/test_echo_bot.py -q --no-header 2>&1; echo $?)
+py_routerbot=$(python -m pytest python/tests/test_router_bot.py -q --no-header 2>&1; echo $?)
 py_receiver=$(python -m pytest python/tests/test_receiver.py -q --no-header 2>&1; echo $?)
 
 # Go
@@ -28,9 +28,9 @@ go_protocol=$(go test -run 'TestEcho|TestFormat|TestParse|TestIs|TestResponse' -
 go_allowlist=$(go test -run TestAllowlist -count=1 2>/dev/null; echo $?)
 go_config=$(go test -run 'Config|Debug' -count=1 2>/dev/null; echo $?)
 go_logging=$(go test -run 'Logger|GetLogger' -count=1 2>/dev/null; echo $?)
-go_webex=$(go test -run 'TestExtract|TestSendMessage|TestSendCard|TestGetMessage|TestGetAttachment' -count=1 2>/dev/null; echo $?)
+go_webex=$(go test -run 'TestExtract|TestSendMessage|TestSendCard|TestGetMessage|TestGetAttachment|TestRetryAfter' -count=1 2>/dev/null; echo $?)
 go_sender=$(go test -run TestWgrokSender -count=1 2>/dev/null; echo $?)
-go_echobot=$(go test -run TestWgrokEchoBot -count=1 2>/dev/null; echo $?)
+go_routerbot=$(go test -run TestWgrokRouterBot -count=1 2>/dev/null; echo $?)
 go_receiver=$(go test -run TestWgrokReceiver -count=1 2>/dev/null; echo $?)
 
 # TypeScript
@@ -42,7 +42,7 @@ ts_config=$($ts_cmd --testPathPattern 'config\.test' 2>/dev/null; echo $?)
 ts_logging=$($ts_cmd --testPathPattern 'logging\.test' 2>/dev/null; echo $?)
 ts_webex=$($ts_cmd --testPathPattern 'webex' 2>/dev/null; echo $?)
 ts_sender=$($ts_cmd --testPathPattern 'sender\.test' 2>/dev/null; echo $?)
-ts_echobot=$($ts_cmd --testPathPattern 'echo-bot\.test' 2>/dev/null; echo $?)
+ts_routerbot=$($ts_cmd --testPathPattern 'router-bot\.test' 2>/dev/null; echo $?)
 ts_receiver=$($ts_cmd --testPathPattern 'receiver\.test' 2>/dev/null; echo $?)
 
 # Rust
@@ -53,7 +53,7 @@ rs_config=$(cargo test --test config_test 2>/dev/null; echo $?)
 rs_logging=$(cargo test --test logging_test 2>/dev/null; echo $?)
 rs_webex=$(cargo test --test webex_test --test webex_http_test 2>/dev/null; echo $?)
 rs_sender=$(cargo test --test sender_test 2>/dev/null; echo $?)
-rs_echobot=$(cargo test --test echo_bot_test 2>/dev/null; echo $?)
+rs_routerbot=$(cargo test --test router_bot_test 2>/dev/null; echo $?)
 rs_receiver=$(cargo test --test receiver_test 2>/dev/null; echo $?)
 
 # Extract last line (exit code) from each
@@ -66,7 +66,7 @@ echo ""
 printf "%-12s | %-6s | %-6s | %-6s | %-6s\n" "Feature" "Python" "Go" "TS" "Rust"
 printf "%-12s-|--------|--------|--------|--------\n" "------------"
 
-features=(protocol allowlist config logging webex sender echobot receiver)
+features=(protocol allowlist config logging webex sender routerbot receiver)
 for f in "${features[@]}"; do
   eval py_rc="\$(get_rc \"\$py_$f\")"
   eval go_rc="\$(get_rc \"\$go_$f\")"

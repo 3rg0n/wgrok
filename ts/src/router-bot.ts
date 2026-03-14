@@ -5,7 +5,7 @@ import { getLogger } from './logging.js';
 import { isEcho, parseEcho, formatResponse } from './protocol.js';
 import { sendMessage, sendCard, getMessage, extractCards } from './webex.js';
 
-export class WgrokEchoBot {
+export class WgrokRouterBot {
   private config: BotConfig;
   private allowlist: Allowlist;
   private logger: Logger;
@@ -16,7 +16,7 @@ export class WgrokEchoBot {
   constructor(config: BotConfig) {
     this.config = config;
     this.allowlist = new Allowlist(config.domains);
-    this.logger = getLogger(config.debug, 'wgrok.echo_bot');
+    this.logger = getLogger(config.debug, 'wgrok.router_bot');
     this.routes = config.routes;
   }
 
@@ -33,9 +33,9 @@ export class WgrokEchoBot {
       });
     });
 
-    this.logger.info('Echo bot starting');
+    this.logger.info('Router bot starting');
     await this.handler.connect();
-    this.logger.info('Echo bot connected');
+    this.logger.info('Router bot connected');
 
     await new Promise<void>((resolve) => {
       this.abortController!.signal.addEventListener('abort', () => resolve());
@@ -48,7 +48,7 @@ export class WgrokEchoBot {
       await this.handler.disconnect();
       this.handler = undefined;
     }
-    this.logger.info('Echo bot stopped');
+    this.logger.info('Router bot stopped');
   }
 
   /** Resolve target address based on slug and routing rules */
