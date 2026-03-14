@@ -1,0 +1,38 @@
+{
+  "send_message": {
+    "expected_url_pattern": "https://discord.com/api/v10/channels/{channel_id}/messages",
+    "expected_payload_fields": ["content"],
+    "expected_auth_header_prefix": "Bot "
+  },
+
+  "send_card": {
+    "expected_extra_field": "embeds",
+    "description": "Cards are sent as Discord embeds"
+  },
+
+  "retry_after": {
+    "max_retries": 3,
+    "cases": [
+      {
+        "name": "retries_on_429_then_succeeds",
+        "responses": [
+          {"status": 429, "retry_after": "1"},
+          {"status": 200, "body": {"id": "msg-discord-1"}}
+        ],
+        "expected_result": {"id": "msg-discord-1"},
+        "expected_attempts": 2
+      },
+      {
+        "name": "raises_after_max_retries",
+        "responses": [
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"}
+        ],
+        "expected_error_contains": "429",
+        "expected_attempts": 4
+      }
+    ]
+  }
+}

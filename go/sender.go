@@ -30,7 +30,7 @@ func (s *WgrokSender) Send(payload string, card interface{}) (map[string]interfa
 	s.logger.Info(fmt.Sprintf("Sending to %s: %s", s.config.Target, text))
 	if card != nil {
 		s.logger.Info("Including adaptive card attachment")
-		return SendCard(s.config.WebexToken, s.config.Target, text, card, s.client)
+		return PlatformSendCard(s.config.Platform, s.config.WebexToken, s.config.Target, text, card, s.client)
 	}
-	return SendMessage(s.config.WebexToken, s.config.Target, text, s.client)
+	return PlatformSendMessage(s.config.Platform, s.config.WebexToken, s.config.Target, text, s.client)
 }

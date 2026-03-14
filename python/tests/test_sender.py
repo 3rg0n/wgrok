@@ -27,19 +27,21 @@ class TestWgrokSender:
             sender = WgrokSender(_make_config())
             try:
                 if tc["expected_uses_card"]:
-                    with patch("wgrok.sender.send_card", new_callable=AsyncMock) as mock_card:
+                    with patch("wgrok.sender.platform_send_card", new_callable=AsyncMock) as mock_card:
                         mock_card.return_value = {"id": "msg-1"}
                         await sender.send(tc["payload"], card=tc["card"])
                         args = mock_card.call_args
-                        assert args[0][2] == tc["expected_text"], f'{tc["name"]}: text mismatch'
-                        assert args[0][1] == tc["expected_target"], f'{tc["name"]}: target mismatch'
+                        # platform_send_card(platform, token, target, text, card, session)
+                        assert args[0][3] == tc["expected_text"], f'{tc["name"]}: text mismatch'
+                        assert args[0][2] == tc["expected_target"], f'{tc["name"]}: target mismatch'
                 else:
-                    with patch("wgrok.sender.send_message", new_callable=AsyncMock) as mock_send:
+                    with patch("wgrok.sender.platform_send_message", new_callable=AsyncMock) as mock_send:
                         mock_send.return_value = {"id": "msg-1"}
                         await sender.send(tc["payload"], card=tc.get("card"))
                         args = mock_send.call_args
-                        assert args[0][2] == tc["expected_text"], f'{tc["name"]}: text mismatch'
-                        assert args[0][1] == tc["expected_target"], f'{tc["name"]}: target mismatch'
+                        # platform_send_message(platform, token, target, text, session)
+                        assert args[0][3] == tc["expected_text"], f'{tc["name"]}: text mismatch'
+                        assert args[0][2] == tc["expected_target"], f'{tc["name"]}: target mismatch'
             finally:
                 await sender.close()
 

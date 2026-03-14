@@ -3,8 +3,8 @@ use serde_json::Value;
 
 use crate::config::SenderConfig;
 use crate::logging::{get_logger, WgrokLogger};
+use crate::platform;
 use crate::protocol::format_echo;
-use crate::webex;
 
 pub struct WgrokSender {
     config: SenderConfig,
@@ -28,10 +28,25 @@ impl WgrokSender {
         match card {
             Some(c) => {
                 self.logger.info("Including adaptive card attachment");
-                webex::send_card(&self.config.webex_token, &self.config.target, &text, c, &self.client).await
+                platform::platform_send_card(
+                    &self.config.platform,
+                    &self.config.webex_token,
+                    &self.config.target,
+                    &text,
+                    c,
+                    &self.client,
+                )
+                .await
             }
             None => {
-                webex::send_message(&self.config.webex_token, &self.config.target, &text, &self.client).await
+                platform::platform_send_message(
+                    &self.config.platform,
+                    &self.config.webex_token,
+                    &self.config.target,
+                    &text,
+                    &self.client,
+                )
+                .await
             }
         }
     }

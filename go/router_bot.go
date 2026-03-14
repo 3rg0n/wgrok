@@ -82,6 +82,28 @@ func (b *WgrokRouterBot) resolveTarget(slug, sender string) string {
 	return sender
 }
 
+// getSendPlatformToken returns the platform and token to use for sending.
+// Prefers webex if available, otherwise returns the first available platform.
+func (b *WgrokRouterBot) getSendPlatformToken() (platform, token string, err error) {
+	if len(b.config.PlatformTokens) == 0 {
+		return "", "", fmt.Errorf("no platform tokens configured")
+	}
+
+	// Prefer webex
+	if tokens, ok := b.config.PlatformTokens["webex"]; ok && len(tokens) > 0 {
+		return "webex", tokens[0], nil
+	}
+
+	// Otherwise return first available platform
+	for p, tokens := range b.config.PlatformTokens {
+		if len(tokens) > 0 {
+			return p, tokens[0], nil
+		}
+	}
+
+	return "", "", fmt.Errorf("no valid tokens found in platform tokens")
+}
+
 // onMessageWithCards is used by tests to inject card data without HTTP fetches.
 func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []interface{}) {
 	sender := msg.PersonEmail
@@ -106,12 +128,18 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 	response := FormatResponse(slug, payload)
 	replyTo := b.resolveTarget(slug, sender)
 
+	platform, token, err := b.getSendPlatformToken()
+	if err != nil {
+		b.logger.Error(fmt.Sprintf("Failed to get send platform token: %v", err))
+		return
+	}
+
 	if len(cards) > 0 {
 		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
-		_, err = SendCard(b.config.WebexToken, replyTo, response, cards[0], b.client)
+		_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
 	} else {
 		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
-		_, err = SendMessage(b.config.WebexToken, replyTo, response, b.client)
+		_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
 	}
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to relay message: %v", err))
@@ -141,15 +169,21 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 	response := FormatResponse(slug, payload)
 	replyTo := b.resolveTarget(slug, sender)
 
+	platform, token, err := b.getSendPlatformToken()
+	if err != nil {
+		b.logger.Error(fmt.Sprintf("Failed to get send platform token: %v", err))
+		return
+	}
+
 	// Check for card attachments on the original message
 	cards := b.fetchCards(msg.ID)
 
 	if len(cards) > 0 {
 		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
-		_, err = SendCard(b.config.WebexToken, replyTo, response, cards[0], b.client)
+		_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
 	} else {
 		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
-		_, err = SendMessage(b.config.WebexToken, replyTo, response, b.client)
+		_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
 	}
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to relay message: %v", err))

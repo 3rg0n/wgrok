@@ -58,6 +58,7 @@ func TestWgrokSender(t *testing.T) {
 				WebexToken: tc.Config.Token,
 				Target:     tc.Config.Target,
 				Slug:       tc.Config.Slug,
+				Platform:   "webex",
 			})
 			sender.client = srv.Client()
 

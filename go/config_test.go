@@ -75,11 +75,11 @@ type configCases struct {
 			ExpectedWebhookSecret interface{}       `json:"expected_webhook_secret"`
 		} `json:"webhook_disabled_by_default"`
 		WithPlatformTokens struct {
-			Env                  map[string]string `json:"env"`
+			Env                    map[string]string   `json:"env"`
 			ExpectedPlatformTokens map[string][]string `json:"expected_platform_tokens"`
 		} `json:"with_platform_tokens"`
 		FallbackSingleToken struct {
-			Env                  map[string]string `json:"env"`
+			Env                    map[string]string   `json:"env"`
 			ExpectedPlatformTokens map[string][]string `json:"expected_platform_tokens"`
 		} `json:"fallback_single_token"`
 	} `json:"bot"`

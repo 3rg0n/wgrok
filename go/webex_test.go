@@ -20,16 +20,16 @@ type webexCases struct {
 	RetryAfter struct {
 		MaxRetries int `json:"max_retries"`
 		Cases      []struct {
-			Name              string `json:"name"`
-			Responses         []struct {
-				Status     int                   `json:"status"`
-				RetryAfter interface{}           `json:"retry_after"`
+			Name      string `json:"name"`
+			Responses []struct {
+				Status     int                    `json:"status"`
+				RetryAfter interface{}            `json:"retry_after"`
 				Body       map[string]interface{} `json:"body"`
 			} `json:"responses"`
-			ExpectedResult      map[string]interface{} `json:"expected_result"`
-			ExpectedAttempts    int                    `json:"expected_attempts"`
-			ExpectedError       string                 `json:"expected_error_contains"`
-			ExpectedSleepSeconds []int                 `json:"expected_sleep_seconds"`
+			ExpectedResult       map[string]interface{} `json:"expected_result"`
+			ExpectedAttempts     int                    `json:"expected_attempts"`
+			ExpectedError        string                 `json:"expected_error_contains"`
+			ExpectedSleepSeconds []int                  `json:"expected_sleep_seconds"`
 		} `json:"cases"`
 	} `json:"retry_after"`
 }

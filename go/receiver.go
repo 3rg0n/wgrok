@@ -15,13 +15,13 @@ type MessageHandler func(slug, payload string, cards []interface{})
 
 // WgrokReceiver listens for response messages, matches slug, invokes handler callback.
 type WgrokReceiver struct {
-	config   *ReceiverConfig
+	config    *ReceiverConfig
 	allowlist *Allowlist
-	handler  MessageHandler
-	logger   wmh.Logger
+	handler   MessageHandler
+	logger    wmh.Logger
 	wsHandler *wmh.WebexMessageHandler
-	client   *http.Client
-	cancel   context.CancelFunc
+	client    *http.Client
+	cancel    context.CancelFunc
 }
 
 // NewReceiver creates a new WgrokReceiver.

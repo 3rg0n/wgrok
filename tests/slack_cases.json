@@ -1,0 +1,39 @@
+{
+  "send_message": {
+    "expected_url": "https://slack.com/api/chat.postMessage",
+    "expected_payload_fields": ["channel", "text"],
+    "expected_auth_header_prefix": "Bearer "
+  },
+
+  "send_card": {
+    "expected_url": "https://slack.com/api/chat.postMessage",
+    "expected_extra_field": "blocks",
+    "description": "Cards are sent as Slack Block Kit blocks"
+  },
+
+  "retry_after": {
+    "max_retries": 3,
+    "cases": [
+      {
+        "name": "retries_on_429_then_succeeds",
+        "responses": [
+          {"status": 429, "retry_after": "1"},
+          {"status": 200, "body": {"ok": true, "ts": "1234.5678"}}
+        ],
+        "expected_result": {"ok": true, "ts": "1234.5678"},
+        "expected_attempts": 2
+      },
+      {
+        "name": "raises_after_max_retries",
+        "responses": [
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"},
+          {"status": 429, "retry_after": "1"}
+        ],
+        "expected_error_contains": "429",
+        "expected_attempts": 4
+      }
+    ]
+  }
+}

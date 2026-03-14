@@ -18,6 +18,7 @@ def _make_config(use_routes=False):
         domains=CASES["config"]["domains"],
         debug=False,
         routes=CASES.get("routes", {}) if use_routes else {},
+        platform_tokens={"webex": ["fake-bot-token"]},
     )
 
 
@@ -34,8 +35,8 @@ class TestWgrokRouterBot:
         }
 
         with (
-            patch("wgrok.router_bot.send_message", new_callable=AsyncMock) as mock_send,
-            patch("wgrok.router_bot.send_card", new_callable=AsyncMock) as mock_card,
+            patch("wgrok.router_bot.platform_send_message", new_callable=AsyncMock) as mock_send,
+            patch("wgrok.router_bot.platform_send_card", new_callable=AsyncMock) as mock_card,
             patch.object(bot, "_fetch_cards", return_value=tc["cards"]),
         ):
             mock_send.return_value = {"id": "reply-1"}
@@ -46,13 +47,15 @@ class TestWgrokRouterBot:
                 if tc.get("expected_reply_card"):
                     mock_card.assert_called_once()
                     args = mock_card.call_args
-                    assert args[0][1] == tc["expected_reply_to"]
-                    assert args[0][2] == tc["expected_reply_text"]
+                    # platform_send_card(platform, token, target, text, card, session)
+                    assert args[0][2] == tc["expected_reply_to"]
+                    assert args[0][3] == tc["expected_reply_text"]
                 else:
                     mock_send.assert_called_once()
                     args = mock_send.call_args
-                    assert args[0][1] == tc["expected_reply_to"]
-                    assert args[0][2] == tc["expected_reply_text"]
+                    # platform_send_message(platform, token, target, text, session)
+                    assert args[0][2] == tc["expected_reply_to"]
+                    assert args[0][3] == tc["expected_reply_text"]
             else:
                 mock_send.assert_not_called()
                 mock_card.assert_not_called()

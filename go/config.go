@@ -18,13 +18,13 @@ type SenderConfig struct {
 
 // BotConfig holds configuration for WgrokRouterBot.
 type BotConfig struct {
-	WebexToken    string
-	Domains       []string
-	Routes        map[string]string
+	WebexToken     string
+	Domains        []string
+	Routes         map[string]string
 	PlatformTokens map[string][]string
-	WebhookPort   *int
-	WebhookSecret *string
-	Debug         bool
+	WebhookPort    *int
+	WebhookSecret  *string
+	Debug          bool
 }
 
 // ReceiverConfig holds configuration for WgrokReceiver.
@@ -182,13 +182,13 @@ func BotConfigFromEnv() (*BotConfig, error) {
 	}
 
 	return &BotConfig{
-		WebexToken:    webexToken,
-		Domains:       envParseDomains(domainsRaw),
-		Routes:        parseRoutes(os.Getenv("WGROK_ROUTES")),
+		WebexToken:     webexToken,
+		Domains:        envParseDomains(domainsRaw),
+		Routes:         parseRoutes(os.Getenv("WGROK_ROUTES")),
 		PlatformTokens: platformTokens,
-		WebhookPort:   parseInt(os.Getenv("WGROK_WEBHOOK_PORT")),
-		WebhookSecret: parseStringPtr(os.Getenv("WGROK_WEBHOOK_SECRET")),
-		Debug:         envParseDebug(os.Getenv("WGROK_DEBUG")),
+		WebhookPort:    parseInt(os.Getenv("WGROK_WEBHOOK_PORT")),
+		WebhookSecret:  parseStringPtr(os.Getenv("WGROK_WEBHOOK_SECRET")),
+		Debug:          envParseDebug(os.Getenv("WGROK_DEBUG")),
 	}, nil
 }
 

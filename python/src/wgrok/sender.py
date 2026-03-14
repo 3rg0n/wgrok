@@ -1,4 +1,4 @@
-"""WgrokSender - wraps payload in echo protocol and sends via Webex."""
+"""WgrokSender - wraps payload in echo protocol and sends via configured platform."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import aiohttp
 
 from .config import SenderConfig
 from .logging import get_logger
+from .platform import platform_send_card, platform_send_message
 from .protocol import format_echo
-from .webex import send_card, send_message
 
 
 class WgrokSender:
@@ -30,11 +30,14 @@ class WgrokSender:
         """
         session = await self._ensure_session()
         text = format_echo(self._config.slug, payload)
-        self._logger.info(f"Sending to {self._config.target}: {text}")
+        platform = self._config.platform
+        token = self._config.webex_token
+        target = self._config.target
+        self._logger.info(f"Sending to {target} via {platform}: {text}")
         if card is not None:
-            self._logger.info("Including adaptive card attachment")
-            return await send_card(self._config.webex_token, self._config.target, text, card, session)
-        return await send_message(self._config.webex_token, self._config.target, text, session)
+            self._logger.info("Including card/rich content attachment")
+            return await platform_send_card(platform, token, target, text, card, session)
+        return await platform_send_message(platform, token, target, text, session)
 
     async def close(self) -> None:
         """Clean up the HTTP session."""

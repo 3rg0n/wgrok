@@ -16,7 +16,7 @@ type routerBotCases struct {
 		Domains []string `json:"domains"`
 	} `json:"config"`
 	Routes map[string]string `json:"routes"`
-	Cases []struct {
+	Cases  []struct {
 		Name              string        `json:"name"`
 		Sender            string        `json:"sender"`
 		Text              string        `json:"text"`
@@ -63,6 +63,9 @@ func TestWgrokRouterBot(t *testing.T) {
 			config := &BotConfig{
 				WebexToken: "fake-token",
 				Domains:    tc.Config.Domains,
+				PlatformTokens: map[string][]string{
+					"webex": {"fake-token"},
+				},
 			}
 
 			// Apply routes if test case specifies use_routes

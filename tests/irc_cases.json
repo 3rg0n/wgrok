@@ -1,0 +1,57 @@
+{
+  "parse_connection_string": [
+    {
+      "name": "full_connection_string",
+      "input": "wgrok-bot:mypass@irc.libera.chat:6697/#wgrok",
+      "expected": {
+        "nick": "wgrok-bot",
+        "password": "mypass",
+        "server": "irc.libera.chat",
+        "port": 6697,
+        "channel": "#wgrok"
+      }
+    },
+    {
+      "name": "no_password",
+      "input": "wgrok-bot@irc.libera.chat:6697/#wgrok",
+      "expected": {
+        "nick": "wgrok-bot",
+        "password": "",
+        "server": "irc.libera.chat",
+        "port": 6697,
+        "channel": "#wgrok"
+      }
+    },
+    {
+      "name": "no_channel",
+      "input": "wgrok-bot:pass@irc.libera.chat:6697",
+      "expected": {
+        "nick": "wgrok-bot",
+        "password": "pass",
+        "server": "irc.libera.chat",
+        "port": 6697,
+        "channel": ""
+      }
+    },
+    {
+      "name": "default_port",
+      "input": "wgrok-bot@irc.libera.chat/#wgrok",
+      "expected": {
+        "nick": "wgrok-bot",
+        "password": "",
+        "server": "irc.libera.chat",
+        "port": 6697,
+        "channel": "#wgrok"
+      }
+    },
+    {
+      "name": "missing_at_sign_is_error",
+      "input": "wgrok-bot:pass:irc.libera.chat:6697",
+      "expected_error": true
+    }
+  ],
+
+  "send_message": {
+    "description": "IRC messages are sent via PRIVMSG. Cards are not supported — only text is sent."
+  }
+}

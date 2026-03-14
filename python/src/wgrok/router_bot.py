@@ -18,8 +18,9 @@ from webex_message_handler import WebexMessageHandler, WebexMessageHandlerConfig
 from .allowlist import Allowlist
 from .config import BotConfig
 from .logging import get_logger
+from .platform import platform_send_card, platform_send_message
 from .protocol import format_response, is_echo, parse_echo
-from .webex import extract_cards, get_message, send_card, send_message
+from .webex import extract_cards, get_message
 
 
 class WgrokRouterBot:
@@ -115,6 +116,17 @@ class WgrokRouterBot:
             return target
         return sender
 
+    def _get_send_platform_token(self) -> tuple[str, str]:
+        """Get the platform and token to use for sending.
+
+        Uses the first available platform token pair, preferring webex for backward compatibility.
+        """
+        pt = self._config.platform_tokens
+        for platform in ("webex", "slack", "discord", "irc"):
+            if platform in pt and pt[platform]:
+                return platform, pt[platform][0]
+        return "webex", self._config.webex_token
+
     async def _on_message(self, message) -> None:
         """Process an incoming message: check allowlist, parse echo, relay response."""
         sender = message.person_email if hasattr(message, "person_email") else message.get("personEmail", "")
@@ -138,16 +150,17 @@ class WgrokRouterBot:
 
         response = format_response(slug, payload)
         target = self._resolve_target(slug, sender)
+        platform, token = self._get_send_platform_token()
 
         # Check for card attachments on the original message
         cards = await self._fetch_cards(msg_id)
 
         if cards:
-            self._logger.info(f"Relaying to {target}: {response} (with {len(cards)} card(s))")
-            await send_card(self._config.webex_token, target, response, cards[0], self._session)
+            self._logger.info(f"Relaying to {target} via {platform}: {response} (with {len(cards)} card(s))")
+            await platform_send_card(platform, token, target, response, cards[0], self._session)
         else:
-            self._logger.info(f"Relaying to {target}: {response}")
-            await send_message(self._config.webex_token, target, response, self._session)
+            self._logger.info(f"Relaying to {target} via {platform}: {response}")
+            await platform_send_message(platform, token, target, response, self._session)
 
     async def _fetch_cards(self, message_id: str) -> list[dict]:
         """Fetch card attachments from the original message via REST API."""

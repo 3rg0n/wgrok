@@ -7,8 +7,8 @@ import (
 )
 
 type protocolCases struct {
-	EchoPrefix     string `json:"echo_prefix"`
-	FormatEcho     []struct {
+	EchoPrefix string `json:"echo_prefix"`
+	FormatEcho []struct {
 		Slug     string `json:"slug"`
 		Payload  string `json:"payload"`
 		Expected string `json:"expected"`

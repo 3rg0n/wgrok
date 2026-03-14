@@ -7,6 +7,7 @@ use webex_message_handler::{Config, DecryptedMessage, HandlerEvent, WebexMessage
 use crate::allowlist::Allowlist;
 use crate::config::BotConfig;
 use crate::logging::{get_logger, WgrokLogger};
+use crate::platform;
 use crate::protocol::{format_response, is_echo, parse_echo};
 use crate::webex;
 
@@ -38,6 +39,23 @@ impl WgrokRouterBot {
         } else {
             sender.to_string()
         }
+    }
+
+    fn get_send_platform_token(&self) -> (String, String) {
+        // Prefer webex platform
+        if let Some(tokens) = self.config.platform_tokens.get("webex") {
+            if let Some(token) = tokens.first() {
+                return ("webex".to_string(), token.clone());
+            }
+        }
+        // Fall back to first available platform
+        for (platform, tokens) in &self.config.platform_tokens {
+            if let Some(token) = tokens.first() {
+                return (platform.clone(), token.clone());
+            }
+        }
+        // Last resort: use webex_token with webex platform
+        ("webex".to_string(), self.config.webex_token.clone())
     }
 
     pub async fn run(&self, mut shutdown_rx: watch::Receiver<bool>) -> Result<(), String> {
@@ -109,6 +127,7 @@ impl WgrokRouterBot {
 
         let target = self.resolve_target(&slug, sender);
         let response = format_response(&slug, &payload);
+        let (platform, token) = self.get_send_platform_token();
 
         let result = if !cards.is_empty() {
             self.logger.info(&format!(
@@ -117,8 +136,9 @@ impl WgrokRouterBot {
                 response,
                 cards.len()
             ));
-            webex::send_card(
-                &self.config.webex_token,
+            platform::platform_send_card(
+                &platform,
+                &token,
                 &target,
                 &response,
                 &cards[0],
@@ -128,7 +148,7 @@ impl WgrokRouterBot {
         } else {
             self.logger
                 .info(&format!("Relaying to {}: {}", target, response));
-            webex::send_message(&self.config.webex_token, &target, &response, &self.client).await
+            platform::platform_send_message(&platform, &token, &target, &response, &self.client).await
         };
 
         if let Err(e) = result {

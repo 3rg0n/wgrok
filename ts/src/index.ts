@@ -32,3 +32,24 @@ export {
   getAttachmentAction,
   extractCards,
 } from './webex.js';
+export {
+  SLACK_API_BASE,
+  SLACK_POST_MESSAGE_URL,
+  sendSlackMessage,
+  sendSlackCard,
+} from './slack.js';
+export {
+  DISCORD_API_BASE,
+  sendDiscordMessage,
+  sendDiscordCard,
+} from './discord.js';
+export {
+  parseIRCConnectionString,
+  sendIRCMessage,
+  sendIRCCard,
+  type IRCConnectionParams,
+} from './irc.js';
+export {
+  platformSendMessage,
+  platformSendCard,
+} from './platform.js';

@@ -3,7 +3,8 @@ import type { BotConfig } from './config.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
 import { isEcho, parseEcho, formatResponse } from './protocol.js';
-import { sendMessage, sendCard, getMessage, extractCards } from './webex.js';
+import { getMessage, extractCards } from './webex.js';
+import { platformSendMessage, platformSendCard } from './platform.js';
 
 export class WgrokRouterBot {
   private config: BotConfig;
@@ -59,6 +60,24 @@ export class WgrokRouterBot {
     return sender;
   }
 
+  /** Get the send platform and token, preferring webex if available */
+  private getSendPlatformToken(): [string, string] {
+    // Prefer webex if available
+    if (this.config.platformTokens.webex && this.config.platformTokens.webex.length > 0) {
+      return ['webex', this.config.platformTokens.webex[0]];
+    }
+
+    // Otherwise get the first available platform
+    for (const [platform, tokens] of Object.entries(this.config.platformTokens)) {
+      if (tokens && tokens.length > 0) {
+        return [platform, tokens[0]];
+      }
+    }
+
+    // Fallback to webex token if no platform tokens are configured
+    return ['webex', this.config.webexToken];
+  }
+
   /** Exposed for testing with injected cards */
   async onMessageWithCards(msg: DecryptedMessage, cards: unknown[]): Promise<void> {
     const sender = msg.personEmail;
@@ -84,13 +103,14 @@ export class WgrokRouterBot {
 
     const target = this.resolveTarget(slug, sender);
     const response = formatResponse(slug, payload);
+    const [platform, token] = this.getSendPlatformToken();
 
     if (cards.length > 0) {
       this.logger.info(`Relaying to ${target}: ${response} (with ${cards.length} card(s))`);
-      await sendCard(this.config.webexToken, target, response, cards[0]);
+      await platformSendCard(platform, token, target, response, cards[0]);
     } else {
       this.logger.info(`Relaying to ${target}: ${response}`);
-      await sendMessage(this.config.webexToken, target, response);
+      await platformSendMessage(platform, token, target, response);
     }
   }
 

@@ -1,0 +1,30 @@
+{
+  "description": "Tests that the platform dispatcher routes to the correct transport module",
+  "cases": [
+    {
+      "name": "webex_send_message",
+      "platform": "webex",
+      "expected_module": "webex"
+    },
+    {
+      "name": "slack_send_message",
+      "platform": "slack",
+      "expected_module": "slack"
+    },
+    {
+      "name": "discord_send_message",
+      "platform": "discord",
+      "expected_module": "discord"
+    },
+    {
+      "name": "irc_send_message",
+      "platform": "irc",
+      "expected_module": "irc"
+    },
+    {
+      "name": "invalid_platform_raises",
+      "platform": "teams",
+      "expected_error": true
+    }
+  ]
+}
