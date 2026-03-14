@@ -1,47 +1,91 @@
-wgrok is an ngrok clone but uses Webex api as a message bus. This is to allow agents, services or anything that is registered to the Webex api to send and receive messages between systems even if there are firewalls or network rules preventing webhooks.
+wgrok — message bus protocol over social messaging platforms
 
-the system is simple. register a bot with developer.webex.com. Use one of the libraries in this folder in your project.
+Uses messaging platform APIs (Webex, Slack, Discord) as transport to allow
+agents, services, and orchestrators to communicate across firewalls without
+inbound webhooks.
 
-python, go, rust and typescript. There are three components in this repo. 
+== Protocol layers ==
 
-1. lightweight library for sending a Webex message.
-2. Echo bot agent
-3. Receiver library. 
+Layer 0 — Direct messaging (base):
+  {slug}:{payload}
+  Pure pub/sub. Agents listen for their slug. No bot needed.
+  Like NATS subjects — agents only act on messages directed at them.
 
-The light weight library implements the wgrok spec for sending messages.
+Layer 1 — Verb routing (bot-mediated):
+  ./{verb}:{slug}:{payload}
+  Messages sent to a bot. The ./ prefix signals "this is a command".
+  Bot parses the verb, acts accordingly, delivers {slug}:{payload}.
 
-v1.0 spec:
-message format
-Sending: <./echo:<{slug}:payload>>
-Receiving: <{slug}:<payload>>
-Routing: <senderid>@domain.tld <message> > '^\./echo:' > <senderid>@domain.tld <message>
-{slug}: used as a messagebus tag, agent|service|endpoint only acts on the {slug} if it matches
+The ./ convention comes from the original design where a bot handles
+context and routing: ./{slug|role} meant "execute this role/action".
+In wgrok, the verb IS the role — echo, route, broadcast, store, etc.
 
-Patterns:
+== Built-in verbs ==
 
-mgrok@webex.bot|mgrok@slack.bot|mgrok@teams.bot > <./echo:{slug}:<payload>> > echo bot > strips ./echo > originator mgrok@webex.bot|mgrok@slack.bot|mgrok@teams.bot <message>
+  echo     — reflect message back to sender (firewall traversal)
+  route    — forward to internal system by slug (orchestrator-to-orchestrator)
+  broadcast — fan out to all matching subscribers (future)
+  store    — persist payload for later retrieval (future)
 
-Payload and be anything, otel logs, commands, trace, webhook.
+Only echo is implemented in v1.0. Other verbs are reserved.
 
-{slug}
+== Use cases ==
 
-.env: sender agent .env will only have sender/receiver token, allowlist and specific slug to match. echo bot .env will token and allow list. 
-```
-## mgrok sender/receiver
-webex_token=<shared token>
-target=bot@domain.tld
+1. Firewall traversal (echo):
+   GitHub Actions orchestrator <-> on-prem orchestrator.
+   Both sides share a token. Echo bot relays through Webex.
+   ./echo:{slug}:{payload} -> bot -> {slug}:{payload}
 
-## mgrok echo
-webex_token=<unique token>
+2. Multi-agent pub/sub (direct):
+   Multiple agents on the same account, each with a unique slug.
+   Agents ignore messages not matching their slug. NATS-style.
+   {slug}:{payload}
 
-## allowlist
-domains=domain.tld,*@domain.tld
+3. Internal routing (route, future):
+   Bot receives ./route:{slug}:{payload} and forwards to an
+   internal system/endpoint based on slug mapping.
 
-## slug index optional
-{slug}=agentid
-```
+== Components ==
 
-Implementation - What's in this repo:
-* Sending library: in above languages, all this library does is, read webex_token=, wraps input message with ./echo:<message> and sends to .env target= via Webex webhook api.
-* echo bot library: in above languages, service that uses https://www.github.com/3rg0n/webex-message-handler for websocket connection to traverse firewalls. Reads .env mgrok echo webex_token=, opens constant websocket to Webex listening for messages, received message is checked against allowlist, removes ./echo: and send output message to originator.
-* receiving library: in above languages, message sender checked against allowlist > matches slug to .env > yes, process message, no ignore.
+1. Sender library — wraps payload as ./{verb}:{slug}:{payload}, POSTs via REST API
+2. Bot — listens on WebSocket, validates allowlist, parses verb, routes accordingly
+3. Receiver library — listens on WebSocket, matches slug, delivers to application
+
+== Configuration ==
+
+  # Sender/Receiver
+  WGROK_TOKEN=<shared token>
+  WGROK_TARGET=bot@domain.tld
+  WGROK_SLUG=myagent
+  WGROK_DOMAINS=domain.tld
+
+  # Bot
+  WGROK_TOKEN=<unique bot token>
+  WGROK_DOMAINS=domain.tld,*@trusted.org
+
+  # Optional
+  WGROK_DEBUG=true
+
+== Allowlist patterns ==
+
+  domain.tld         -> matches *@domain.tld
+  *@domain.tld       -> explicit wildcard
+  user@domain.tld    -> exact match
+
+Case-insensitive. Whitespace trimmed. Empty patterns ignored.
+
+== Transport bindings ==
+
+Protocol is transport-agnostic. Requires:
+  - REST API for sending messages
+  - Persistent connection (WebSocket) for receiving
+
+  Webex:   REST /v1/messages + Mercury WebSocket   [implemented]
+  Slack:   chat.postMessage + Socket Mode          [planned]
+  Discord: REST /channels/{id}/messages + Gateway  [planned]
+
+== Implementations ==
+
+Python, Go, TypeScript, Rust — all in this repo.
+Shared JSON test cases in tests/ consumed by all four languages.
+See asyncapi.yaml for the formal protocol specification.

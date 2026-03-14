@@ -1,25 +1,63 @@
 # wgrok
 
-An ngrok-style tunnel that uses the Webex API as a message bus. Enables agents, services, and registered endpoints to send and receive messages between systems even when firewalls or network rules prevent direct webhooks.
+A message bus protocol over social messaging platforms. Uses platform APIs (Webex, Slack, Discord) as transport to allow agents, services, and orchestrators to communicate across firewalls without inbound webhooks.
 
-## How it works
+## Protocol
+
+wgrok defines a layered message format:
+
+### Layer 0 — Direct messaging
 
 ```
-Sender                    Echo Bot                   Receiver
+{slug}:{payload}
+```
+
+Pure pub/sub. Agents listen for messages matching their slug, like NATS subjects. No bot routing needed.
+
+### Layer 1 — Verb routing
+
+```
+./{verb}:{slug}:{payload}
+```
+
+Messages sent to a bot that interprets the verb and acts on it. The `./` prefix signals "this is a command". The bot strips the verb after processing and delivers `{slug}:{payload}` to the destination.
+
+### Built-in verbs
+
+| Verb | Behavior | Status |
+|------|----------|--------|
+| `echo` | Reflect message back to sender | Implemented |
+| `route` | Forward to internal system by slug | Reserved |
+| `broadcast` | Fan out to all matching subscribers | Reserved |
+| `store` | Persist payload for later retrieval | Reserved |
+
+### How echo works
+
+```
+Sender                      Bot                        Receiver
   │                          │                          │
   │  ./echo:myslug:payload   │                          │
   ├─────────────────────────►│                          │
-  │     (Webex message)      │   myslug:payload         │
+  │     (REST API POST)      │   myslug:payload         │
   │                          ├─────────────────────────►│
-  │                          │   (Webex message back     │
-  │                          │    to sender's email)     │
+  │                          │     (WebSocket)          │
+  │                          │                          │
+  │                    Validates allowlist               │
+  │                    Strips ./echo:                    │
+  │                    Replies to sender                 │
 ```
 
-1. **Sender** wraps your payload as `./echo:{slug}:{payload}` and sends it to the echo bot via Webex API.
-2. **Echo bot** listens on a WebSocket (via [webex-message-handler](https://github.com/3rg0n/webex-message-handler)), validates the sender against an allowlist, strips the `./echo:` prefix, and replies to the sender.
-3. **Receiver** listens on the same WebSocket, checks the allowlist, matches the slug, and delivers the payload to your handler.
+1. **Sender** wraps payload as `./echo:{slug}:{payload}` and POSTs to the bot.
+2. **Bot** validates allowlist, strips `./echo:`, replies with `{slug}:{payload}`.
+3. **Receiver** listens on WebSocket, matches slug, delivers payload to your handler.
 
-The `{slug}` acts as a message bus tag — agents and services only act on messages matching their configured slug.
+## Use cases
+
+**Firewall traversal** — GitHub Actions orchestrator talks to on-prem orchestrator. Both share a token, echo bot relays through Webex. No inbound ports needed.
+
+**Multi-agent pub/sub** — Multiple agents on one account, each with a unique slug. Agents ignore messages not matching their slug. NATS-style message bus over a chat platform.
+
+**Orchestrator routing** — Bot receives `./route:{slug}:{payload}` and forwards to an internal system based on slug mapping. (Future — verb `route`.)
 
 ## Languages
 
@@ -34,10 +72,10 @@ Implemented in four languages with identical behavior and shared test cases:
 
 ## Quick start
 
-### 1. Register a Webex bot
+### 1. Register a bot
 
-Go to [developer.webex.com](https://developer.webex.com) and create a bot. You'll need two tokens:
-- One for the **echo bot** (the relay service)
+Go to [developer.webex.com](https://developer.webex.com) and create a bot. You need two tokens:
+- One for the **bot** (the relay service)
 - One **shared token** for senders and receivers
 
 ### 2. Configure environment
@@ -48,13 +86,13 @@ cp python/.env.example python/.env   # or go/, ts/, rust/
 
 ```env
 # Sender / Receiver
-WGROK_TOKEN=<shared webex token>
-WGROK_TARGET=echobot@webex.bot
+WGROK_TOKEN=<shared token>
+WGROK_TARGET=bot@webex.bot
 WGROK_SLUG=myagent
 WGROK_DOMAINS=example.com
 
-# Echo bot (separate .env)
-WGROK_TOKEN=<echo bot token>
+# Bot (separate .env)
+WGROK_TOKEN=<bot token>
 WGROK_DOMAINS=example.com
 
 # Optional
@@ -129,17 +167,6 @@ let receiver = WgrokReceiver::new(cfg, Box::new(|slug, payload, cards| {
 receiver.listen(shutdown_rx).await?;
 ```
 
-## Message protocol (v1.0)
-
-```
-Sending:   ./echo:{slug}:{payload}
-Receiving: {slug}:{payload}
-```
-
-- `{slug}` — routing tag that receivers match against
-- `{payload}` — arbitrary content (commands, JSON, OTEL traces, webhooks, etc.)
-- Adaptive cards are supported as optional attachments alongside the text payload
-
 ## Allowlist
 
 The `WGROK_DOMAINS` environment variable controls who can send messages through the system:
@@ -149,6 +176,20 @@ The `WGROK_DOMAINS` environment variable controls who can send messages through 
 | `example.com` | `*@example.com` |
 | `*@example.com` | Any user at example.com |
 | `user@example.com` | Exact match only |
+
+## Transport bindings
+
+The protocol is transport-agnostic. Any platform with a REST API for sending and a persistent connection for receiving works:
+
+| Platform | Send | Receive | Status |
+|----------|------|---------|--------|
+| Webex | REST `/v1/messages` | Mercury WebSocket | Implemented |
+| Slack | `chat.postMessage` | Socket Mode WebSocket | Planned |
+| Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Planned |
+
+## Specification
+
+The formal protocol specification is in [`asyncapi.yaml`](asyncapi.yaml) (AsyncAPI 3.0.0).
 
 ## Build and test
 
@@ -185,6 +226,11 @@ cargo test
 cargo clippy
 ```
 
+### Cross-language test report
+```bash
+bash tests/run_all.sh
+```
+
 ## Testing architecture
 
 Test cases are defined once as JSON in `tests/` and consumed by all four languages via thin shims:
@@ -200,9 +246,7 @@ tests/
 └── receiver_cases.json
 ```
 
-Fix a bug in a test case, it applies to all languages. Add a new case, all languages must pass it.
-
-Each language also has HTTP-level tests for the Webex client and NDJSON logging tests that are inherently language-specific.
+Fix a bug in a test case — it applies to all languages. Add a new case — all languages must pass it.
 
 ## Project structure
 
@@ -221,8 +265,8 @@ wgrok/
 │   ├── src/          # Source modules
 │   └── tests/        # Test shims
 ├── tests/            # Shared JSON test cases
+├── asyncapi.yaml     # Protocol specification
 ├── .plan/            # Design docs
-├── CLAUDE.md         # AI assistant instructions
 └── README.md
 ```
 
