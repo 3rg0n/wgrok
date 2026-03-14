@@ -1,0 +1,25 @@
+README.md
+  fc445375822781d8 1-235
+tests/run_all.sh
+  fc445375822781d8 1-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "8c6dfe883c796449a8de34502ea25526dc047109",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 536,
+      "total_deletions": 207,
+      "accepted_lines": 329,
+      "overriden_lines": 0
+    }
+  }
+}
