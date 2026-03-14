@@ -4,25 +4,55 @@ A message bus protocol over social messaging platforms. Uses platform APIs (Webe
 
 ## Protocol
 
-wgrok defines a layered message format:
-
-### Layer 0 — Direct messaging
+All wgrok messages are colon-delimited text prefixed with `./`:
 
 ```
-{slug}:{payload}
+./{context}:{...rest}
 ```
 
-Pure pub/sub. Agents listen for messages matching their slug, like NATS subjects. No bot routing needed.
+The `./` prefix signals "this is a wgrok command". What follows depends on the deployment mode.
 
-### Layer 1 — Verb routing
+### Mode A — Platform Bot
+
+```
+./{app}:{payload}
+```
+
+A central bot acts as a gateway for a large engineering organization. Developers don't need to know how to get SSL certs, create Webex bots, submit IT approvals, or configure LDAP. They use one SDK that talks to one bot.
+
+```
+Developer ──./jira:create ticket──► Platform Bot ──► Jira webhook (internal)
+Developer ◄──./jira:PROJ-456 created────────────── Platform Bot
+```
+
+The `{app}` identifier maps to a registered backend service. The bot routes the payload to the app's internal webhook and relays responses back.
+
+### Mode B — Agent Bus
 
 ```
 ./{verb}:{slug}:{payload}
 ```
 
-Messages sent to a bot that interprets the verb and acts on it. The `./` prefix signals "this is a command". The bot strips the verb after processing and delivers `{slug}:{payload}` to the destination.
+No central routing bot. Multiple agents share the same messaging token — all see all messages. The verb tells a relay agent what to do, and the slug identifies which agent should process the result.
 
-### Built-in verbs
+```
+Sender ──./echo:deploy-agent:start deploy──► Echo Bot
+                                                │
+Receiver ◄──deploy-agent:start deploy────────── Echo Bot
+(only processes because slug matches "deploy-agent")
+```
+
+The verb (`echo`) tells the relay agent to reflect. The slug (`deploy-agent`) is how agents filter: "is this message for me?"
+
+### Layer 0 — Base format
+
+```
+{slug}:{payload}
+```
+
+After bot processing, the `./` prefix is stripped. Receivers always consume this format regardless of which mode produced it. Also used for direct agent-to-agent messaging without any bot.
+
+### Built-in verbs (Mode B)
 
 | Verb | Behavior | Status |
 |------|----------|--------|
@@ -31,33 +61,13 @@ Messages sent to a bot that interprets the verb and acts on it. The `./` prefix 
 | `broadcast` | Fan out to all matching subscribers | Reserved |
 | `store` | Persist payload for later retrieval | Reserved |
 
-### How echo works
-
-```
-Sender                      Bot                        Receiver
-  │                          │                          │
-  │  ./echo:myslug:payload   │                          │
-  ├─────────────────────────►│                          │
-  │     (REST API POST)      │   myslug:payload         │
-  │                          ├─────────────────────────►│
-  │                          │     (WebSocket)          │
-  │                          │                          │
-  │                    Validates allowlist               │
-  │                    Strips ./echo:                    │
-  │                    Replies to sender                 │
-```
-
-1. **Sender** wraps payload as `./echo:{slug}:{payload}` and POSTs to the bot.
-2. **Bot** validates allowlist, strips `./echo:`, replies with `{slug}:{payload}`.
-3. **Receiver** listens on WebSocket, matches slug, delivers payload to your handler.
-
 ## Use cases
 
-**Firewall traversal** — GitHub Actions orchestrator talks to on-prem orchestrator. Both share a token, echo bot relays through Webex. No inbound ports needed.
+**Developer platform** — 76,000 engineers, one bot, every internal API behind it. `./jira:...`, `./deploy:...`, `./grafana:...` — developers integrate with one SDK instead of navigating SSL, LDAP, Webex bot creation, and IT security approvals for each service.
 
-**Multi-agent pub/sub** — Multiple agents on one account, each with a unique slug. Agents ignore messages not matching their slug. NATS-style message bus over a chat platform.
+**Firewall traversal** — GitHub Actions orchestrator talks to on-prem orchestrator. Both share a token, echo bot relays through Webex. `./echo:{slug}:{payload}` traverses the firewall without inbound ports.
 
-**Orchestrator routing** — Bot receives `./route:{slug}:{payload}` and forwards to an internal system based on slug mapping. (Future — verb `route`.)
+**Multi-agent pub/sub** — Multiple agents on one account, each with a unique slug. All agents see all messages but only process their own slug. NATS-style message bus over a chat platform.
 
 ## Languages
 

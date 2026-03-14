@@ -4,52 +4,75 @@ Uses messaging platform APIs (Webex, Slack, Discord) as transport to allow
 agents, services, and orchestrators to communicate across firewalls without
 inbound webhooks.
 
+== Message format ==
+
+  ./{context}:{...rest}
+
+The ./ prefix signals "this is a wgrok command". What follows depends
+on the deployment mode.
+
+== Deployment modes ==
+
+Mode A — Platform Bot:
+  ./{app}:{payload}
+  Central bot is the gateway for a large engineering organization.
+  Developers integrate with one SDK, one bot handles all routing.
+  The bot maintains a registry of apps and their internal webhooks.
+  76,000 engineers don't need to know SSL, LDAP, Webex bot creation,
+  or IT/security approval processes. They just send ./{app}:{payload}.
+
+  Developer -> ./jira:create ticket -> Bot -> Jira webhook (internal)
+  Developer <- ./jira:PROJ-456 created <- Bot <- Jira response
+
+Mode B — Agent Bus:
+  ./{verb}:{slug}:{payload}
+  No central routing bot. Multiple agents share the same token.
+  All agents see all messages. The verb tells a relay agent what to do.
+  The slug identifies which agent should process the result.
+
+  Sender -> ./echo:deploy-agent:start deploy -> Echo Bot
+  Receiver <- deploy-agent:start deploy <- Echo Bot
+  (only deploy-agent processes it because slug matches)
+
+  The verb is needed because without a central router, you need to tell
+  the echo agent to reflect the message. The slug is needed because all
+  agents on the shared token see every message — it's the filter.
+
 == Protocol layers ==
 
-Layer 0 — Direct messaging (base):
-  {slug}:{payload}
-  Pure pub/sub. Agents listen for their slug. No bot needed.
-  Like NATS subjects — agents only act on messages directed at them.
+Layer 0:  {slug}:{payload}                ← base: what receivers consume
+Layer 1a: ./{app}:{payload}               ← platform bot: central routing
+Layer 1b: ./{verb}:{slug}:{payload}       ← agent bus: verb + agent filtering
 
-Layer 1 — Verb routing (bot-mediated):
-  ./{verb}:{slug}:{payload}
-  Messages sent to a bot. The ./ prefix signals "this is a command".
-  Bot parses the verb, acts accordingly, delivers {slug}:{payload}.
+After bot processing, the ./ prefix is always stripped. Receivers always
+see Layer 0 format regardless of which mode produced it.
 
-The ./ convention comes from the original design where a bot handles
-context and routing: ./{slug|role} meant "execute this role/action".
-In wgrok, the verb IS the role — echo, route, broadcast, store, etc.
+== Origin ==
 
-== Built-in verbs ==
+The ./ convention comes from the original bot design: ./{slug|role} meant
+"execute this role/action". In wgrok:
 
-  echo     — reflect message back to sender (firewall traversal)
-  route    — forward to internal system by slug (orchestrator-to-orchestrator)
+  Mode A: the first segment is the app (routing target)
+  Mode B: the first segment is the verb (action for the relay)
+
+The bot's configuration determines interpretation. Platform bots know
+their app registry. Relay bots know their verbs (echo, route, etc.).
+
+== Built-in verbs (Mode B) ==
+
+  echo      — reflect message back to sender (firewall traversal)
+  route     — forward to internal system by slug (orchestrator-to-orchestrator)
   broadcast — fan out to all matching subscribers (future)
-  store    — persist payload for later retrieval (future)
+  store     — persist payload for later retrieval (future)
 
 Only echo is implemented in v1.0. Other verbs are reserved.
-
-== Use cases ==
-
-1. Firewall traversal (echo):
-   GitHub Actions orchestrator <-> on-prem orchestrator.
-   Both sides share a token. Echo bot relays through Webex.
-   ./echo:{slug}:{payload} -> bot -> {slug}:{payload}
-
-2. Multi-agent pub/sub (direct):
-   Multiple agents on the same account, each with a unique slug.
-   Agents ignore messages not matching their slug. NATS-style.
-   {slug}:{payload}
-
-3. Internal routing (route, future):
-   Bot receives ./route:{slug}:{payload} and forwards to an
-   internal system/endpoint based on slug mapping.
+Unrecognized verbs must be silently ignored.
 
 == Components ==
 
-1. Sender library — wraps payload as ./{verb}:{slug}:{payload}, POSTs via REST API
-2. Bot — listens on WebSocket, validates allowlist, parses verb, routes accordingly
-3. Receiver library — listens on WebSocket, matches slug, delivers to application
+1. Sender library — wraps payload with ./ prefix, POSTs via REST API
+2. Bot — listens on WebSocket, validates allowlist, parses context, routes
+3. Receiver library — listens on WebSocket, matches slug, delivers to app
 
 == Configuration ==
 

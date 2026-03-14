@@ -8,81 +8,119 @@ info:
     Discord) as transport. Enables agents, services, and orchestrators to
     communicate across firewalls without inbound webhooks.
 
-    ## Protocol layers
+    ## Message format
 
-    wgrok defines a layered message format where each layer adds capability:
-
-    ### Layer 0 — Direct messaging (base)
+    All wgrok messages use colon-delimited text:
 
     ```
-    {slug}:{payload}
+    ./{context}:{...rest}
     ```
 
-    Pure pub/sub. Agents listen for messages matching their slug. No bot
-    routing needed — messages go directly between parties on the platform.
-    This is the NATS-style message bus pattern.
+    The `./` prefix signals that this is a wgrok command, not a plain message.
+    What follows the `./` depends on the deployment mode.
 
-    ### Layer 1 — Verb routing (bot-mediated)
+    ## Deployment modes
+
+    ### Mode A — Platform Bot
+
+    ```
+    ./{app}:{payload}
+    ```
+
+    A central bot acts as a gateway, abstracting platform complexity for a
+    large engineering organization. Developers don't need to know how to
+    get SSL certs, create Webex bots, submit IT approvals, or configure LDAP.
+    They integrate with one SDK that talks to one bot.
+
+    - `./{app}` identifies which backend application to route to
+    - The bot receives the message, looks up the app in its registry,
+      and forwards the payload to the app's internal webhook
+    - When the app responds through the bot, it sends `./{app}:{response}`
+      so the original sender knows which app is responding
+
+    **Example: Developer platform**
+    ```
+    Developer ──./jira:create ticket for PROJ-123──► Platform Bot
+                                                        │
+                                                        ├──► Jira webhook (internal)
+                                                        │
+    Developer ◄──./jira:PROJ-456 created───────────── Platform Bot
+    ```
+
+    The platform bot is the single integration point. It owns the Webex
+    identity, handles the WebSocket connection, and routes messages to
+    backend services. Developers only need a token and the SDK.
+
+    ### Mode B — Agent Bus
 
     ```
     ./{verb}:{slug}:{payload}
     ```
 
-    Messages are sent to a bot that interprets the verb and acts accordingly.
-    The `./` prefix signals that this is a routed command, not a plain message.
-    The bot strips the verb prefix after processing and delivers `{slug}:{payload}`
-    to the destination.
+    No central routing bot. Multiple agents share the same messaging token
+    and all receive all messages. The verb tells a relay agent what to do,
+    and the slug identifies which agent should process the result.
 
-    ### Built-in verbs
+    This is needed because all agents on the shared token see every message.
+    The slug is how an agent filters: "is this message for me?"
+
+    - `./{verb}` is the action — `echo` means "reflect this back to me"
+    - `{slug}` is the agent identifier (like a NATS subject)
+    - `{payload}` is the data
+
+    **Example: Firewall traversal**
+    ```
+    Sender ──./echo:deploy-agent:start deploy──► Echo Bot
+                                                    │
+    Receiver ◄──deploy-agent:start deploy───────── Echo Bot
+    (only processes because slug matches "deploy-agent")
+    ```
+
+    All agents on the bus receive the echo bot's response, but only the
+    agent configured with slug `deploy-agent` processes it.
+
+    ## Protocol layers
+
+    The two modes compose into a layered format:
+
+    ```
+    Layer 0:  {slug}:{payload}                ← base: agent-to-agent direct
+    Layer 1a: ./{app}:{payload}               ← platform bot: central routing
+    Layer 1b: ./{verb}:{slug}:{payload}       ← agent bus: verb + agent filtering
+    ```
+
+    **Layer 0** is the response format that receivers always consume,
+    regardless of which mode sent it. After bot processing, the `./` prefix
+    and routing context are stripped, leaving `{slug}:{payload}`.
+
+    ### How the bot decides
+
+    The `./` prefix is always present on inbound commands. The bot's
+    configuration determines interpretation:
+
+    | Bot mode | First segment after `./` | Parsing |
+    |----------|--------------------------|---------|
+    | Platform bot | App name from registry | `./{app}:{payload}` — two segments |
+    | Agent relay | Known verb (echo, route, etc.) | `./{verb}:{slug}:{payload}` — three segments |
+
+    Unrecognized contexts are silently ignored.
+
+    ## Built-in verbs (Mode B)
 
     | Verb | Behavior | Use case |
     |------|----------|----------|
-    | `echo` | Reflect message back to sender | Firewall traversal — sender and receiver share an account, bot relays between them |
-    | `route` | Forward to an internal system based on slug | Orchestrator-to-orchestrator — GitHub Actions to on-prem |
+    | `echo` | Reflect message back to sender | Firewall traversal — agents behind firewalls relay through the echo bot |
+    | `route` | Forward to internal system by slug | Orchestrator-to-orchestrator — GitHub Actions to on-prem |
     | `broadcast` | Fan out to all matching subscribers | Event notification across multiple agents |
-    | `store` | Persist the payload for later retrieval | Async message queue |
+    | `store` | Persist payload for later retrieval | Async message queue |
 
-    Only `echo` is implemented in v1.0. Other verbs are reserved for future use.
+    Only `echo` is implemented in v1.0. Other verbs are reserved.
     Implementations MUST ignore unrecognized verbs gracefully.
-
-    ### Protocol evolution
-
-    ```
-    Layer 0:  {slug}:{payload}                    ← agent-to-agent direct
-    Layer 1:  ./{verb}:{slug}:{payload}           ← bot-routed
-    Current:  ./echo:{slug}:{payload}             ← v1.0 implementation
-    ```
-
-    ## Architecture
-
-    ```
-    ┌──────────┐    ./{verb}:{slug}:{payload}    ┌──────────┐
-    │  Sender  │ ──────────────────────────────► │   Bot    │
-    │          │        (REST API POST)          │          │
-    └──────────┘                                 │  Verbs:  │
-                                                 │  ./echo  │
-    ┌──────────┐       {slug}:{payload}          │  ./route │
-    │ Receiver │ ◄────────────────────────────── │  ./...   │
-    │          │      (WebSocket receive)        └──────────┘
-    └──────────┘
-    ```
-
-    The bot is the routing layer. It:
-    1. Validates the sender against a domain allowlist
-    2. Parses the verb to determine the action
-    3. Parses the slug and payload
-    4. Executes the verb (echo back, route internally, etc.)
-    5. Delivers `{slug}:{payload}` to the destination
-
-    In Layer 0 (direct mode), the bot is not involved — agents communicate
-    directly using `{slug}:{payload}` on the messaging platform.
 
     ## Transport bindings
 
-    The protocol is transport-agnostic. The current implementation uses Webex,
-    but the same message format works over any platform with:
-    - A REST API for sending messages
-    - A persistent connection (WebSocket) for receiving messages
+    The protocol is transport-agnostic. Any platform with a REST API for
+    sending and a persistent connection for receiving works:
 
     | Platform | Send | Receive | Status |
     |----------|------|---------|--------|
@@ -99,47 +137,91 @@ info:
 defaultContentType: text/plain
 
 channels:
+  platformCommand:
+    address: platform/messages/platform-command
+    title: Platform Command (Mode A)
+    description: |
+      Mode A channel: developer to platform bot. The message text contains
+      a platform command in the format `./{app}:{payload}`.
+
+      The bot looks up `{app}` in its registry and forwards the payload
+      to the app's internal webhook.
+    messages:
+      platformCommand:
+        $ref: '#/components/messages/PlatformCommand'
+
   verbCommand:
     address: platform/messages/verb-command
-    title: Verb Command
+    title: Verb Command (Mode B)
     description: |
-      Layer 1 channel: sender to bot. The message text contains a verb-routed
-      command in the format `./{verb}:{slug}:{payload}`.
+      Mode B channel: sender to relay agent. The message text contains
+      a verb-routed command in the format `./{verb}:{slug}:{payload}`.
 
-      The `./` prefix distinguishes routed commands from plain messages.
-      The bot parses the verb and acts accordingly.
+      The relay agent (e.g., echo bot) parses the verb, acts accordingly,
+      and delivers `{slug}:{payload}` to the destination.
     messages:
       verbCommand:
         $ref: '#/components/messages/VerbCommand'
 
   agentMessage:
     address: platform/messages/agent-message
-    title: Agent Message
+    title: Agent Message (Layer 0)
     description: |
-      Layer 0 channel: the base message format `{slug}:{payload}`.
+      The base message format `{slug}:{payload}`. This is what receivers
+      always consume, regardless of which mode produced it.
 
       Used for:
-      - Bot responses after verb processing (echo bot strips `./echo:` and sends this)
+      - Bot responses after processing (stripped of `./` prefix)
       - Direct agent-to-agent messaging without bot routing
-      - Receiver consumption — receivers always see this format regardless of
-        whether the message went through a bot or was sent directly.
+      - Platform bot responses: `./{app}:{response}` → receiver sees `{app}:{response}`
     messages:
       agentMessage:
         $ref: '#/components/messages/AgentMessage'
 
 operations:
+  # Mode A operations
+  sendPlatformCommand:
+    action: send
+    channel:
+      $ref: '#/channels/platformCommand'
+    title: Send Platform Command
+    summary: Developer sends a command to the platform bot for routing to a backend app.
+    description: |
+      The developer SDK wraps the payload with the app identifier and sends
+      it to the platform bot. The bot handles all platform complexity
+      (authentication, routing, webhook delivery) on behalf of the developer.
+    messages:
+      - $ref: '#/channels/platformCommand/messages/platformCommand'
+
+  processPlatformCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/platformCommand'
+    title: Process Platform Command
+    summary: Platform bot receives, validates, and routes to the backend app.
+    description: |
+      The platform bot processes the command:
+
+      1. **Allowlist check** — verify sender is authorized.
+      2. **App lookup** — match `{app}` against the registered app registry.
+      3. **Forward** — POST the payload to the app's internal webhook.
+      4. When the app responds, the bot sends `./{app}:{response}` back.
+    messages:
+      - $ref: '#/channels/platformCommand/messages/platformCommand'
+
+  # Mode B operations
   sendVerbCommand:
     action: send
     channel:
       $ref: '#/channels/verbCommand'
     title: Send Verb Command
-    summary: Sender formats and transmits a verb-routed command to the bot.
+    summary: Sender formats and transmits a verb-routed command to the relay agent.
     description: |
-      The sender wraps the payload with a verb prefix and slug, then sends
-      it as a message to the configured bot.
+      The sender wraps the payload with a verb and slug, then sends it
+      to the relay agent (e.g., echo bot).
 
       The message may optionally include an Adaptive Card attachment,
-      which the bot will forward to the destination.
+      which the relay agent will forward to the destination.
     messages:
       - $ref: '#/channels/verbCommand/messages/verbCommand'
 
@@ -148,35 +230,27 @@ operations:
     channel:
       $ref: '#/channels/verbCommand'
     title: Process Verb Command
-    summary: Bot receives, validates, and routes an incoming verb command.
+    summary: Relay agent receives, validates, and routes based on verb.
     description: |
-      The bot receives the message over a persistent connection and processes it:
+      The relay agent processes the command:
 
       1. **Allowlist check** — verify sender matches configured domain patterns.
-         Rejected messages are silently dropped.
-      2. **Command detection** — check for `./` prefix. Non-command messages
-         are silently ignored.
-      3. **Verb parsing** — extract the verb from `./{verb}:{slug}:{payload}`.
-      4. **Verb dispatch** — execute the verb:
+      2. **Command detection** — check for `./` prefix.
+      3. **Verb dispatch**:
          - `echo`: strip prefix, send `{slug}:{payload}` back to sender
          - `route`: forward to configured internal system
          - Unknown verbs: log and ignore
-      5. **Delivery** — send the processed message in Layer 0 format.
+      4. **Delivery** — send result as Layer 0 format.
     messages:
       - $ref: '#/channels/verbCommand/messages/verbCommand'
 
+  # Shared operations
   deliverAgentMessage:
     action: send
     channel:
       $ref: '#/channels/agentMessage'
     title: Deliver Agent Message
-    summary: Bot delivers the processed message to the destination.
-    description: |
-      After verb processing, the bot sends the result as a Layer 0 message
-      (`{slug}:{payload}`) to the appropriate destination.
-
-      For `echo` verb: destination is the original sender.
-      For `route` verb: destination is the configured internal system.
+    summary: Bot delivers processed message in Layer 0 format.
     messages:
       - $ref: '#/channels/agentMessage/messages/agentMessage'
 
@@ -185,14 +259,13 @@ operations:
     channel:
       $ref: '#/channels/agentMessage'
     title: Receive Agent Message
-    summary: Agent/receiver matches the slug and delivers the payload to the application.
+    summary: Agent matches slug and delivers payload to application.
     description: |
-      The receiver listens for incoming messages and processes them:
+      The receiver processes incoming messages:
 
       1. **Allowlist check** — verify the sender is authorized.
       2. **Parse** — extract `{slug}` and `{payload}` from the text.
-         Unparseable messages are silently ignored.
-      3. **Slug match** — compare the extracted slug to the configured slug.
+      3. **Slug match** — compare slug to configured value.
          Non-matching slugs are ignored (multiple agents can share one account).
       4. **Deliver** — invoke the application handler with slug, payload,
          and any Adaptive Card attachments.
@@ -204,21 +277,52 @@ operations:
     channel:
       $ref: '#/channels/agentMessage'
     title: Send Direct Agent Message (Layer 0)
-    summary: Send a message directly to another agent without bot routing.
-    description: |
-      In Layer 0 mode, agents communicate directly using `{slug}:{payload}`
-      without a bot intermediary. This is useful when both parties are on
-      the same platform and no firewall traversal is needed.
+    summary: Agent-to-agent messaging without bot routing.
     messages:
       - $ref: '#/channels/agentMessage/messages/agentMessage'
 
 components:
   messages:
+    PlatformCommand:
+      name: PlatformCommand
+      title: Platform Command Message (Mode A)
+      summary: |
+        A message from a developer to the platform bot. Format: `./{app}:{payload}`.
+        The bot routes to the named app's internal webhook.
+      contentType: text/plain
+      payload:
+        $ref: '#/components/schemas/PlatformCommandPayload'
+      headers:
+        $ref: '#/components/schemas/MessageEnvelope'
+      examples:
+        - name: Jira integration
+          summary: Developer creates a Jira ticket through the platform
+          headers:
+            personEmail: developer@bigcorp.com
+            toPersonEmail: platform-bot@webex.bot
+          payload:
+            text: ./jira:create ticket for PROJ-123
+        - name: Deploy trigger
+          summary: CI/CD pipeline triggers a deployment
+          headers:
+            personEmail: github-actions@bigcorp.com
+            toPersonEmail: platform-bot@webex.bot
+          payload:
+            text: ./deploy:{"ref":"main","env":"prod","service":"api"}
+        - name: Monitoring alert
+          summary: App sends an alert through the platform
+          headers:
+            personEmail: platform-bot@webex.bot
+            toPersonEmail: developer@bigcorp.com
+          payload:
+            text: ./grafana:CPU threshold exceeded on prod-api-3
+
     VerbCommand:
       name: VerbCommand
-      title: Verb Command Message
+      title: Verb Command Message (Mode B)
       summary: |
-        A Layer 1 message sent to a bot for routing. Format: `./{verb}:{slug}:{payload}`.
+        A message sent to a relay agent. Format: `./{verb}:{slug}:{payload}`.
+        The verb determines the action; the slug identifies the target agent.
       contentType: text/plain
       payload:
         $ref: '#/components/schemas/VerbCommandPayload'
@@ -226,24 +330,17 @@ components:
         $ref: '#/components/schemas/MessageEnvelope'
       examples:
         - name: Echo command
-          summary: Request the bot to echo a message back to sender
+          summary: Reflect a message back to the sender for agent filtering
           headers:
             personEmail: sender@example.com
-            toPersonEmail: bot@webex.bot
+            toPersonEmail: echo-bot@webex.bot
           payload:
-            text: ./echo:myagent:hello world
-        - name: Route command
-          summary: Request the bot to route a message to an internal system (future)
-          headers:
-            personEmail: github-actions@example.com
-            toPersonEmail: bot@webex.bot
-          payload:
-            text: ./route:deploy-agent:{"ref":"main","env":"prod"}
-        - name: Echo with Adaptive Card
-          summary: Echo command with an attached Adaptive Card
+            text: ./echo:deploy-agent:start deploy on prod
+        - name: Echo with card
+          summary: Echo with an Adaptive Card attachment
           headers:
             personEmail: sender@example.com
-            toPersonEmail: bot@webex.bot
+            toPersonEmail: echo-bot@webex.bot
           payload:
             text: ./echo:myagent:card payload
             attachments:
@@ -253,26 +350,40 @@ components:
                   body:
                     - type: TextBlock
                       text: Hello from sender
+        - name: Route command (future)
+          summary: Forward to an internal system
+          headers:
+            personEmail: github-actions@example.com
+            toPersonEmail: relay-bot@webex.bot
+          payload:
+            text: ./route:onprem-orchestrator:{"action":"deploy","ref":"main"}
 
     AgentMessage:
       name: AgentMessage
-      title: Agent Message
+      title: Agent Message (Layer 0)
       summary: |
-        A Layer 0 message in the format `{slug}:{payload}`. This is the base
-        format that receivers consume, whether it came through a bot or directly.
+        The base message format `{slug}:{payload}`. Receivers always consume
+        this format, regardless of which mode produced it.
       contentType: text/plain
       payload:
         $ref: '#/components/schemas/AgentMessagePayload'
       headers:
         $ref: '#/components/schemas/MessageEnvelope'
       examples:
-        - name: Simple message
-          summary: Basic agent message after bot processing
+        - name: Echo response
+          summary: Echo bot reflects message back, slug identifies target agent
           headers:
-            personEmail: bot@webex.bot
+            personEmail: echo-bot@webex.bot
             toPersonEmail: sender@example.com
           payload:
-            text: myagent:hello world
+            text: deploy-agent:start deploy on prod
+        - name: Platform bot response
+          summary: Platform bot relays app response back to developer
+          headers:
+            personEmail: platform-bot@webex.bot
+            toPersonEmail: developer@bigcorp.com
+          payload:
+            text: jira:PROJ-456 created successfully
         - name: Direct agent message
           summary: Agent-to-agent without bot routing
           headers:
@@ -280,89 +391,104 @@ components:
             toPersonEmail: agent-b@example.com
           payload:
             text: deploy-agent:{"status":"complete","ref":"main"}
-        - name: With forwarded card
-          summary: Message with Adaptive Card forwarded through the bot
-          headers:
-            personEmail: bot@webex.bot
-            toPersonEmail: sender@example.com
-          payload:
-            text: myagent:card payload
-            attachments:
-              - contentType: application/vnd.microsoft.card.adaptive
-                content:
-                  type: AdaptiveCard
-                  body:
-                    - type: TextBlock
-                      text: Hello from sender
 
   schemas:
-    VerbCommandPayload:
+    PlatformCommandPayload:
       type: object
       description: |
-        Layer 1 message body. The `text` field contains a verb-routed command
-        in the format `./{verb}:{slug}:{payload}`.
+        Mode A message body. The `text` field contains a platform command
+        in the format `./{app}:{payload}`.
 
-        The `./` prefix is borrowed from Unix command conventions — it signals
-        "execute this" rather than "this is content". The verb determines
-        what the bot does with the message.
+        The `{app}` identifier maps to a registered backend application
+        in the platform bot's registry. The bot forwards `{payload}` to
+        the app's internal webhook.
       required:
         - text
       properties:
         text:
           type: string
           description: |
-            The verb-routed command text. Must match the pattern
-            `./{verb}:{slug}:{payload}`.
+            Platform command text. Format: `./{app}:{payload}`.
 
-            - `verb`: the action for the bot to take (e.g., `echo`, `route`)
-            - `slug`: the agent/service identifier (non-empty, no colons)
-            - `payload`: everything after the second colon (may contain colons)
+            - `{app}`: registered application identifier
+            - `{payload}`: everything after the first colon, forwarded to the app
 
-            The verb and slug are split on the first two colons. Everything
-            after the second colon is the payload, preserved verbatim.
-          pattern: '^\./[a-z]+:[^:]+:.*$'
+            Split on the first colon after `./`:
+            - `./jira:create ticket` → app=`jira`, payload=`create ticket`
+            - `./deploy:{"env":"prod"}` → app=`deploy`, payload=`{"env":"prod"}`
+          pattern: '^\./[^:]+:.*$'
           examples:
-            - ./echo:myagent:hello world
-            - ./echo:deploy:{"service":"api","version":"2.1.0"}
-            - ./route:onprem-agent:trigger deploy
-            - ./echo:otel:trace_id=abc123&span=def456
+            - ./jira:create ticket for PROJ-123
+            - ./deploy:{"ref":"main","env":"prod"}
+            - ./grafana:query cpu_usage last 1h
         attachments:
           type: array
-          description: Optional Adaptive Card attachments forwarded through the bot.
+          description: Optional Adaptive Card attachments.
+          items:
+            $ref: '#/components/schemas/CardAttachment'
+
+    VerbCommandPayload:
+      type: object
+      description: |
+        Mode B message body. The `text` field contains a verb-routed command
+        in the format `./{verb}:{slug}:{payload}`.
+
+        The verb tells the relay agent what to do. The slug identifies which
+        agent should process the result. All agents on the shared token see
+        every message — the slug is how they filter "is this for me?"
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: |
+            Verb command text. Format: `./{verb}:{slug}:{payload}`.
+
+            - `{verb}`: action for the relay agent (e.g., `echo`, `route`)
+            - `{slug}`: target agent identifier
+            - `{payload}`: everything after the second colon (may contain colons)
+
+            Split on the first two colons after `./`:
+            - `./echo:myagent:hello` → verb=`echo`, slug=`myagent`, payload=`hello`
+            - `./echo:deploy:a:b:c` → verb=`echo`, slug=`deploy`, payload=`a:b:c`
+          pattern: '^\./[a-z]+:[^:]+:.*$'
+          examples:
+            - ./echo:deploy-agent:start deploy on prod
+            - ./echo:otel-collector:trace_id=abc123
+            - ./route:onprem-agent:trigger deploy
+        attachments:
+          type: array
+          description: Optional Adaptive Card attachments forwarded through the relay.
           items:
             $ref: '#/components/schemas/CardAttachment'
 
     AgentMessagePayload:
       type: object
       description: |
-        Layer 0 message body. The `text` field contains the base message
-        format `{slug}:{payload}`.
-
-        This is the universal format that all receivers consume. It is
-        produced by:
-        - Bot verb processing (strips `./{verb}:` prefix)
-        - Direct agent-to-agent messaging (no prefix)
+        Layer 0 message body. The `text` field contains the base format
+        `{slug}:{payload}`. This is the universal format that all receivers
+        consume after bot processing strips the `./` prefix.
       required:
         - text
       properties:
         text:
           type: string
           description: |
-            The agent message text. Format is `{slug}:{payload}`.
+            Agent message text. Format: `{slug}:{payload}`.
 
             Split on the first colon:
-            - Everything before = slug (agent/service identifier)
-            - Everything after = payload (preserved verbatim, may contain colons)
+            - Everything before = slug (agent/app identifier)
+            - Everything after = payload (preserved verbatim)
 
-            If no colon is present, the entire text is the slug with an empty payload.
+            If no colon is present, the entire text is the slug with empty payload.
           pattern: '^[^:]+(:.*)?$'
           examples:
-            - myagent:hello world
-            - deploy:{"service":"api","version":"2.1.0"}
+            - deploy-agent:start deploy on prod
+            - jira:PROJ-456 created successfully
             - otel-collector:trace_id=abc123
         attachments:
           type: array
-          description: Adaptive Card attachments (forwarded from verb command or sent directly).
+          description: Adaptive Card attachments.
           items:
             $ref: '#/components/schemas/CardAttachment'
 
@@ -380,7 +506,7 @@ components:
         content:
           type: object
           description: |
-            The Adaptive Card JSON body. Follows the Microsoft Adaptive Card
+            Adaptive Card JSON body following the Microsoft Adaptive Card
             schema (https://adaptivecards.io/schemas/adaptive-card.json).
           properties:
             type:
@@ -396,26 +522,17 @@ components:
     MessageEnvelope:
       type: object
       description: |
-        Transport-level message metadata. These fields come from the
-        messaging platform, not the wgrok protocol itself.
-
-        Field names shown here use Webex conventions. Other transports
-        will map to equivalent fields (e.g., Slack `user` → `personEmail`).
+        Transport-level message metadata from the messaging platform.
+        Field names use Webex conventions; other transports map equivalently.
       properties:
         personEmail:
           type: string
           format: email
           description: Email/identity of the message sender.
-          examples:
-            - sender@example.com
-            - bot@webex.bot
         toPersonEmail:
           type: string
           format: email
           description: Email/identity of the message recipient.
-          examples:
-            - bot@webex.bot
-            - sender@example.com
         id:
           type: string
           description: Platform-specific unique message ID.
@@ -433,11 +550,7 @@ components:
     Verb:
       type: string
       description: |
-        The action/role for the bot to execute. Verbs are lowercase
-        alphanumeric identifiers that determine how the bot processes
-        the message.
-
-        ## Built-in verbs
+        The action for the relay agent to execute (Mode B only).
 
         | Verb | Status | Behavior |
         |------|--------|----------|
@@ -446,45 +559,50 @@ components:
         | `broadcast` | Reserved | Fan out to all matching subscribers |
         | `store` | Reserved | Persist payload for later retrieval |
 
-        Custom verbs are allowed. Implementations MUST ignore unrecognized
-        verbs gracefully (log and drop, never error to sender).
+        Custom verbs are allowed. Unrecognized verbs MUST be silently ignored.
       pattern: '^[a-z][a-z0-9]*$'
       examples:
         - echo
         - route
         - broadcast
-        - store
+
+    AppIdentifier:
+      type: string
+      description: |
+        A registered application name in the platform bot's registry (Mode A).
+        Maps to an internal webhook endpoint. The platform bot maintains the
+        mapping between app identifiers and their backend URLs.
+      minLength: 1
+      pattern: '^[^:]+$'
+      examples:
+        - jira
+        - deploy
+        - grafana
+        - servicenow
 
     Slug:
       type: string
       description: |
-        A message bus routing tag, analogous to a NATS subject or Kafka topic.
-        Each agent/service is configured with a slug and only processes messages
-        matching that slug.
-
-        Slugs enable multiple independent agents to share the same bot and
-        messaging account without interfering with each other.
+        An agent/service identifier, analogous to a NATS subject (Mode B).
+        Each agent is configured with a slug and only processes messages
+        matching that slug. This is how agents on a shared token filter
+        messages intended for them.
 
         Rules:
         - Must be non-empty
-        - Must not start with a colon
         - Must not contain colons (colon is the field delimiter)
         - Case-sensitive
       minLength: 1
       pattern: '^[^:]+$'
       examples:
-        - myagent
-        - deploy-service
+        - deploy-agent
         - otel-collector
-        - github-actions-orchestrator
+        - github-orchestrator
 
     AllowlistPattern:
       type: string
       description: |
-        A pattern used to authorize message senders. The allowlist prevents
-        unauthorized users from sending messages through the bot or to agents.
-
-        Three pattern formats are supported:
+        A pattern used to authorize message senders.
 
         | Format | Example | Matches |
         |--------|---------|---------|
@@ -492,8 +610,7 @@ components:
         | Wildcard | `*@example.com` | Same as domain (explicit) |
         | Exact | `user@example.com` | Only that email |
 
-        Matching is case-insensitive. Whitespace is trimmed. Empty patterns
-        are ignored.
+        Matching is case-insensitive. Whitespace is trimmed. Empty patterns ignored.
       examples:
         - example.com
         - '*@example.com'
@@ -509,41 +626,38 @@ components:
       properties:
         WGROK_TOKEN:
           type: string
-          description: Messaging platform API token for sending messages.
+          description: Messaging platform API token.
         WGROK_TARGET:
           type: string
           format: email
-          description: Email/identity of the bot to send verb commands to.
+          description: Email/identity of the bot to send commands to.
         WGROK_SLUG:
           type: string
-          description: Slug to tag outgoing messages with.
+          description: |
+            Slug to tag outgoing messages with (Mode B).
+            In Mode A, this maps to the app identifier.
         WGROK_DOMAINS:
           type: string
-          description: |
-            Comma-separated list of allowlist patterns. Optional for sender.
-          examples:
-            - example.com,trusted.org
+          description: Comma-separated allowlist patterns. Optional for sender.
         WGROK_DEBUG:
           type: string
           description: |
-            Enable NDJSON debug logging to stderr.
-            Truthy: `true`, `1`, `yes`. Falsy: `false`, `0`, `no`, `""`.
+            Enable NDJSON debug logging. Truthy: `true`, `1`, `yes`.
           default: 'false'
 
     BotConfig:
       type: object
       description: |
         Configuration for the wgrok bot component.
-        The bot processes verb commands and routes messages.
+        Mode A: platform bot with app registry.
+        Mode B: relay agent processing verbs.
       required:
         - WGROK_TOKEN
         - WGROK_DOMAINS
       properties:
         WGROK_TOKEN:
           type: string
-          description: |
-            Platform API token for the bot. Should be a unique identity
-            (different from sender/receiver tokens).
+          description: Platform API token (unique identity for the bot).
         WGROK_DOMAINS:
           type: string
           description: Comma-separated allowlist patterns. Required.
@@ -561,7 +675,7 @@ components:
       properties:
         WGROK_TOKEN:
           type: string
-          description: Platform API token for the receiver.
+          description: Platform API token.
         WGROK_SLUG:
           type: string
           description: Slug to match incoming messages against.
