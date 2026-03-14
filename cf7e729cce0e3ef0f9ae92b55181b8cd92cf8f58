@@ -1,0 +1,25 @@
+README.md
+  fc445375822781d8 9,19,25,37,43,54,60,77,85,169,187,205,221,298,418,433
+go/webex.go
+  fc445375822781d8 79-80,91,94,132-133,144,147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "cf7e729cce0e3ef0f9ae92b55181b8cd92cf8f58",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 28,
+      "total_deletions": 26,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
