@@ -18,7 +18,7 @@ The `./` prefix signals "this is a wgrok command". What follows depends on the d
 ./{app}:{payload}
 ```
 
-A central bot acts as a gateway for a large engineering organization. Developers don't need to know how to get SSL certs, create Webex bots, submit IT approvals, or configure LDAP. They use one SDK that talks to one bot.
+A central bot acts as a gateway. Developers use one SDK that talks to one bot — the bot routes to backend services on their behalf.
 
 ```
 Developer ──./jira:create ticket──► Platform Bot ──► Jira webhook (internal)
@@ -63,7 +63,7 @@ After bot processing, the `./` prefix is stripped. Receivers always consume this
 
 ## Use cases
 
-**Developer platform** — 76,000 engineers, one bot, every internal API behind it. `./jira:...`, `./deploy:...`, `./grafana:...` — developers integrate with one SDK instead of navigating SSL, LDAP, Webex bot creation, and IT security approvals for each service.
+**Developer platform** — One bot, every internal API behind it. `./jira:...`, `./deploy:...`, `./grafana:...` — developers integrate with one SDK instead of building individual integrations for each service.
 
 **Firewall traversal** — GitHub Actions orchestrator talks to on-prem orchestrator. Both share a token, echo bot relays through Webex. `./echo:{slug}:{payload}` traverses the firewall without inbound ports.
 
@@ -107,6 +107,7 @@ WGROK_DOMAINS=example.com
 
 # Optional
 WGROK_DEBUG=true
+WGROK_PROXY=http://proxy.corp.com:8080
 ```
 
 ### 3. Use in your project
@@ -177,15 +178,19 @@ let receiver = WgrokReceiver::new(cfg, Box::new(|slug, payload, cards| {
 receiver.listen(shutdown_rx).await?;
 ```
 
-## Allowlist
+## Allowlist / ACL
 
-The `WGROK_DOMAINS` environment variable controls who can send messages through the system:
+The `WGROK_DOMAINS` environment variable controls who can send messages through the system. Granular access control at the library level:
 
 | Pattern | Matches |
 |---------|---------|
 | `example.com` | `*@example.com` |
 | `*@example.com` | Any user at example.com |
 | `user@example.com` | Exact match only |
+| `*.com` | Any `*@*.com` (TLD match) |
+| `*@*.domain.com` | Any user at any subdomain of domain.com |
+
+Both modes enforce the allowlist. The minimum configuration is a `.env` file. Developers can wrap the library with their own ACL solution (OpenBao, Postgres, LDAP, etc.) if needed.
 
 ## Transport bindings
 
@@ -196,6 +201,31 @@ The protocol is transport-agnostic. Any platform with a REST API for sending and
 | Webex | REST `/v1/messages` | Mercury WebSocket | Implemented |
 | Slack | `chat.postMessage` | Socket Mode WebSocket | Planned |
 | Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Planned |
+
+## Proxy support
+
+All outbound HTTP and WebSocket connections can be routed through a proxy via the `WGROK_PROXY` environment variable:
+
+```env
+WGROK_PROXY=http://proxy.corp.com:8080
+```
+
+Each language implementation wires the proxy through its native HTTP client:
+
+| Language | Mechanism |
+|----------|-----------|
+| Python | `aiohttp` connector (`aiohttp_socks` / `ProxyConnector`) |
+| Go | `http.Client` with proxy transport |
+| TypeScript | `undici` `ProxyAgent` (passed as `dispatcher`) |
+| Rust | `reqwest::Client` with proxy config |
+
+## Scope
+
+wgrok provides the core message bus protocol. It is deliberately minimal — wrap it with whatever you need.
+
+**In scope:** message bus protocol (two modes), sender/relay/receiver libraries, allowlist/ACL, `.env` configuration, outbound proxy support, multi-platform token support on the central bot.
+
+**Out of scope (wrap these around the library):** secret management (OpenBao, Vault), database-backed ACLs (Postgres), observability backends (OpenTelemetry, Loki), authentication beyond the allowlist, UI/dashboards.
 
 ## Specification
 

@@ -27,10 +27,8 @@ info:
     ./{app}:{payload}
     ```
 
-    A central bot acts as a gateway, abstracting platform complexity for a
-    large engineering organization. Developers don't need to know how to
-    get SSL certs, create Webex bots, submit IT approvals, or configure LDAP.
-    They integrate with one SDK that talks to one bot.
+    A central bot acts as a gateway. Developers use one SDK that talks to
+    one bot — the bot routes to backend services on their behalf.
 
     - `./{app}` identifies which backend application to route to
     - The bot receives the message, looks up the app in its registry,
@@ -47,9 +45,9 @@ info:
     Developer ◄──./jira:PROJ-456 created───────────── Platform Bot
     ```
 
-    The platform bot is the single integration point. It owns the Webex
-    identity, handles the WebSocket connection, and routes messages to
-    backend services. Developers only need a token and the SDK.
+    The platform bot is the single integration point. It handles the
+    WebSocket connection and routes messages to backend services.
+    Developers only need a token and the SDK.
 
     ### Mode B — Agent Bus
 
@@ -609,12 +607,16 @@ components:
         | Domain | `example.com` | Any `*@example.com` |
         | Wildcard | `*@example.com` | Same as domain (explicit) |
         | Exact | `user@example.com` | Only that email |
+        | TLD | `*.com` | Any `*@*.com` |
+        | Subdomain wildcard | `*@*.domain.com` | Any user at any subdomain |
 
         Matching is case-insensitive. Whitespace is trimmed. Empty patterns ignored.
       examples:
         - example.com
         - '*@example.com'
         - admin@example.com
+        - '*.internal'
+        - '*@*.domain.com'
 
     SenderConfig:
       type: object
@@ -644,6 +646,14 @@ components:
           description: |
             Enable NDJSON debug logging. Truthy: `true`, `1`, `yes`.
           default: 'false'
+        WGROK_PROXY:
+          type: string
+          format: uri
+          description: |
+            Outbound HTTP/WebSocket proxy URL. All platform API calls and
+            WebSocket connections are routed through this proxy when set.
+          examples:
+            - http://proxy.corp.com:8080
 
     BotConfig:
       type: object
@@ -664,6 +674,10 @@ components:
         WGROK_DEBUG:
           type: string
           default: 'false'
+        WGROK_PROXY:
+          type: string
+          format: uri
+          description: Outbound HTTP/WebSocket proxy URL.
 
     ReceiverConfig:
       type: object
@@ -685,3 +699,7 @@ components:
         WGROK_DEBUG:
           type: string
           default: 'false'
+        WGROK_PROXY:
+          type: string
+          format: uri
+          description: Outbound HTTP/WebSocket proxy URL.

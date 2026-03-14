@@ -1,107 +1,132 @@
 wgrok — message bus protocol over social messaging platforms
 
 Uses messaging platform APIs (Webex, Slack, Discord) as transport to allow
-agents, services, and orchestrators to communicate across firewalls without
-inbound webhooks.
+agents, services, and orchestrators to communicate across network boundaries
+without inbound webhooks.
+
+== Scope ==
+
+In scope:
+  - Message bus protocol (two modes)
+  - Sender library, relay bot, receiver library
+  - Allowlist / ACL (email, domain, TLD, wildcard/regex)
+  - .env configuration (minimum viable config)
+  - Outbound network proxy support
+  - Multi-platform token support on the central bot
+
+Out of scope (developer wraps these around the library):
+  - Secret management (OpenBao, Vault, etc.)
+  - Database-backed ACLs (Postgres, etc.)
+  - Observability backends (OpenTelemetry, Loki, Jaeger, etc.)
+  - Authentication/authorization beyond the allowlist
+  - UI, dashboards, admin interfaces
+
+Philosophy: we provide wheels, chassis, engine, gas tank. If you want
+seats, windshield, gearbox, or other features — wrap them around this
+core library. Same concept as webex-message-handler.
 
 == Message format ==
 
   ./{context}:{...rest}
 
-The ./ prefix signals "this is a wgrok command". What follows depends
-on the deployment mode.
+The ./ prefix signals "this is a wgrok command".
 
 == Deployment modes ==
 
-Mode A — Platform Bot:
+Both modes require a minimum of two bots:
+  1. Bot for sending/receiving (the application's identity)
+  2. Bot for message processing and reflection (the relay/router)
+
+Mode A — Platform Bot (app routing):
   ./{app}:{payload}
-  Central bot is the gateway for a large engineering organization.
-  Developers integrate with one SDK, one bot handles all routing.
-  The bot maintains a registry of apps and their internal webhooks.
-  76,000 engineers don't need to know SSL, LDAP, Webex bot creation,
-  or IT/security approval processes. They just send ./{app}:{payload}.
+  Central bot routes messages to backend applications by app name.
+  The bot maintains a registry of apps and their internal endpoints.
 
-  Developer -> ./jira:create ticket -> Bot -> Jira webhook (internal)
-  Developer <- ./jira:PROJ-456 created <- Bot <- Jira response
+  Developer -> ./jira:create ticket -> Central Bot -> Jira (internal)
+  Developer <- ./jira:PROJ-456 created <- Central Bot <- Jira response
 
-Mode B — Agent Bus:
+Mode B — Agent Bus (pure message bus):
   ./{verb}:{slug}:{payload}
-  No central routing bot. Multiple agents share the same token.
-  All agents see all messages. The verb tells a relay agent what to do.
-  The slug identifies which agent should process the result.
+  No central routing. Agents share the same token, all see all messages.
+  Verb tells the relay bot what to do (echo = reflect back).
+  Slug is how agents filter: "is this message for me?"
 
-  Sender -> ./echo:deploy-agent:start deploy -> Echo Bot
-  Receiver <- deploy-agent:start deploy <- Echo Bot
-  (only deploy-agent processes it because slug matches)
-
-  The verb is needed because without a central router, you need to tell
-  the echo agent to reflect the message. The slug is needed because all
-  agents on the shared token see every message — it's the filter.
+  Sender -> ./echo:deploy-agent:start -> Echo Bot
+  Receiver <- deploy-agent:start <- Echo Bot
+  (only deploy-agent processes because slug matches)
 
 == Protocol layers ==
 
 Layer 0:  {slug}:{payload}                ← base: what receivers consume
-Layer 1a: ./{app}:{payload}               ← platform bot: central routing
-Layer 1b: ./{verb}:{slug}:{payload}       ← agent bus: verb + agent filtering
+Layer 1a: ./{app}:{payload}               ← platform bot: app routing
+Layer 1b: ./{verb}:{slug}:{payload}       ← agent bus: verb + slug filtering
 
 After bot processing, the ./ prefix is always stripped. Receivers always
-see Layer 0 format regardless of which mode produced it.
+see Layer 0 format.
 
-== Origin ==
+== Central bot: multi-token support ==
 
-The ./ convention comes from the original bot design: ./{slug|role} meant
-"execute this role/action". In wgrok:
+The central bot (echo/routing/etc) should support multiple messaging
+platform tokens for:
 
-  Mode A: the first segment is the app (routing target)
-  Mode B: the first segment is the verb (action for the relay)
+1. Load balancing — distribute outbound messages across tokens
+2. Channel support — bot@webex.com, bot@slack.com, bot@discord.com
+3. Cross-channel routing — message arrives on Webex, response goes to Slack
 
-The bot's configuration determines interpretation. Platform bots know
-their app registry. Relay bots know their verbs (echo, route, etc.).
+== Allowlist / ACLs ==
+
+Granular access control at the library level:
+
+  Specific email(s):   user@domain.com, admin@domain.com
+  Specific domain(s):  domain.com (matches *@domain.com)
+  Specific TLD(s):     *.com, *.internal
+  Wildcard/regex:      *@*.domain.com, *@trusted.*
+
+Both modes enforce allowlist. Can bot@webex.com talk to bot@slack.com?
+The allowlist decides.
+
+At a minimum a .env file must exist. Developer can implement their own
+ACL solution (OpenBao, Postgres, LDAP, etc.) wrapping the library.
 
 == Built-in verbs (Mode B) ==
 
-  echo      — reflect message back to sender (firewall traversal)
-  route     — forward to internal system by slug (orchestrator-to-orchestrator)
+  echo      — reflect message back to sender
+  route     — forward to internal system by slug (future)
   broadcast — fan out to all matching subscribers (future)
   store     — persist payload for later retrieval (future)
 
-Only echo is implemented in v1.0. Other verbs are reserved.
-Unrecognized verbs must be silently ignored.
-
-== Components ==
-
-1. Sender library — wraps payload with ./ prefix, POSTs via REST API
-2. Bot — listens on WebSocket, validates allowlist, parses context, routes
-3. Receiver library — listens on WebSocket, matches slug, delivers to app
+Only echo is implemented in v1.0.
 
 == Configuration ==
 
+Minimum: .env file.
+
   # Sender/Receiver
-  WGROK_TOKEN=<shared token>
+  WGROK_TOKEN=<token>
   WGROK_TARGET=bot@domain.tld
   WGROK_SLUG=myagent
-  WGROK_DOMAINS=domain.tld
+  WGROK_DOMAINS=domain.tld,*@trusted.org
 
   # Bot
-  WGROK_TOKEN=<unique bot token>
-  WGROK_DOMAINS=domain.tld,*@trusted.org
+  WGROK_TOKEN=<bot token>
+  WGROK_DOMAINS=domain.tld
 
   # Optional
   WGROK_DEBUG=true
+  WGROK_PROXY=http://proxy.corp.com:8080
 
-== Allowlist patterns ==
+== Proxy support ==
 
-  domain.tld         -> matches *@domain.tld
-  *@domain.tld       -> explicit wildcard
-  user@domain.tld    -> exact match
+Must support outbound network proxy via WGROK_PROXY env var.
+Follows the same pattern as webex-message-handler:
+  - Python: aiohttp connector (aiohttp_socks or ProxyConnector)
+  - TypeScript: undici ProxyAgent (passed as dispatcher)
+  - Go: http.Client with proxy transport
+  - Rust: reqwest::Client with proxy config
 
-Case-insensitive. Whitespace trimmed. Empty patterns ignored.
+The proxy is used for all outbound HTTP and WebSocket connections.
 
 == Transport bindings ==
-
-Protocol is transport-agnostic. Requires:
-  - REST API for sending messages
-  - Persistent connection (WebSocket) for receiving
 
   Webex:   REST /v1/messages + Mercury WebSocket   [implemented]
   Slack:   chat.postMessage + Socket Mode          [planned]
