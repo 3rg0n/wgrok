@@ -73,12 +73,12 @@ func postMessage(token string, payload sendMessagePayload, client *http.Client) 
 		if err != nil {
 			return nil, fmt.Errorf("send message: %w", err)
 		}
-		defer resp.Body.Close()
 
 		// Check for 429 Too Many Requests
 		if resp.StatusCode == http.StatusTooManyRequests {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 			if attempt < MaxRetries {
-				// Read Retry-After header, default to 1 second
 				retryAfter := 1
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
 					if parsed, err := strconv.Atoi(retryAfterStr); err == nil {
@@ -88,9 +88,10 @@ func postMessage(token string, payload sendMessagePayload, client *http.Client) 
 				time.Sleep(time.Duration(retryAfter) * time.Second)
 				continue
 			}
-			// Max retries exhausted, fall through to readJSONResponse which will handle the error
+			return nil, fmt.Errorf("HTTP %d: rate limited after %d retries", resp.StatusCode, MaxRetries)
 		}
 
+		defer resp.Body.Close()
 		return readJSONResponse(resp)
 	}
 	return nil, fmt.Errorf("unreachable")
@@ -125,12 +126,12 @@ func getJSON(token, url string, client *http.Client) (map[string]interface{}, er
 		if err != nil {
 			return nil, fmt.Errorf("GET %s: %w", url, err)
 		}
-		defer resp.Body.Close()
 
 		// Check for 429 Too Many Requests
 		if resp.StatusCode == http.StatusTooManyRequests {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 			if attempt < MaxRetries {
-				// Read Retry-After header, default to 1 second
 				retryAfter := 1
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
 					if parsed, err := strconv.Atoi(retryAfterStr); err == nil {
@@ -140,9 +141,10 @@ func getJSON(token, url string, client *http.Client) (map[string]interface{}, er
 				time.Sleep(time.Duration(retryAfter) * time.Second)
 				continue
 			}
-			// Max retries exhausted, fall through to readJSONResponse which will handle the error
+			return nil, fmt.Errorf("HTTP %d: rate limited after %d retries", resp.StatusCode, MaxRetries)
 		}
 
+		defer resp.Body.Close()
 		return readJSONResponse(resp)
 	}
 	return nil, fmt.Errorf("unreachable")

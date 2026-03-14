@@ -6,7 +6,7 @@ A message bus protocol over social messaging platforms. Uses platform APIs (Webe
 
 All wgrok messages are colon-delimited text prefixed with `./`:
 
-```
+```text
 ./{context}:{...rest}
 ```
 
@@ -16,13 +16,13 @@ The payload is opaque — wgrok never inspects or transforms it. JSON, CSV, NDJS
 
 ### Mode A — App Routing
 
-```
+```text
 ./{app}:{payload}
 ```
 
 A routing bot proxies to internal REST APIs that will never be on the bus. The bot maintains a registry of apps and their internal endpoints. Services don't need to know about wgrok — the bot translates.
 
-```
+```text
 Developer ──./jira:create ticket──► Routing Bot ──► Jira REST API
 Developer ◄──jira:PROJ-456 created──────────────── Routing Bot
 
@@ -34,13 +34,13 @@ The developer sends one message. The bot handles the REST call, auth, pagination
 
 ### Mode B — Agent Bus
 
-```
+```text
 ./{verb}:{slug}:{payload}
 ```
 
 Agents share the same messaging token — all see all messages. The verb tells a relay bot what to do, and the slug identifies which agent should process the result.
 
-```
+```text
 Sender ──./echo:deploy-agent:start deploy──► Echo Bot
                                                 │
 Receiver ◄──deploy-agent:start deploy────────── Echo Bot
@@ -51,13 +51,13 @@ Simple, lightweight. Best for same trust zone, same network boundary. No registr
 
 ### Mode C — Registered Agents
 
-```
+```text
 ./{verb}:{slug}:{payload}
 ```
 
 Agents have their own bot identities and register with the routing bot. The routing bot maintains a registry mapping slugs to bot identities. Agents don't need shared tokens. Cross-platform routing is possible.
 
-```
+```text
 Routing bot registry:
   deploy = deploy-bot@spark.com
   status = status-bot@foo.com
@@ -74,7 +74,7 @@ The difference from Mode A: Mode A proxies to dumb REST APIs. Mode C routes to s
 
 ### Layer 0 — Base format
 
-```
+```text
 {slug}:{payload}
 ```
 
@@ -82,13 +82,14 @@ After bot processing, the `./` prefix is stripped. Receivers always consume this
 
 ### Protocol layers
 
-```
+```text
 Layer 0:  {slug}:{payload}                ← base: what receivers consume
 Layer 1a: ./{app}:{payload}               ← Mode A: REST API proxy
 Layer 1b: ./{verb}:{slug}:{payload}       ← Mode B/C: verb + slug filtering
 ```
 
 Mode B and Mode C share the same wire format (Layer 1b). The difference is how the routing bot resolves the slug:
+
 - **Mode B**: echo back to sender (agents self-select by slug)
 - **Mode C**: look up slug in registry, route to registered bot
 - **Fallback**: registered slugs get routed, unregistered slugs get echoed — Mode B and C coexist on the same routing bot
@@ -128,6 +129,7 @@ Implemented in four languages with identical behavior and shared test cases:
 ### 1. Register a bot
 
 Create a bot on your messaging platform. You need at minimum two tokens:
+
 - One for the **bot** (the relay/routing service)
 - One **shared token** for senders and receivers (Mode B), or individual tokens per agent (Mode C)
 
@@ -164,7 +166,8 @@ WGROK_PROXY=http://proxy.corp.com:8080
 
 ### 3. Use in your project
 
-**Python**
+**Python:**
+
 ```python
 from wgrok import WgrokSender, WgrokReceiver, SenderConfig, ReceiverConfig
 
@@ -181,7 +184,8 @@ receiver = WgrokReceiver(ReceiverConfig.from_env(), handler)
 await receiver.listen()
 ```
 
-**Go**
+**Go:**
+
 ```go
 import wgrok "github.com/3rg0n/wgrok/go"
 
@@ -198,7 +202,8 @@ receiver := wgrok.NewReceiver(rcfg, func(slug, payload string, cards []interface
 receiver.Listen(ctx)
 ```
 
-**TypeScript**
+**TypeScript:**
+
 ```typescript
 import { WgrokSender, WgrokReceiver, senderConfigFromEnv, receiverConfigFromEnv } from 'wgrok';
 
@@ -213,7 +218,8 @@ const receiver = new WgrokReceiver(receiverConfigFromEnv(), (slug, payload, card
 await receiver.listen();
 ```
 
-**Rust**
+**Rust:**
+
 ```rust
 use wgrok::{WgrokSender, WgrokReceiver, SenderConfig, ReceiverConfig};
 
@@ -260,6 +266,7 @@ WGROK_IRC_TOKENS=wgrok-bot:pass@irc.libera.chat:6697/#wgrok
 ```
 
 Each `WGROK_{PLATFORM}_TOKENS` env var accepts CSV. The routing bot:
+
 - Opens a WebSocket listener per token (receives messages from all connected platforms)
 - Load balances outbound sends across tokens for the same platform
 - Routes cross-platform: a message arriving on Webex can be delivered to a Slack agent
@@ -283,11 +290,12 @@ WGROK_WEBHOOK_SECRET=shared-secret
 ```
 
 When enabled, the routing bot starts an HTTP server that accepts `POST` requests. This is useful for:
+
 - **Platforms that prefer webhooks** over WebSocket (e.g., Teams Bot Framework)
 - **Non-chat integrations** (CI/CD, monitoring, cron jobs) that want to post to the bus without a messaging platform token
 - **High-throughput environments** where webhook is more efficient than WebSocket
 
-```
+```http
 POST /wgrok HTTP/1.1
 Authorization: Bearer <WGROK_WEBHOOK_SECRET>
 Content-Type: application/json
@@ -325,6 +333,7 @@ WGROK_ROUTES=deploy:deploy-bot@spark.com,status:status-bot@foo.com,jira:jira-age
 CSV format — same whether loaded from `.env`, a database column, or an API. Parse: split on `,`, split each on first `:`.
 
 The routing bot uses this registry to resolve slugs:
+
 - Slug found in registry → route to registered bot (Mode C)
 - Slug not found → echo back to sender (Mode B fallback)
 
@@ -360,6 +369,7 @@ The formal protocol specification is in [`asyncapi.yaml`](asyncapi.yaml) (AsyncA
 ## Build and test
 
 ### Python
+
 ```bash
 cd python
 pip install -e ".[dev]"
@@ -368,6 +378,7 @@ pytest tests/ -v
 ```
 
 ### Go
+
 ```bash
 cd go
 go test ./... -v
@@ -377,6 +388,7 @@ go run ./cmd/receiver
 ```
 
 ### TypeScript
+
 ```bash
 cd ts
 npm install
@@ -385,6 +397,7 @@ npm test
 ```
 
 ### Rust
+
 ```bash
 cd rust
 cargo build
@@ -393,6 +406,7 @@ cargo clippy
 ```
 
 ### Cross-language test report
+
 ```bash
 bash tests/run_all.sh
 ```
@@ -401,7 +415,7 @@ bash tests/run_all.sh
 
 Test cases are defined once as JSON in `tests/` and consumed by all four languages via thin shims:
 
-```
+```text
 tests/
 ├── protocol_cases.json
 ├── allowlist_cases.json
@@ -416,7 +430,7 @@ Fix a bug in a test case — it applies to all languages. Add a new case — all
 
 ## Project structure
 
-```
+```text
 wgrok/
 ├── python/           # Python SDK
 │   ├── src/wgrok/    # Source modules
