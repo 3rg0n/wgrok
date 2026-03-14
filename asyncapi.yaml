@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 
 info:
   title: wgrok
-  version: 3.0.0
+  version: 1.0.0
   description: |
     A message bus protocol that uses social messaging platforms (Webex, Slack,
     Discord) as transport. Enables agents, services, and orchestrators to
