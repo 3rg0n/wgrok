@@ -1,9 +1,9 @@
 [package]
 name = "wgrok"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "ngrok clone using Webex API as a message bus"
-rust-version = "1.75"
+rust-version = "1.85"
 
 [dependencies]
 webex-message-handler = { git = "https://github.com/3rg0n/webex-message-handler" }
