@@ -13,10 +13,10 @@ import asyncio
 from typing import Any
 
 import aiohttp
-from webex_message_handler import WebexMessageHandler, WebexMessageHandlerConfig
 
 from .allowlist import Allowlist
 from .config import BotConfig
+from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
 from .platform import platform_send_card, platform_send_message
 from .protocol import format_response, is_echo, parse_echo
@@ -29,39 +29,49 @@ class WgrokRouterBot:
         self._allowlist = Allowlist(config.domains)
         self._routes = config.routes
         self._logger = get_logger(config.debug, "wgrok.router_bot")
-        self._handler: WebexMessageHandler | None = None
+        self._listeners: list[PlatformListener] = []
         self._session: aiohttp.ClientSession | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
         self._webhook_runner: Any = None
 
     async def run(self) -> None:
-        """Connect to Webex and listen for echo messages. Optionally start webhook endpoint."""
+        """Connect to all configured platforms and listen for echo messages."""
         self._session = aiohttp.ClientSession()
-        wmh_config = WebexMessageHandlerConfig(token=self._config.webex_token, logger=self._logger)
-        self._handler = WebexMessageHandler(wmh_config)
 
-        @self._handler.on("message:created")
-        async def on_message(message) -> None:
-            await self._on_message(message)
+        # Create a listener for each platform that has tokens configured
+        pt = self._config.platform_tokens
+        if not pt:
+            # Backward compat: use webex_token directly
+            pt = {"webex": [self._config.webex_token]}
+
+        for platform, tokens in pt.items():
+            if not tokens:
+                continue
+            listener = create_listener(platform, tokens[0], self._logger)
+            listener.on_message(self._on_incoming)
+            self._listeners.append(listener)
 
         self._logger.info("Router bot starting")
 
         if self._config.webhook_port is not None:
             await self._start_webhook()
 
-        await self._handler.connect()
+        # Connect all listeners
+        for listener in self._listeners:
+            await listener.connect()
+
         self._logger.info("Router bot connected")
         await self._stop_event.wait()
 
     async def stop(self) -> None:
-        """Disconnect from Webex and clean up."""
+        """Disconnect from all platforms and clean up."""
         self._stop_event.set()
         if self._webhook_runner:
             await self._webhook_runner.cleanup()
             self._webhook_runner = None
-        if self._handler:
-            await self._handler.disconnect()
-            self._handler = None
+        for listener in self._listeners:
+            await listener.disconnect()
+        self._listeners.clear()
         if self._session:
             await self._session.close()
             self._session = None
@@ -104,8 +114,10 @@ class WgrokRouterBot:
             return web.json_response({"error": "missing text or from"}, status=400)
 
         # Process through the same pipeline as WebSocket messages
-        msg = {"text": text, "personEmail": sender, "id": ""}
-        await self._on_message(msg)
+        incoming = IncomingMessage(
+            sender=sender, text=text, msg_id="", platform="webhook", cards=[],
+        )
+        await self._on_incoming(incoming)
         return web.json_response({"status": "ok"})
 
     def _resolve_target(self, slug: str, sender: str) -> str:
@@ -127,12 +139,11 @@ class WgrokRouterBot:
                 return platform, pt[platform][0]
         return "webex", self._config.webex_token
 
-    async def _on_message(self, message) -> None:
-        """Process an incoming message: check allowlist, parse echo, relay response."""
-        sender = message.person_email if hasattr(message, "person_email") else message.get("personEmail", "")
-        msg_id = message.id if hasattr(message, "id") else message.get("id", "")
-        raw_text = message.text if hasattr(message, "text") else message.get("text", "")
-        text = (raw_text or "").strip()
+    async def _on_incoming(self, incoming: IncomingMessage) -> None:
+        """Process a normalized incoming message from any platform."""
+        sender = incoming.sender
+        text = incoming.text
+        msg_id = incoming.msg_id
 
         if not self._allowlist.is_allowed(sender):
             self._logger.warning(f"Rejected message from {sender}: not in allowlist")
@@ -152,8 +163,8 @@ class WgrokRouterBot:
         target = self._resolve_target(slug, sender)
         platform, token = self._get_send_platform_token()
 
-        # Check for card attachments on the original message
-        cards = await self._fetch_cards(msg_id)
+        # Use cards from incoming if present, otherwise fetch from Webex
+        cards = incoming.cards if incoming.cards else await self._fetch_cards(msg_id)
 
         if cards:
             self._logger.info(f"Relaying to {target} via {platform}: {response} (with {len(cards)} card(s))")
@@ -161,6 +172,18 @@ class WgrokRouterBot:
         else:
             self._logger.info(f"Relaying to {target} via {platform}: {response}")
             await platform_send_message(platform, token, target, response, self._session)
+
+    async def _on_message(self, message) -> None:
+        """Backward-compat: process a raw dict/object message (used by tests)."""
+        sender = message.person_email if hasattr(message, "person_email") else message.get("personEmail", "")
+        msg_id = message.id if hasattr(message, "id") else message.get("id", "")
+        raw_text = message.text if hasattr(message, "text") else message.get("text", "")
+        text = (raw_text or "").strip()
+
+        incoming = IncomingMessage(
+            sender=sender, text=text, msg_id=msg_id, platform="webex", cards=[],
+        )
+        await self._on_incoming(incoming)
 
     async def _fetch_cards(self, message_id: str) -> list[dict]:
         """Fetch card attachments from the original message via REST API."""

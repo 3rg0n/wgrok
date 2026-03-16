@@ -1,16 +1,17 @@
-import { WebexMessageHandler, type DecryptedMessage, type Logger } from 'webex-message-handler';
+import type { Logger } from 'webex-message-handler';
 import type { BotConfig } from './config.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
 import { isEcho, parseEcho, formatResponse } from './protocol.js';
 import { getMessage, extractCards } from './webex.js';
 import { platformSendMessage, platformSendCard } from './platform.js';
+import { createListener, type IncomingMessage, type PlatformListener } from './listener.js';
 
 export class WgrokRouterBot {
   private config: BotConfig;
   private allowlist: Allowlist;
   private logger: Logger;
-  private handler?: WebexMessageHandler;
+  private listeners: PlatformListener[] = [];
   private abortController?: AbortController;
   private routes: Record<string, string>;
 
@@ -23,19 +24,23 @@ export class WgrokRouterBot {
 
   async run(): Promise<void> {
     this.abortController = new AbortController();
-    this.handler = new WebexMessageHandler({
-      token: this.config.webexToken,
-      logger: this.logger,
-    });
 
-    this.handler.on('message:created', (msg: DecryptedMessage) => {
-      this.onMessage(msg).catch((err) => {
-        this.logger.error(`Error handling message: ${err}`);
-      });
-    });
+    // Create listeners for all configured platforms
+    const platformTokens = this.config.platformTokens;
+    for (const [platform, tokens] of Object.entries(platformTokens)) {
+      for (const token of tokens) {
+        const listener = createListener(platform, token, this.logger);
+        listener.onMessage(async (msg: IncomingMessage) => {
+          await this.onMessage(msg).catch((err) => {
+            this.logger.error(`Error handling message: ${err}`);
+          });
+        });
+        this.listeners.push(listener);
+      }
+    }
 
     this.logger.info('Router bot starting');
-    await this.handler.connect();
+    await Promise.all(this.listeners.map((l) => l.connect()));
     this.logger.info('Router bot connected');
 
     await new Promise<void>((resolve) => {
@@ -45,10 +50,8 @@ export class WgrokRouterBot {
 
   async stop(): Promise<void> {
     this.abortController?.abort();
-    if (this.handler) {
-      await this.handler.disconnect();
-      this.handler = undefined;
-    }
+    await Promise.all(this.listeners.map((l) => l.disconnect()));
+    this.listeners = [];
     this.logger.info('Router bot stopped');
   }
 
@@ -79,9 +82,9 @@ export class WgrokRouterBot {
   }
 
   /** Exposed for testing with injected cards */
-  async onMessageWithCards(msg: DecryptedMessage, cards: unknown[]): Promise<void> {
-    const sender = msg.personEmail;
-    const text = msg.text.trim();
+  async onMessageWithCards(msg: IncomingMessage, cards: unknown[]): Promise<void> {
+    const sender = msg.sender;
+    const text = msg.text;
 
     if (!this.allowlist.isAllowed(sender)) {
       this.logger.warn(`Rejected message from ${sender}: not in allowlist`);
@@ -114,8 +117,12 @@ export class WgrokRouterBot {
     }
   }
 
-  private async onMessage(msg: DecryptedMessage): Promise<void> {
-    const cards = await this.fetchCards(msg.id);
+  private async onMessage(msg: IncomingMessage): Promise<void> {
+    // For webex, fetch additional card data. For other platforms, cards come with the message
+    let cards = msg.cards;
+    if (msg.platform === 'webex' && msg.msgId) {
+      cards = await this.fetchCards(msg.msgId);
+    }
     await this.onMessageWithCards(msg, cards);
   }
 

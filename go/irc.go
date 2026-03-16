@@ -1,9 +1,13 @@
 package wgrok
 
 import (
+	"bufio"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // IRCParams holds parsed IRC connection string components.
@@ -105,4 +109,130 @@ func SendIRCMessage(connStr, target, text string) (map[string]interface{}, error
 func SendIRCCard(connStr, target, text string, card interface{}) (map[string]interface{}, error) {
 	// IRC doesn't support cards, so just send the text message
 	return SendIRCMessage(connStr, target, text)
+}
+
+// IrcConnection manages a persistent TCP/TLS connection to an IRC server.
+type IrcConnection struct {
+	params       *IRCParams
+	conn         net.Conn
+	reader       *bufio.Reader
+	writer       *bufio.Writer
+	connected    bool
+	nick         string
+	channel      string
+}
+
+// NewIrcConnection creates a new IRC connection handler.
+func NewIrcConnection(connStr string) (*IrcConnection, error) {
+	params, err := ParseIRCConnectionString(connStr)
+	if err != nil {
+		return nil, err
+	}
+	return &IrcConnection{
+		params:  params,
+		nick:    params.Nick,
+		channel: params.Channel,
+	}, nil
+}
+
+// Connect establishes a TLS connection to the IRC server.
+func (ic *IrcConnection) Connect() error {
+	if ic.connected {
+		return fmt.Errorf("already connected")
+	}
+
+	addr := fmt.Sprintf("%s:%d", ic.params.Server, ic.params.Port)
+
+	// Use TLS for IRC connection
+	tlsConfig := &tls.Config{
+		ServerName: ic.params.Server,
+	}
+
+	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	if err != nil {
+		return fmt.Errorf("dial irc server: %w", err)
+	}
+
+	ic.conn = conn
+	ic.reader = bufio.NewReader(conn)
+	ic.writer = bufio.NewWriter(conn)
+
+	// Send PASS if password is provided
+	if ic.params.Password != "" {
+		if err := ic.sendRaw(fmt.Sprintf("PASS %s", ic.params.Password)); err != nil {
+			ic.conn.Close()
+			return err
+		}
+	}
+
+	// Send NICK
+	if err := ic.sendRaw(fmt.Sprintf("NICK %s", ic.params.Nick)); err != nil {
+		ic.conn.Close()
+		return err
+	}
+
+	// Send USER
+	if err := ic.sendRaw(fmt.Sprintf("USER %s 0 * :%s", ic.params.Nick, ic.params.Nick)); err != nil {
+		ic.conn.Close()
+		return err
+	}
+
+	// Join channel if specified
+	if ic.params.Channel != "" {
+		if err := ic.sendRaw(fmt.Sprintf("JOIN %s", ic.params.Channel)); err != nil {
+			ic.conn.Close()
+			return err
+		}
+	}
+
+	ic.connected = true
+	return nil
+}
+
+// Disconnect closes the IRC connection.
+func (ic *IrcConnection) Disconnect() error {
+	if !ic.connected {
+		return nil
+	}
+
+	_ = ic.sendRaw("QUIT")
+	if ic.conn != nil {
+		_ = ic.conn.Close()
+		ic.conn = nil
+	}
+	ic.reader = nil
+	ic.writer = nil
+	ic.connected = false
+	return nil
+}
+
+// sendRaw sends a raw IRC command.
+func (ic *IrcConnection) sendRaw(line string) error {
+	if !ic.connected || ic.writer == nil {
+		return fmt.Errorf("not connected")
+	}
+
+	_, err := ic.writer.WriteString(line + "\r\n")
+	if err != nil {
+		return err
+	}
+	return ic.writer.Flush()
+}
+
+// ReadLine reads a line from the IRC server with timeout.
+func (ic *IrcConnection) ReadLine(timeout time.Duration) (string, error) {
+	if !ic.connected || ic.reader == nil {
+		return "", fmt.Errorf("not connected")
+	}
+
+	if timeout > 0 {
+		_ = ic.conn.SetReadDeadline(time.Now().Add(timeout))
+	}
+
+	line, err := ic.reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(line), nil
 }

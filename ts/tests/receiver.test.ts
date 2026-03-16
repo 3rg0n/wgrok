@@ -1,6 +1,6 @@
 import { loadCases } from './helpers';
 import { WgrokReceiver } from '../src/receiver';
-import type { DecryptedMessage, MercuryActivity } from 'webex-message-handler';
+import type { IncomingMessage } from '../src/listener';
 
 interface ReceiverCases {
   config: { slug: string; domains: string[] };
@@ -18,15 +18,13 @@ interface ReceiverCases {
 
 const CASES = loadCases<ReceiverCases>('receiver_cases.json');
 
-function fakeMsg(sender: string, text: string): DecryptedMessage {
+function fakeMsg(sender: string, text: string): IncomingMessage {
   return {
-    id: 'test-msg-id',
-    roomId: 'room-abc',
-    personId: 'person-123',
-    personEmail: sender,
+    sender,
     text,
-    created: new Date().toISOString(),
-    raw: {} as MercuryActivity,
+    msgId: 'test-msg-id',
+    platform: 'webex',
+    cards: [],
   };
 }
 
@@ -50,6 +48,7 @@ describe('WgrokReceiver', () => {
         slug: CASES.config.slug,
         domains: CASES.config.domains,
         debug: false,
+        platform: 'webex',
       },
       handler,
     );

@@ -2,11 +2,12 @@
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
 from wgrok.config import ReceiverConfig
+from wgrok.listener import IncomingMessage
 from wgrok.receiver import WgrokReceiver
 
 CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "receiver_cases.json").read_text())
@@ -26,15 +27,15 @@ class TestWgrokReceiver:
     async def test_cases(self, tc):
         handler = AsyncMock()
         receiver = WgrokReceiver(_make_config(), handler)
-        msg = {
-            "id": "msg-123",
-            "personEmail": tc["sender"],
-            "text": tc["text"],
-            "roomId": "room-abc",
-        }
+        incoming = IncomingMessage(
+            sender=tc["sender"],
+            text=tc["text"],
+            msg_id="msg-123",
+            platform="webex",
+            cards=tc["cards"],
+        )
 
-        with patch.object(receiver, "_fetch_cards", return_value=tc["cards"]):
-            await receiver._on_message(msg)
+        await receiver.on_message_with_cards(incoming)
 
         if tc["expect_handler"]:
             handler.assert_called_once_with(

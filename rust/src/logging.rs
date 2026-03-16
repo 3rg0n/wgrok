@@ -9,6 +9,7 @@ struct LogLine<'a> {
     module: &'a str,
 }
 
+#[derive(Clone)]
 pub struct NdjsonLogger {
     pub module: String,
 }
@@ -46,6 +47,7 @@ impl NdjsonLogger {
     }
 }
 
+#[derive(Clone)]
 pub struct NoopLogger;
 
 impl NoopLogger {
@@ -55,6 +57,7 @@ impl NoopLogger {
     pub fn error(&self, _msg: &str) {}
 }
 
+#[derive(Clone)]
 pub enum WgrokLogger {
     Ndjson(NdjsonLogger),
     Noop(NoopLogger),

@@ -8,11 +8,16 @@ rust-version = "1.85"
 [dependencies]
 webex-message-handler = { git = "https://github.com/3rg0n/webex-message-handler" }
 tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.24"
+futures-util = "0.3"
+native-tls = "0.2"
+tokio-native-tls = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 dotenvy = "0.15"
+async-trait = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

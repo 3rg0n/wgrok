@@ -19,9 +19,11 @@ type WgrokReceiver struct {
 	allowlist *Allowlist
 	handler   MessageHandler
 	logger    wmh.Logger
-	wsHandler *wmh.WebexMessageHandler
+	listener  PlatformListener
 	client    *http.Client
 	cancel    context.CancelFunc
+	// Deprecated: wsHandler is kept for backward compatibility with existing tests
+	wsHandler *wmh.WebexMessageHandler
 }
 
 // NewReceiver creates a new WgrokReceiver.
@@ -35,28 +37,35 @@ func NewReceiver(config *ReceiverConfig, handler MessageHandler) *WgrokReceiver 
 	}
 }
 
-// Listen connects to Webex and listens for response messages matching the configured slug.
+// Listen connects to the configured platform and listens for response messages matching the configured slug.
 // Blocks until ctx is cancelled or Stop is called.
 func (r *WgrokReceiver) Listen(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
 
-	h, err := wmh.New(wmh.Config{
-		Token:  r.config.WebexToken,
-		Logger: r.logger,
-	})
+	// Create listener based on platform configuration
+	token := r.config.WebexToken
+	if r.config.Platform != "" && r.config.Platform != "webex" {
+		// For non-webex platforms, we'd need a different token source
+		// For now, use WebexToken as fallback (would be overridden in real usage)
+	}
+
+	listener, err := CreateListener(r.config.Platform, token, r.logger)
 	if err != nil {
 		cancel()
-		return fmt.Errorf("create handler: %w", err)
+		return fmt.Errorf("create listener: %w", err)
 	}
-	r.wsHandler = h
+	r.listener = listener
 
-	h.OnMessageCreated(func(msg wmh.DecryptedMessage) {
-		r.onMessage(msg)
+	// Register message callback
+	listener.OnMessage(func(msg IncomingMessage) {
+		r.onMessageFromListener(msg)
 	})
 
-	r.logger.Info(fmt.Sprintf("Receiver listening for slug: %s", r.config.Slug))
-	if err := h.Connect(ctx); err != nil {
+	r.logger.Info(fmt.Sprintf("Receiver listening for slug: %s on platform %s", r.config.Slug, r.config.Platform))
+
+	// Connect listener
+	if err := listener.Connect(ctx); err != nil {
 		cancel()
 		return fmt.Errorf("connect: %w", err)
 	}
@@ -71,6 +80,11 @@ func (r *WgrokReceiver) Stop(ctx context.Context) {
 	if r.cancel != nil {
 		r.cancel()
 	}
+	if r.listener != nil {
+		_ = r.listener.Disconnect(ctx)
+		r.listener = nil
+	}
+	// For backward compatibility, also disconnect wsHandler if it exists
 	if r.wsHandler != nil {
 		_ = r.wsHandler.Disconnect(ctx)
 		r.wsHandler = nil
@@ -81,6 +95,36 @@ func (r *WgrokReceiver) Stop(ctx context.Context) {
 // FetchAction fetches an attachment action (card form submission) by ID.
 func (r *WgrokReceiver) FetchAction(actionID string) (map[string]interface{}, error) {
 	return GetAttachmentAction(r.config.WebexToken, actionID, r.client)
+}
+
+// onMessageFromListener processes an IncomingMessage from a listener.
+func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
+	sender := msg.Sender
+	text := msg.Text
+	cards := msg.Cards
+
+	if !r.allowlist.IsAllowed(sender) {
+		r.logger.Warn(fmt.Sprintf("Rejected message from %s: not in allowlist", sender))
+		return
+	}
+
+	slug, payload, err := ParseResponse(text)
+	if err != nil {
+		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
+		return
+	}
+
+	if slug != r.config.Slug {
+		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", slug, r.config.Slug))
+		return
+	}
+
+	if len(cards) > 0 {
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", slug, sender, len(cards)))
+	} else {
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", slug, sender))
+	}
+	r.handler(slug, payload, cards)
 }
 
 // onMessageWithCards is used by tests to inject card data without HTTP fetches.

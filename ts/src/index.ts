@@ -53,3 +53,13 @@ export {
   platformSendMessage,
   platformSendCard,
 } from './platform.js';
+export {
+  type IncomingMessage,
+  type MessageCallback,
+  type PlatformListener,
+  WebexListener,
+  SlackListener,
+  DiscordListener,
+  IrcListener,
+  createListener,
+} from './listener.js';

@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { DecryptedMessage, MercuryActivity } from 'webex-message-handler';
+import type { IncomingMessage } from '../src/listener';
 
 const mockSendMessage = jest.fn<(...args: unknown[]) => Promise<Record<string, string>>>()
   .mockResolvedValue({ id: 'msg-1' });
@@ -36,15 +36,13 @@ interface RouterBotCases {
 
 const CASES = loadCases<RouterBotCases>('router_bot_cases.json');
 
-function fakeMsg(sender: string, text: string): DecryptedMessage {
+function fakeMsg(sender: string, text: string): IncomingMessage {
   return {
-    id: 'test-msg-id',
-    roomId: 'room-abc',
-    personId: 'person-123',
-    personEmail: sender,
+    sender,
     text,
-    created: new Date().toISOString(),
-    raw: {} as MercuryActivity,
+    msgId: 'test-msg-id',
+    platform: 'webex',
+    cards: [],
   };
 }
 
