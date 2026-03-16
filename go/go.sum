@@ -1,5 +1,5 @@
-github.com/3rg0n/webex-message-handler/go v0.5.0 h1:bcyjfgR+YIl1B2h0F9S0o84qeaKzYOIc1AOOoCatPis=
-github.com/3rg0n/webex-message-handler/go v0.5.0/go.mod h1:dioMgk1Dc+5jikIZhiE84mWHGQLw6jgcDwGXnkuEbR0=
+github.com/3rg0n/webex-message-handler/go v0.5.1 h1:QuXj93oE/4lO01qlqrYMdRUh19Ud7iLdFL+NMwjVxRg=
+github.com/3rg0n/webex-message-handler/go v0.5.1/go.mod h1:dioMgk1Dc+5jikIZhiE84mWHGQLw6jgcDwGXnkuEbR0=
 github.com/go-jose/go-jose/v4 v4.1.3 h1:CVLmWDhDVRa6Mi/IgCgaopNosCaHz7zrMeF9MlZRkrs=
 github.com/go-jose/go-jose/v4 v4.1.3/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
