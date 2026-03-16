@@ -1,0 +1,73 @@
+rust/src/logging.rs
+  fc445375822781d8 12,50,60
+ts/tests/listener.test.ts
+  fc445375822781d8 1-67
+ts/tests/router-bot.test.ts
+  fc445375822781d8 2,39,43-45
+python/src/wgrok/__init__.py
+  fc445375822781d8 5,15-16,22
+python/tests/test_listener.py
+  fc445375822781d8 1-84
+ts/src/router-bot.ts
+  fc445375822781d8 1,8,14,28-34,37-40,43,53-54,85-87,120-125
+rust/src/lib.rs
+  fc445375822781d8 13,27
+go/receiver.go
+  fc445375822781d8 22,25-26,40,46-53,56,58,60-62,65,67-68,83-87,100-129
+python/src/wgrok/listener.py
+  fc445375822781d8 1-408
+go/irc.go
+  fc445375822781d8 4-5,7,10,113-238
+go/slack_listener.go
+  fc445375822781d8 1-4,6-10,13-221
+python/src/wgrok/receiver.py
+  fc445375822781d8 12,32,37,39-40,42-43,45-46,51,53-55,76-80,96-97,105-107,110-111
+go/webex_listener.go
+  fc445375822781d8 1-74
+ts/tests/receiver.test.ts
+  fc445375822781d8 3,21,25-27,51
+rust/Cargo.toml
+  fc445375822781d8 11-14,20
+go/router_bot.go
+  fc445375822781d8 17,21-22,31,37,42-47,50-53,56-60,62-68,70-73,75-77,88-93,132-174
+python/tests/test_receiver.py
+  fc445375822781d8 5,10,30-35,37-38
+ts/src/receiver.ts
+  fc445375822781d8 1,7,16,28,30-31,37,47-49,59-61,89-94
+rust/src/listener.rs
+  fc445375822781d8 1-9,11-163,165-171,175-244,247,250-304,306-341,343-357,359-750
+ts/src/index.ts
+  fc445375822781d8 56-65
+python/src/wgrok/router_bot.py
+  fc445375822781d8 19,32,38,41-52,59-62,67,72-74,117-120,142-146,166-167,176-177,181-186
+go/listener_test.go
+  fc445375822781d8 1-94,96-140
+go/irc_listener.go
+  fc445375822781d8 1-122
+go/listener.go
+  fc445375822781d8 1-50
+ts/src/listener.ts
+  fc445375822781d8 1-160,162,164-178,180-183,186-196,198-254,256-569
+go/discord_listener.go
+  fc445375822781d8 1-206,208-212,218-311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "2e9c662bc614fb93bdb6b02e401f1214ce9ef344",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 3450,
+      "total_deletions": 241,
+      "accepted_lines": 3297,
+      "overriden_lines": 20
+    }
+  }
+}
