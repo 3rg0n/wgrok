@@ -163,8 +163,10 @@ class WgrokRouterBot:
         target = self._resolve_target(slug, sender)
         platform, token = self._get_send_platform_token()
 
-        # Use cards from incoming if present, otherwise fetch from Webex
-        cards = incoming.cards if incoming.cards else await self._fetch_cards(msg_id)
+        # Use cards from incoming if present, otherwise fetch from Webex (only for webex platform)
+        cards = incoming.cards if incoming.cards else (
+            await self._fetch_cards(msg_id) if incoming.platform == "webex" else []
+        )
 
         if cards:
             self._logger.info(f"Relaying to {target} via {platform}: {response} (with {len(cards)} card(s))")

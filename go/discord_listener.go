@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"nhooyr.io/websocket"
@@ -35,7 +36,9 @@ type DiscordListener struct {
 	ws             *websocket.Conn
 	running        bool
 	heartbeatDone  chan struct{}
+	stopHeartbeat  chan struct{}
 	sequence       *int
+	seqMu          sync.Mutex
 }
 
 // NewDiscordListener creates a new Discord listener.
@@ -44,6 +47,7 @@ func NewDiscordListener(token string, logger wmh.Logger) *DiscordListener {
 		token:         token,
 		logger:        logger,
 		heartbeatDone: make(chan struct{}),
+		stopHeartbeat: make(chan struct{}),
 	}
 }
 
@@ -182,15 +186,19 @@ func (l *DiscordListener) heartbeatLoop(interval time.Duration) {
 
 	for {
 		select {
+		case <-l.stopHeartbeat:
+			return
 		case <-ticker.C:
 			if !l.running || l.ws == nil {
 				return
 			}
 
+			l.seqMu.Lock()
 			heartbeat := map[string]interface{}{
 				"op": opHeartbeat,
 				"d":  l.sequence,
 			}
+			l.seqMu.Unlock()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			_ = l.ws.Write(ctx, websocket.MessageText, mustMarshalJSON(heartbeat))
 			cancel()
@@ -217,10 +225,12 @@ func (l *DiscordListener) readLoop() {
 			continue
 		}
 
-		// Track sequence number for heartbeat
+		// Track sequence number for heartbeat (mutex-protected)
 		if s, ok := msg["s"].(float64); ok {
 			seq := int(s)
+			l.seqMu.Lock()
 			l.sequence = &seq
+			l.seqMu.Unlock()
 		}
 
 		// Check for dispatch events
@@ -286,6 +296,11 @@ func (l *DiscordListener) handleMessageCreate(event map[string]interface{}) {
 // close closes the WebSocket connection.
 func (l *DiscordListener) close() {
 	l.running = false
+	// Signal heartbeat to stop
+	select {
+	case l.stopHeartbeat <- struct{}{}:
+	default:
+	}
 	if l.ws != nil {
 		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil

@@ -57,67 +57,6 @@ impl SlackListener {
         }
     }
 
-    #[allow(dead_code)]
-    async fn handle_event(&self, raw: &str) -> Result<(), String> {
-        let envelope: Value = serde_json::from_str(raw).map_err(|e| e.to_string())?;
-
-        // Acknowledge the envelope via WebSocket (this would be done in connect)
-        // For now, we just parse it
-        let event_type = envelope
-            .get("type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        if event_type != "events_api" {
-            return Ok(());
-        }
-
-        let payload = envelope.get("payload").and_then(|v| v.as_object());
-        let event = match payload {
-            Some(p) => p.get("event").and_then(|v| v.as_object()),
-            None => None,
-        };
-
-        let event = match event {
-            Some(e) => e,
-            None => return Ok(()),
-        };
-
-        if event.get("type").and_then(|v| v.as_str()).unwrap_or("") != "message" {
-            return Ok(());
-        }
-
-        // Skip bot messages
-        if event.get("bot_id").is_some() {
-            return Ok(());
-        }
-
-        if let Some(callback) = &self.callback {
-            let incoming = IncomingMessage {
-                sender: event
-                    .get("user")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                text: event
-                    .get("text")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .trim()
-                    .to_string(),
-                msg_id: event
-                    .get("ts")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                platform: "slack".to_string(),
-                cards: vec![],
-            };
-            let _ = callback.send(incoming);
-        }
-
-        Ok(())
-    }
 }
 
 #[async_trait]
@@ -242,11 +181,7 @@ impl PlatformListener for SlackListener {
 }
 
 const DISCORD_GATEWAY_API: &str = "https://discord.com/api/v10/gateway";
-const _OP_DISPATCH: u8 = 0;
-const _OP_HEARTBEAT: u8 = 1;
 const OP_IDENTIFY: u8 = 2;
-const _OP_HELLO: u8 = 10;
-const _OP_HEARTBEAT_ACK: u8 = 11;
 const INTENTS: u32 = (1 << 9) | (1 << 15); // GUILD_MESSAGES + MESSAGE_CONTENT
 
 /// Discord listener using Gateway WebSocket.
@@ -489,23 +424,12 @@ impl PlatformListener for IrcListener {
         let callback = self.callback.clone();
 
         tokio::spawn(async move {
-            match Self::connect_and_read(
-                &server,
-                port,
-                &nick,
-                &password,
-                &channel,
-                running,
-                logger,
-                callback,
-            )
-            .await
-            {
-                Ok(_) => {}
-                Err(e) => {
-                    // Log error but don't crash
-                    let _ = e;
-                }
+            let params = IrcConnectParams {
+                server, port, nick, password, channel,
+                running, logger, callback,
+            };
+            if let Err(e) = Self::connect_and_read(params).await {
+                let _ = e;
             }
         });
 
@@ -519,17 +443,20 @@ impl PlatformListener for IrcListener {
     }
 }
 
+struct IrcConnectParams {
+    server: String,
+    port: u16,
+    nick: String,
+    password: String,
+    channel: String,
+    running: Arc<Mutex<bool>>,
+    logger: WgrokLogger,
+    callback: Option<MessageCallback>,
+}
+
 impl IrcListener {
-    async fn connect_and_read(
-        server: &str,
-        port: u16,
-        nick: &str,
-        password: &str,
-        channel: &str,
-        running: Arc<Mutex<bool>>,
-        logger: WgrokLogger,
-        callback: Option<MessageCallback>,
-    ) -> Result<(), String> {
+    async fn connect_and_read(params: IrcConnectParams) -> Result<(), String> {
+        let IrcConnectParams { server, port, nick, password, channel, running, logger, callback } = params;
         let stream = TcpStream::connect(format!("{}:{}", server, port))
             .await
             .map_err(|e| format!("TCP connect failed: {}", e))?;
@@ -539,7 +466,7 @@ impl IrcListener {
             .map_err(|e| format!("TLS connector failed: {}", e))?;
         let tls_connector = tokio_native_tls::TlsConnector::from(connector);
         let tls_stream = tls_connector
-            .connect(server, stream)
+            .connect(&server, stream)
             .await
             .map_err(|e| format!("TLS connect failed: {}", e))?;
 
@@ -590,15 +517,17 @@ impl IrcListener {
 
                     // Parse PRIVMSG: :nick!user@host PRIVMSG target :message
                     if let Some(msg_start) = trimmed.find("PRIVMSG ") {
-                        if let Some(colon_pos) = trimmed.rfind(':') {
-                            if colon_pos > msg_start {
-                                let privmsg_part = &trimmed[..colon_pos];
-                                let text = &trimmed[colon_pos + 1..];
+                        // Find the colon that starts the message text (after "PRIVMSG target :")
+                        let after_privmsg = &trimmed[msg_start..];
+                        if let Some(space_pos) = after_privmsg[8..].find(' ') {
+                            let colon_offset = msg_start + 8 + space_pos + 1;
+                            if colon_offset < trimmed.len() && trimmed.as_bytes()[colon_offset] == b':' {
+                                let text = &trimmed[colon_offset + 1..];
 
                                 // Extract sender nick
-                                if let Some(nick_end) = privmsg_part.find('!') {
-                                    if privmsg_part.starts_with(':') {
-                                        let sender = privmsg_part[1..nick_end].to_string();
+                                if let Some(nick_end) = trimmed.find('!') {
+                                    if trimmed.starts_with(':') {
+                                        let sender = trimmed[1..nick_end].to_string();
 
                                         if let Some(cb) = &callback {
                                             let incoming = IncomingMessage {
@@ -636,8 +565,10 @@ impl IrcListener {
         writer: &mut W,
         msg: &str,
     ) -> Result<(), String> {
+        // Sanitize to prevent IRC protocol injection
+        let sanitized = msg.replace(['\r', '\n'], "");
         writer
-            .write_all(format!("{}\r\n", msg).as_bytes())
+            .write_all(format!("{}\r\n", sanitized).as_bytes())
             .await
             .map_err(|e| format!("Write failed: {}", e))?;
         Ok(())

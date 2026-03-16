@@ -206,13 +206,15 @@ func (ic *IrcConnection) Disconnect() error {
 	return nil
 }
 
-// sendRaw sends a raw IRC command.
+// sendRaw sends a raw IRC command. Sanitizes \r\n to prevent protocol injection.
 func (ic *IrcConnection) sendRaw(line string) error {
 	if !ic.connected || ic.writer == nil {
 		return fmt.Errorf("not connected")
 	}
 
-	_, err := ic.writer.WriteString(line + "\r\n")
+	// Sanitize to prevent IRC protocol injection
+	sanitized := strings.NewReplacer("\r", "", "\n", "").Replace(line)
+	_, err := ic.writer.WriteString(sanitized + "\r\n")
 	if err != nil {
 		return err
 	}

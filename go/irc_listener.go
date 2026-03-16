@@ -44,6 +44,7 @@ func (l *IrcListener) Connect(ctx context.Context) error {
 	}
 
 	if err := l.conn.Connect(); err != nil {
+		_ = l.conn.Disconnect()
 		return fmt.Errorf("connect to irc: %w", err)
 	}
 

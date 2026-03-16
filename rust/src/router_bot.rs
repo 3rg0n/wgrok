@@ -82,6 +82,7 @@ impl WgrokRouterBot {
                 event = rx.recv() => {
                     match event {
                         Some(HandlerEvent::MessageCreated(msg)) => {
+                            // Only fetch cards from Webex REST API (this handler is Webex-only)
                             let cards = self.fetch_cards(&msg.id).await;
                             self.on_message_with_cards(&msg, &cards).await;
                         }

@@ -88,7 +88,9 @@ class IrcConnection:
         """Send a raw IRC line."""
         if self._writer is None:
             raise ConnectionError("Not connected to IRC server")
-        self._writer.write(f"{line}\r\n".encode())
+        # Sanitize to prevent IRC protocol injection
+        sanitized = line.replace("\r", "").replace("\n", "")
+        self._writer.write(f"{sanitized}\r\n".encode())
         await self._writer.drain()
 
     async def _wait_for_welcome(self) -> None:

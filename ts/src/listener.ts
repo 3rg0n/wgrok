@@ -259,10 +259,6 @@ export class DiscordListener implements PlatformListener {
     this.ws = new WebSocket(wsUrl);
     this.running = true;
 
-    this.ws.addEventListener('message', (event) => {
-      void this.handleDiscordMessage(event.data as string);
-    });
-
     this.ws.addEventListener('close', () => {
       this.running = false;
       if (this.heartbeatInterval) {
@@ -275,7 +271,7 @@ export class DiscordListener implements PlatformListener {
       this.running = false;
     });
 
-    // Wait for Hello (opcode 10)
+    // Wait for Hello (opcode 10), then register the main message handler
     await new Promise<void>((resolve, reject) => {
       const onMessage = async (event: Event) => {
         if (event instanceof MessageEvent) {
@@ -283,6 +279,7 @@ export class DiscordListener implements PlatformListener {
             const helloMsg = JSON.parse(event.data as string) as Record<string, unknown>;
             if ((helloMsg.op as number) === OP_HELLO) {
               this.ws?.removeEventListener('message', onMessage);
+              this.ws?.removeEventListener('error', onError);
               const heartbeatInterval = ((helloMsg.d as Record<string, unknown>).heartbeat_interval as number) / 1000;
               this.startHeartbeat(heartbeatInterval);
               resolve();
@@ -300,6 +297,11 @@ export class DiscordListener implements PlatformListener {
 
       this.ws?.addEventListener('message', onMessage);
       this.ws?.addEventListener('error', onError);
+    });
+
+    // Register the main dispatch handler after Hello is complete
+    this.ws?.addEventListener('message', (event) => {
+      void this.handleDiscordMessage(event.data as string);
     });
 
     // Send Identify
@@ -490,8 +492,10 @@ export class IrcListener implements PlatformListener {
     if (!this.socket) {
       throw new Error('Not connected to IRC server');
     }
+    // Sanitize to prevent IRC protocol injection
+    const sanitized = line.replace(/\r/g, '').replace(/\n/g, '');
     return new Promise((resolve, reject) => {
-      this.socket!.write(`${line}\r\n`, (err) => {
+      this.socket!.write(`${sanitized}\r\n`, (err) => {
         if (err) reject(err);
         else resolve();
       });

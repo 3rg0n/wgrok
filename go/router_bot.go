@@ -243,8 +243,8 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 		return
 	}
 
-	// Check for card attachments on the original message
-	cards := b.fetchCards(msg.ID)
+	// Check for card attachments on the original message (only for webex)
+	cards := b.fetchCards(msg.ID, "webex")
 
 	if len(cards) > 0 {
 		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
@@ -258,8 +258,8 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 	}
 }
 
-func (b *WgrokRouterBot) fetchCards(messageID string) []interface{} {
-	if messageID == "" {
+func (b *WgrokRouterBot) fetchCards(messageID, platform string) []interface{} {
+	if messageID == "" || platform != "webex" {
 		return nil
 	}
 	fullMsg, err := GetMessage(b.config.WebexToken, messageID, b.client)
