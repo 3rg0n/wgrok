@@ -242,10 +242,10 @@ The protocol is transport-agnostic. Each platform is a transport binding with a 
 
 | Platform | Send | Receive (Persistent) | Receive (Webhook) | Status |
 |----------|------|---------------------|--------------------|--------|
-| Webex | REST `/v1/messages` | Mercury WebSocket | Webhook registration | Implemented |
-| Slack | `chat.postMessage` | Socket Mode WebSocket | Events API | Planned |
-| Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Interactions endpoint | Planned |
-| IRC | `PRIVMSG` | Persistent TCP/TLS | N/A | Planned |
+| Webex | REST `/v1/messages` | Mercury WebSocket | Webhook registration | Send + Receive |
+| Slack | `chat.postMessage` | Socket Mode WebSocket | Events API | Send only |
+| Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Interactions endpoint | Send only |
+| IRC | `PRIVMSG` | Persistent TCP/TLS | N/A | Send only |
 
 ### Platform tokens
 
@@ -421,6 +421,10 @@ tests/
 ├── allowlist_cases.json
 ├── config_cases.json
 ├── webex_cases.json
+├── slack_cases.json
+├── discord_cases.json
+├── irc_cases.json
+├── platform_dispatch_cases.json
 ├── sender_cases.json
 ├── router_bot_cases.json
 └── receiver_cases.json
