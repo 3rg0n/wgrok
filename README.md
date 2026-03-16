@@ -243,9 +243,9 @@ The protocol is transport-agnostic. Each platform is a transport binding with a 
 | Platform | Send | Receive (Persistent) | Receive (Webhook) | Status |
 |----------|------|---------------------|--------------------|--------|
 | Webex | REST `/v1/messages` | Mercury WebSocket | Webhook registration | Send + Receive |
-| Slack | `chat.postMessage` | Socket Mode WebSocket | Events API | Send only |
-| Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Interactions endpoint | Send only |
-| IRC | `PRIVMSG` | Persistent TCP/TLS | N/A | Send only |
+| Slack | `chat.postMessage` | Socket Mode WebSocket | Events API | Send + Receive |
+| Discord | REST `/channels/{id}/messages` | Gateway WebSocket | Interactions endpoint | Send + Receive |
+| IRC | `PRIVMSG` | Persistent TCP/TLS | N/A | Send + Receive |
 
 ### Platform tokens
 
