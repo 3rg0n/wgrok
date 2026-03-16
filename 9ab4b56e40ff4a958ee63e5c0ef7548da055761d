@@ -1,0 +1,23 @@
+rust/tests/listener_test.rs
+  fc445375822781d8 37-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "9ab4b56e40ff4a958ee63e5c0ef7548da055761d",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 1,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
