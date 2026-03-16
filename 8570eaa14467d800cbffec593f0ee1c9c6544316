@@ -1,0 +1,39 @@
+rust/src/router_bot.rs
+  fc445375822781d8 85
+go/irc.go
+  fc445375822781d8 209,215-217
+rust/src/listener.rs
+  fc445375822781d8 427,430-432,446-456,458-459,469,520-525,528-530,568-569,571
+go/discord_listener.go
+  fc445375822781d8 10,39,41,50,189-190,196,201,228,231,233,299-303
+ts/src/listener.ts
+  fc445375822781d8 274,282,302-304,495-496,498
+python/src/wgrok/router_bot.py
+  fc445375822781d8 166-168
+python/src/wgrok/irc.py
+  fc445375822781d8 91-93
+go/router_bot.go
+  fc445375822781d8 246-247,261-262
+go/irc_listener.go
+  fc445375822781d8 47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "8570eaa14467d800cbffec593f0ee1c9c6544316",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 76,
+      "total_deletions": 118,
+      "accepted_lines": 72,
+      "overriden_lines": 0
+    }
+  }
+}
