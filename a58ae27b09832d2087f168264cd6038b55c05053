@@ -1,0 +1,23 @@
+README.md
+  fc445375822781d8 246-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "a58ae27b09832d2087f168264cd6038b55c05053",
+  "prompts": {
+    "fc445375822781d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04616e4f-e777-458c-bc50-e78c8c383982",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <62959009+3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
