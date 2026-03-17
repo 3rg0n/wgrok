@@ -12,7 +12,7 @@ All wgrok messages use a four-field colon-delimited format:
 
 - **`to`** — destination slug (which agent should process this)
 - **`from`** — sender identifier (return address, or `-` for anonymous)
-- **`flags`** — compression/chunking metadata (`-`, `z`, `1/3`, `z2/5`)
+- **`flags`** — compression/encryption/chunking metadata (`-`, `z`, `e`, `ze`, `1/3`, `z2/5`, `ze1/3`)
 - **`payload`** — message body (can contain colons)
 
 The `./echo:` prefix signals "this is a wgrok message". The router bot strips it and relays the remaining four fields transparently.
@@ -32,12 +32,16 @@ The router bot strips the `./echo:` prefix, routes on the `to` field, and passes
 
 | Flag | Meaning |
 |------|---------|
-| `-` | No compression, no chunking |
+| `-` | No compression, no encryption, no chunking |
 | `z` | Payload is gzip+base64 compressed |
+| `e` | Payload is AES-256-GCM encrypted |
+| `ze` | Compressed then encrypted |
 | `1/3` | Chunk 1 of 3 (uncompressed) |
 | `z2/5` | Chunk 2 of 5 (compressed then chunked) |
+| `e1/3` | Chunk 1 of 3 (encrypted) |
+| `ze2/5` | Chunk 2 of 5 (compressed, encrypted, chunked) |
 
-Compression and chunking are handled automatically by the sender/receiver libraries. The router bot never inspects flags.
+Flags are ordered: `[z][e][N/M]`. Compression, encryption, and chunking are handled automatically by the sender/receiver libraries. The router bot never inspects flags.
 
 ### Mode B — Agent Bus
 
@@ -97,6 +101,34 @@ The sender/receiver libraries include a built-in codec for large payloads:
 
 Codec is transparent — application code sends and receives full payloads without knowing about compression or chunking.
 
+### Encryption
+
+Optional AES-256-GCM encryption for payload confidentiality. On/off mode — set `WGROK_ENCRYPT_KEY` to enable, omit to disable.
+
+```env
+# Generate a 32-byte key (base64-encoded)
+WGROK_ENCRYPT_KEY=$(openssl rand -base64 32)
+```
+
+When the key is configured:
+
+- **Sender** auto-encrypts every outgoing payload and sets the `e` flag
+- **Receiver** auto-decrypts when it sees the `e` flag
+- **Router bot** relays encrypted payloads transparently (never inspects them)
+
+Pipeline order: compress → encrypt → base64 → chunk (send), reassemble → base64 → decrypt → decompress (receive).
+
+Wire format: `base64(12-byte IV || ciphertext || 16-byte GCM tag)`. Each message gets a random IV. The GCM tag provides both authenticity and integrity — tampered messages are rejected.
+
+The same key must be shared between sender and receiver. The router bot does not need the key.
+
+| Language | Crypto library |
+|----------|---------------|
+| Python | `cryptography` (AES-NI accelerated via OpenSSL) |
+| Go | `crypto/aes` + `crypto/cipher` (stdlib, AES-NI accelerated) |
+| TypeScript | `node:crypto` (AES-NI accelerated via OpenSSL) |
+| Rust | `aes-gcm` crate (AES-NI accelerated) |
+
 ## Use cases
 
 **App routing** — One bot, every internal API behind it. `./jira:...`, `./deploy:...`, `./grafana:...` — developers integrate with one SDK instead of building individual integrations for each service.
@@ -152,6 +184,9 @@ WGROK_ROUTES=deploy:deploy-bot@spark.com,status:status-bot@foo.com
 # Webhook endpoint (routing bot — optional)
 WGROK_WEBHOOK_PORT=8080
 WGROK_WEBHOOK_SECRET=shared-secret
+
+# Encryption (optional — on/off, same key on sender + receiver)
+WGROK_ENCRYPT_KEY=<base64-encoded 32-byte key>
 
 # Optional
 WGROK_DEBUG=true
@@ -353,7 +388,7 @@ Each language implementation wires the proxy through its native HTTP client:
 
 wgrok provides the core message bus protocol. It is deliberately minimal — wrap it with whatever you need.
 
-**In scope:** message bus protocol (three modes), sender/relay/receiver libraries, agent registry, allowlist/ACL, `.env` configuration, multi-platform multi-token support, webhook endpoint, outbound proxy support.
+**In scope:** message bus protocol (three modes), sender/relay/receiver libraries, agent registry, allowlist/ACL, `.env` configuration, multi-platform multi-token support, webhook endpoint, outbound proxy support, optional AES-256-GCM encryption.
 
 **Out of scope (wrap these around the library):** secret management (OpenBao, Vault), database-backed ACLs (Postgres), observability backends (OpenTelemetry, Loki), authentication beyond the allowlist, UI/dashboards, agent command vocabularies.
 
