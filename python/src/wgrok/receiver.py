@@ -7,14 +7,15 @@ from collections.abc import Awaitable, Callable
 
 import aiohttp
 
+from . import codec
 from .allowlist import Allowlist
 from .config import ReceiverConfig
 from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
-from .protocol import parse_response
+from .protocol import parse_flags, parse_response
 from .webex import extract_cards, get_attachment_action, get_message
 
-MessageHandler = Callable[[str, str, list[dict]], Awaitable[None]]
+MessageHandler = Callable[[str, str, list[dict], str], Awaitable[None]]
 
 
 class WgrokReceiver:
@@ -32,6 +33,7 @@ class WgrokReceiver:
         self._listener: PlatformListener | None = None
         self._session: aiohttp.ClientSession | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
+        self._chunk_buffer: dict[tuple[str, str], dict[int, str]] = {}
 
     async def listen(self) -> None:
         """Connect to the configured platform and listen for response messages matching our slug."""
@@ -84,23 +86,42 @@ class WgrokReceiver:
             return
 
         try:
-            slug, payload = parse_response(text)
+            to, from_slug, flags_str, payload = parse_response(text)
         except ValueError:
             self._logger.debug(f"Ignoring unparseable message from {sender}")
             return
 
-        if slug != self._config.slug:
-            self._logger.debug(f"Ignoring message with slug {slug!r} (expected {self._config.slug!r})")
+        if to != self._config.slug:
+            self._logger.debug(f"Ignoring message with slug {to!r} (expected {self._config.slug!r})")
             return
+
+        # Parse flags to get compression and chunking info
+        compressed, chunk_seq, chunk_total = parse_flags(flags_str)
+
+        # Check if this is a chunked payload
+        if chunk_seq is not None and chunk_total is not None:
+            key = (sender, to)
+            self._chunk_buffer.setdefault(key, {})[chunk_seq] = payload
+            if len(self._chunk_buffer[key]) < chunk_total:
+                self._logger.debug(f"Buffered chunk {chunk_seq}/{chunk_total} for slug {to!r} from {sender}")
+                return
+            # All chunks received — reassemble
+            payload = "".join(self._chunk_buffer[key][i] for i in range(1, chunk_total + 1))
+            del self._chunk_buffer[key]
+            self._logger.debug(f"Reassembled {chunk_total} chunks for slug {to!r} from {sender}")
+
+        # Decompress if marked as compressed
+        if compressed:
+            payload = codec.decompress(payload)
 
         # Use cards from the incoming message if present, otherwise fetch from Webex
         cards = incoming.cards if incoming.cards else await self._fetch_cards(msg_id)
 
         if cards:
-            self._logger.info(f"Received payload for slug {slug!r} from {sender} (with {len(cards)} card(s))")
+            self._logger.info(f"Received payload for slug {to!r} from {sender} (with {len(cards)} card(s))")
         else:
-            self._logger.info(f"Received payload for slug {slug!r} from {sender}")
-        await self._handler_callback(slug, payload, cards)
+            self._logger.info(f"Received payload for slug {to!r} from {sender}")
+        await self._handler_callback(to, payload, cards, from_slug)
 
     async def on_message_with_cards(self, message: IncomingMessage) -> None:
         """Public test hook — process a message with pre-injected cards."""

@@ -5,23 +5,32 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
 
 // MessageHandler is the callback type for received messages.
-// It receives the slug, payload, and any adaptive card attachments.
-type MessageHandler func(slug, payload string, cards []interface{})
+// It receives the slug, payload, cards, and fromSlug (sender identifier).
+type MessageHandler func(slug, payload string, cards []interface{}, fromSlug string)
+
+// chunkKey identifies a chunk stream by sender + slug.
+type chunkKey struct {
+	sender string
+	slug   string
+}
 
 // WgrokReceiver listens for response messages, matches slug, invokes handler callback.
 type WgrokReceiver struct {
-	config    *ReceiverConfig
-	allowlist *Allowlist
-	handler   MessageHandler
-	logger    wmh.Logger
-	listener  PlatformListener
-	client    *http.Client
-	cancel    context.CancelFunc
+	config      *ReceiverConfig
+	allowlist   *Allowlist
+	handler     MessageHandler
+	logger      wmh.Logger
+	listener    PlatformListener
+	client      *http.Client
+	cancel      context.CancelFunc
+	chunkBuffer map[chunkKey]map[int]string
+	chunkMu     sync.Mutex
 	// Deprecated: wsHandler is kept for backward compatibility with existing tests
 	wsHandler *wmh.WebexMessageHandler
 }
@@ -29,11 +38,12 @@ type WgrokReceiver struct {
 // NewReceiver creates a new WgrokReceiver.
 func NewReceiver(config *ReceiverConfig, handler MessageHandler) *WgrokReceiver {
 	return &WgrokReceiver{
-		config:    config,
-		allowlist: NewAllowlist(config.Domains),
-		handler:   handler,
-		logger:    GetLogger(config.Debug, "wgrok.receiver"),
-		client:    &http.Client{},
+		config:      config,
+		allowlist:   NewAllowlist(config.Domains),
+		handler:     handler,
+		logger:      GetLogger(config.Debug, "wgrok.receiver"),
+		client:      &http.Client{},
+		chunkBuffer: make(map[chunkKey]map[int]string),
 	}
 }
 
@@ -108,23 +118,58 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 		return
 	}
 
-	slug, payload, err := ParseResponse(text)
+	to, from, flags, payload, err := ParseResponse(text)
 	if err != nil {
 		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
 		return
 	}
 
-	if slug != r.config.Slug {
-		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", slug, r.config.Slug))
+	if to != r.config.Slug {
+		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", to, r.config.Slug))
 		return
 	}
 
-	if len(cards) > 0 {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", slug, sender, len(cards)))
-	} else {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", slug, sender))
+	// Parse flags to extract compression and chunking info
+	compressed, chunkSeq, chunkTotal, _ := ParseFlags(flags)
+
+	// Handle chunking
+	if chunkSeq > 0 {
+		key := chunkKey{sender: sender, slug: to}
+		r.chunkMu.Lock()
+		if r.chunkBuffer[key] == nil {
+			r.chunkBuffer[key] = make(map[int]string)
+		}
+		r.chunkBuffer[key][chunkSeq] = payload
+		if len(r.chunkBuffer[key]) < chunkTotal {
+			r.chunkMu.Unlock()
+			r.logger.Debug(fmt.Sprintf("Buffered chunk %d/%d for slug %q from %s", chunkSeq, chunkTotal, to, sender))
+			return
+		}
+		// All chunks received — reassemble
+		var assembled strings.Builder
+		for i := 1; i <= chunkTotal; i++ {
+			assembled.WriteString(r.chunkBuffer[key][i])
+		}
+		delete(r.chunkBuffer, key)
+		r.chunkMu.Unlock()
+		payload = assembled.String()
+		r.logger.Debug(fmt.Sprintf("Reassembled %d chunks for slug %q from %s", chunkTotal, to, sender))
 	}
-	r.handler(slug, payload, cards)
+
+	// Decompress if needed
+	if compressed {
+		decoded, err := Decompress(payload)
+		if err == nil {
+			payload = decoded
+		}
+	}
+
+	if len(cards) > 0 {
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", to, sender, len(cards)))
+	} else {
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", to, sender))
+	}
+	r.handler(to, payload, cards, from)
 }
 
 // onMessageWithCards is used by tests to inject card data without HTTP fetches.
@@ -137,23 +182,55 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 		return
 	}
 
-	slug, payload, err := ParseResponse(text)
+	to, from, flags, payload, err := ParseResponse(text)
 	if err != nil {
 		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
 		return
 	}
 
-	if slug != r.config.Slug {
-		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", slug, r.config.Slug))
+	if to != r.config.Slug {
+		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", to, r.config.Slug))
 		return
 	}
 
-	if len(cards) > 0 {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", slug, sender, len(cards)))
-	} else {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", slug, sender))
+	// Parse flags to extract compression and chunking info
+	compressed, chunkSeq, chunkTotal, _ := ParseFlags(flags)
+
+	// Handle chunking
+	if chunkSeq > 0 {
+		key := chunkKey{sender: sender, slug: to}
+		r.chunkMu.Lock()
+		if r.chunkBuffer[key] == nil {
+			r.chunkBuffer[key] = make(map[int]string)
+		}
+		r.chunkBuffer[key][chunkSeq] = payload
+		if len(r.chunkBuffer[key]) < chunkTotal {
+			r.chunkMu.Unlock()
+			return
+		}
+		var assembled strings.Builder
+		for i := 1; i <= chunkTotal; i++ {
+			assembled.WriteString(r.chunkBuffer[key][i])
+		}
+		delete(r.chunkBuffer, key)
+		r.chunkMu.Unlock()
+		payload = assembled.String()
 	}
-	r.handler(slug, payload, cards)
+
+	// Decompress if needed
+	if compressed {
+		decoded, decErr := Decompress(payload)
+		if decErr == nil {
+			payload = decoded
+		}
+	}
+
+	if len(cards) > 0 {
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", to, sender, len(cards)))
+	} else {
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", to, sender))
+	}
+	r.handler(to, payload, cards, from)
 }
 
 func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
@@ -165,26 +242,58 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 		return
 	}
 
-	slug, payload, err := ParseResponse(text)
+	to, from, flags, payload, err := ParseResponse(text)
 	if err != nil {
 		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
 		return
 	}
 
-	if slug != r.config.Slug {
-		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", slug, r.config.Slug))
+	if to != r.config.Slug {
+		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", to, r.config.Slug))
 		return
+	}
+
+	// Parse flags to extract compression and chunking info
+	compressed, chunkSeq, chunkTotal, _ := ParseFlags(flags)
+
+	// Handle chunking
+	if chunkSeq > 0 {
+		key := chunkKey{sender: sender, slug: to}
+		r.chunkMu.Lock()
+		if r.chunkBuffer[key] == nil {
+			r.chunkBuffer[key] = make(map[int]string)
+		}
+		r.chunkBuffer[key][chunkSeq] = payload
+		if len(r.chunkBuffer[key]) < chunkTotal {
+			r.chunkMu.Unlock()
+			return
+		}
+		var assembled strings.Builder
+		for i := 1; i <= chunkTotal; i++ {
+			assembled.WriteString(r.chunkBuffer[key][i])
+		}
+		delete(r.chunkBuffer, key)
+		r.chunkMu.Unlock()
+		payload = assembled.String()
+	}
+
+	// Decompress if needed
+	if compressed {
+		decoded, decErr := Decompress(payload)
+		if decErr == nil {
+			payload = decoded
+		}
 	}
 
 	// Fetch card attachments from the full message
 	cards := r.fetchCards(msg.ID)
 
 	if len(cards) > 0 {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", slug, sender, len(cards)))
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", to, sender, len(cards)))
 	} else {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", slug, sender))
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", to, sender))
 	}
-	r.handler(slug, payload, cards)
+	r.handler(to, payload, cards, from)
 }
 
 func (r *WgrokReceiver) fetchCards(messageID string) []interface{} {

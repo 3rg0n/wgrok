@@ -12,6 +12,7 @@ interface ReceiverCases {
     expect_handler: boolean;
     expected_slug?: string;
     expected_payload?: string;
+    expected_from?: string;
     expected_cards?: unknown[];
   }>;
 }
@@ -34,12 +35,14 @@ describe('WgrokReceiver', () => {
     let gotSlug = '';
     let gotPayload = '';
     let gotCards: unknown[] = [];
+    let gotFrom = '';
 
-    const handler = (slug: string, payload: string, cards: unknown[]) => {
+    const handler = (slug: string, payload: string, cards: unknown[], from: string) => {
       handlerCalled = true;
       gotSlug = slug;
       gotPayload = payload;
       gotCards = cards;
+      gotFrom = from;
     };
 
     const receiver = new WgrokReceiver(
@@ -60,6 +63,7 @@ describe('WgrokReceiver', () => {
       expect(handlerCalled).toBe(true);
       expect(gotSlug).toBe(tc.expected_slug);
       expect(gotPayload).toBe(tc.expected_payload);
+      expect(gotFrom).toBe(tc.expected_from);
       expect(gotCards).toEqual(tc.expected_cards);
     } else {
       expect(handlerCalled).toBe(false);

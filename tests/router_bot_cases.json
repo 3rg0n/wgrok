@@ -12,27 +12,27 @@
     {
       "name": "relays_valid_echo_no_cards",
       "sender": "user@example.com",
-      "text": "./echo:myslug:hello",
+      "text": "./echo:myslug:sender:-:hello",
       "cards": [],
       "expect_send": true,
       "expected_reply_to": "user@example.com",
-      "expected_reply_text": "myslug:hello",
+      "expected_reply_text": "myslug:sender:-:hello",
       "expected_reply_card": null
     },
     {
       "name": "relays_echo_with_card",
       "sender": "user@example.com",
-      "text": "./echo:myslug:hello",
+      "text": "./echo:myslug:sender:-:hello",
       "cards": [{"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}],
       "expect_send": true,
       "expected_reply_to": "user@example.com",
-      "expected_reply_text": "myslug:hello",
+      "expected_reply_text": "myslug:sender:-:hello",
       "expected_reply_card": {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]}
     },
     {
       "name": "rejects_disallowed_sender",
       "sender": "hacker@evil.com",
-      "text": "./echo:slug:payload",
+      "text": "./echo:slug:sender:-:payload",
       "cards": [],
       "expect_send": false
     },
@@ -46,72 +46,72 @@
     {
       "name": "handles_malformed_echo",
       "sender": "user@example.com",
-      "text": "./echo::payload",
+      "text": "./echo::sender:-:payload",
       "cards": [],
       "expect_send": false
     },
     {
       "name": "preserves_colons_in_payload",
       "sender": "user@example.com",
-      "text": "./echo:slug:a:b:c",
+      "text": "./echo:slug:sender:-:a:b:c",
       "cards": [],
       "expect_send": true,
       "expected_reply_to": "user@example.com",
-      "expected_reply_text": "slug:a:b:c",
+      "expected_reply_text": "slug:sender:-:a:b:c",
       "expected_reply_card": null
     },
     {
       "name": "trusted_org_wildcard",
       "sender": "anyone@trusted.org",
-      "text": "./echo:s:p",
+      "text": "./echo:s:from:-:p",
       "cards": [],
       "expect_send": true,
       "expected_reply_to": "anyone@trusted.org",
-      "expected_reply_text": "s:p",
+      "expected_reply_text": "s:from:-:p",
       "expected_reply_card": null
     },
     {
       "name": "routes_registered_slug_mode_c",
       "sender": "user@example.com",
-      "text": "./echo:deploy:start prod",
+      "text": "./echo:deploy:relay:-:start prod",
       "cards": [],
       "use_routes": true,
       "expect_send": true,
       "expected_reply_to": "deploy-bot@spark.com",
-      "expected_reply_text": "deploy:start prod",
+      "expected_reply_text": "deploy:relay:-:start prod",
       "expected_reply_card": null
     },
     {
       "name": "routes_second_registered_slug",
       "sender": "user@example.com",
-      "text": "./echo:status:check",
+      "text": "./echo:status:relay:-:check",
       "cards": [],
       "use_routes": true,
       "expect_send": true,
       "expected_reply_to": "status-bot@foo.com",
-      "expected_reply_text": "status:check",
+      "expected_reply_text": "status:relay:-:check",
       "expected_reply_card": null
     },
     {
       "name": "unregistered_slug_falls_back_to_sender",
       "sender": "user@example.com",
-      "text": "./echo:unknown-agent:hello",
+      "text": "./echo:unknown-agent:relay:-:hello",
       "cards": [],
       "use_routes": true,
       "expect_send": true,
       "expected_reply_to": "user@example.com",
-      "expected_reply_text": "unknown-agent:hello",
+      "expected_reply_text": "unknown-agent:relay:-:hello",
       "expected_reply_card": null
     },
     {
       "name": "routes_with_card_attachment",
       "sender": "user@example.com",
-      "text": "./echo:deploy:card payload",
+      "text": "./echo:deploy:relay:-:card payload",
       "cards": [{"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Deploy"}]}],
       "use_routes": true,
       "expect_send": true,
       "expected_reply_to": "deploy-bot@spark.com",
-      "expected_reply_text": "deploy:card payload",
+      "expected_reply_text": "deploy:relay:-:card payload",
       "expected_reply_card": {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Deploy"}]}
     }
   ]

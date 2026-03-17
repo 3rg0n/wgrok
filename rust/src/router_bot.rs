@@ -117,7 +117,7 @@ impl WgrokRouterBot {
             return;
         }
 
-        let (slug, payload) = match parse_echo(text) {
+        let (to, from_slug, flags, payload) = match parse_echo(text) {
             Ok(v) => v,
             Err(e) => {
                 self.logger
@@ -126,8 +126,8 @@ impl WgrokRouterBot {
             }
         };
 
-        let target = self.resolve_target(&slug, sender);
-        let response = format_response(&slug, &payload);
+        let target = self.resolve_target(&to, sender);
+        let response = format_response(&to, &from_slug, &flags, &payload);
         let (platform, token) = self.get_send_platform_token();
 
         let result = if !cards.is_empty() {

@@ -1,15 +1,21 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use reqwest::Client;
 use serde_json::Value;
 use tokio::sync::watch;
 use webex_message_handler::{Config, DecryptedMessage, HandlerEvent, WebexMessageHandler};
 
 use crate::allowlist::Allowlist;
+use crate::codec;
 use crate::config::ReceiverConfig;
 use crate::logging::{get_logger, WgrokLogger};
-use crate::protocol::parse_response;
+use crate::protocol::{parse_flags, parse_response};
 use crate::webex;
 
-pub type MessageHandler = Box<dyn Fn(&str, &str, &[Value]) + Send + Sync>;
+pub type MessageHandler = Box<dyn Fn(&str, &str, &[Value], &str) + Send + Sync>;
+
+type ChunkKey = (String, String); // (sender, slug)
 
 pub struct WgrokReceiver {
     config: ReceiverConfig,
@@ -17,6 +23,7 @@ pub struct WgrokReceiver {
     handler: MessageHandler,
     logger: WgrokLogger,
     client: Client,
+    chunk_buffer: Mutex<HashMap<ChunkKey, HashMap<usize, String>>>,
 }
 
 impl WgrokReceiver {
@@ -29,6 +36,7 @@ impl WgrokReceiver {
             handler,
             logger,
             client: Client::new(),
+            chunk_buffer: Mutex::new(HashMap::new()),
         }
     }
 
@@ -89,7 +97,7 @@ impl WgrokReceiver {
             return;
         }
 
-        let (slug, payload) = match parse_response(text) {
+        let (to, from_slug, flags, mut payload) = match parse_response(text) {
             Ok(v) => v,
             Err(_) => {
                 self.logger
@@ -98,28 +106,62 @@ impl WgrokReceiver {
             }
         };
 
-        if slug != self.config.slug {
+        if to != self.config.slug {
             self.logger.debug(&format!(
                 "Ignoring message with slug \"{}\" (expected \"{}\")",
-                slug, self.config.slug
+                to, self.config.slug
             ));
             return;
+        }
+
+        let (compressed, chunk_seq, chunk_total) = parse_flags(&flags);
+
+        // Handle chunking
+        if let (Some(seq), Some(total)) = (chunk_seq, chunk_total) {
+            let key = (sender.clone(), to.clone());
+            let mut buffer = self.chunk_buffer.lock().unwrap();
+            buffer.entry(key.clone()).or_default().insert(seq, payload);
+            if buffer[&key].len() < total {
+                self.logger.debug(&format!(
+                    "Buffered chunk {}/{} for slug \"{}\" from {}",
+                    seq, total, to, sender
+                ));
+                return;
+            }
+            // All chunks received — reassemble
+            let chunks = buffer.remove(&key).unwrap();
+            let mut assembled = String::new();
+            for i in 1..=total {
+                if let Some(part) = chunks.get(&i) {
+                    assembled.push_str(part);
+                }
+            }
+            self.logger.debug(&format!(
+                "Reassembled {} chunks for slug \"{}\" from {}",
+                total, to, sender
+            ));
+            payload = assembled;
+        }
+
+        // Decompress if needed
+        if compressed {
+            payload = codec::decompress(&payload).unwrap_or(payload);
         }
 
         if !cards.is_empty() {
             self.logger.info(&format!(
                 "Received payload for slug \"{}\" from {} (with {} card(s))",
-                slug,
+                to,
                 sender,
                 cards.len()
             ));
         } else {
             self.logger.info(&format!(
                 "Received payload for slug \"{}\" from {}",
-                slug, sender
+                to, sender
             ));
         }
-        (self.handler)(&slug, &payload, cards);
+        (self.handler)(&to, &payload, cards, &from_slug);
     }
 
     async fn fetch_cards(&self, message_id: &str) -> Vec<Value> {

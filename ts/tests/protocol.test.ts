@@ -1,22 +1,24 @@
 import { loadCases } from './helpers';
-import { ECHO_PREFIX, formatEcho, parseEcho, isEcho, formatResponse, parseResponse } from '../src/protocol';
+import { ECHO_PREFIX, formatEcho, parseEcho, isEcho, formatResponse, parseResponse, parseFlags, formatFlags } from '../src/protocol';
 
 interface ProtocolCases {
   echo_prefix: string;
-  format_echo: Array<{ slug: string; payload: string; expected: string }>;
+  format_echo: Array<{ to: string; from: string; flags: string; payload: string; expected: string }>;
   parse_echo: {
-    valid: Array<{ input: string; slug: string; payload: string }>;
+    valid: Array<{ input: string; to: string; from: string; flags: string; payload: string }>;
     errors: Array<{ input: string; error_contains: string }>;
   };
   is_echo: Array<{ input: string; expected: boolean }>;
-  format_response: Array<{ slug: string; payload: string; expected: string }>;
+  format_response: Array<{ to: string; from: string; flags: string; payload: string; expected: string }>;
   parse_response: {
-    valid: Array<{ input: string; slug: string; payload: string }>;
+    valid: Array<{ input: string; to: string; from: string; flags: string; payload: string }>;
     errors: Array<{ input: string; error_contains: string }>;
   };
+  parse_flags: Array<{ input: string; compressed: boolean; chunk_seq: number | null; chunk_total: number | null }>;
+  format_flags: Array<{ compressed: boolean; chunk_seq: number | null; chunk_total: number | null; expected: string }>;
   roundtrips: {
-    echo: Array<{ slug: string; payload: string }>;
-    response: Array<{ slug: string; payload: string }>;
+    echo: Array<{ to: string; from: string; flags: string; payload: string }>;
+    response: Array<{ to: string; from: string; flags: string; payload: string }>;
   };
 }
 
@@ -30,7 +32,7 @@ describe('ECHO_PREFIX', () => {
 
 describe('formatEcho', () => {
   it.each(CASES.format_echo)('$expected', (tc) => {
-    expect(formatEcho(tc.slug, tc.payload)).toBe(tc.expected);
+    expect(formatEcho(tc.to, tc.from, tc.flags, tc.payload)).toBe(tc.expected);
   });
 });
 
@@ -38,7 +40,9 @@ describe('parseEcho', () => {
   describe('valid', () => {
     it.each(CASES.parse_echo.valid)('$input', (tc) => {
       const result = parseEcho(tc.input);
-      expect(result.slug).toBe(tc.slug);
+      expect(result.to).toBe(tc.to);
+      expect(result.from).toBe(tc.from);
+      expect(result.flags).toBe(tc.flags);
       expect(result.payload).toBe(tc.payload);
     });
   });
@@ -58,7 +62,7 @@ describe('isEcho', () => {
 
 describe('formatResponse', () => {
   it.each(CASES.format_response)('$expected', (tc) => {
-    expect(formatResponse(tc.slug, tc.payload)).toBe(tc.expected);
+    expect(formatResponse(tc.to, tc.from, tc.flags, tc.payload)).toBe(tc.expected);
   });
 });
 
@@ -66,7 +70,9 @@ describe('parseResponse', () => {
   describe('valid', () => {
     it.each(CASES.parse_response.valid)('$input', (tc) => {
       const result = parseResponse(tc.input);
-      expect(result.slug).toBe(tc.slug);
+      expect(result.to).toBe(tc.to);
+      expect(result.from).toBe(tc.from);
+      expect(result.flags).toBe(tc.flags);
       expect(result.payload).toBe(tc.payload);
     });
   });
@@ -78,21 +84,40 @@ describe('parseResponse', () => {
   });
 });
 
+describe('parseFlags', () => {
+  it.each(CASES.parse_flags)('$input', (tc) => {
+    const result = parseFlags(tc.input);
+    expect(result.compressed).toBe(tc.compressed);
+    expect(result.chunkSeq).toBe(tc.chunk_seq);
+    expect(result.chunkTotal).toBe(tc.chunk_total);
+  });
+});
+
+describe('formatFlags', () => {
+  it.each(CASES.format_flags)('compressed=$compressed seq=$chunk_seq total=$chunk_total', (tc) => {
+    expect(formatFlags(tc.compressed, tc.chunk_seq, tc.chunk_total)).toBe(tc.expected);
+  });
+});
+
 describe('roundtrips', () => {
   describe('echo', () => {
-    it.each(CASES.roundtrips.echo)('$slug', (tc) => {
-      const text = formatEcho(tc.slug, tc.payload);
+    it.each(CASES.roundtrips.echo)('$to:$from:$flags', (tc) => {
+      const text = formatEcho(tc.to, tc.from, tc.flags, tc.payload);
       const result = parseEcho(text);
-      expect(result.slug).toBe(tc.slug);
+      expect(result.to).toBe(tc.to);
+      expect(result.from).toBe(tc.from);
+      expect(result.flags).toBe(tc.flags);
       expect(result.payload).toBe(tc.payload);
     });
   });
 
   describe('response', () => {
-    it.each(CASES.roundtrips.response)('$slug', (tc) => {
-      const text = formatResponse(tc.slug, tc.payload);
+    it.each(CASES.roundtrips.response)('$to:$from:$flags', (tc) => {
+      const text = formatResponse(tc.to, tc.from, tc.flags, tc.payload);
       const result = parseResponse(text);
-      expect(result.slug).toBe(tc.slug);
+      expect(result.to).toBe(tc.to);
+      expect(result.from).toBe(tc.from);
+      expect(result.flags).toBe(tc.flags);
       expect(result.payload).toBe(tc.payload);
     });
   });

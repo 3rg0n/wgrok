@@ -2,7 +2,8 @@
   "config": {
     "token": "fake-token",
     "target": "routerbot@example.com",
-    "slug": "testagent"
+    "slug": "testagent",
+    "from_slug": "testagent"
   },
 
   "cases": [
@@ -10,7 +11,8 @@
       "name": "send_formats_and_sends",
       "payload": "hello world",
       "card": null,
-      "expected_text": "./echo:testagent:hello world",
+      "compress": false,
+      "expected_text": "./echo:testagent:testagent:-:hello world",
       "expected_target": "routerbot@example.com",
       "expected_uses_card": false
     },
@@ -18,7 +20,8 @@
       "name": "send_payload_with_colons",
       "payload": "a:b:c",
       "card": null,
-      "expected_text": "./echo:testagent:a:b:c",
+      "compress": false,
+      "expected_text": "./echo:testagent:testagent:-:a:b:c",
       "expected_target": "routerbot@example.com",
       "expected_uses_card": false
     },
@@ -26,7 +29,8 @@
       "name": "send_with_card",
       "payload": "hello",
       "card": {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hi"}]},
-      "expected_text": "./echo:testagent:hello",
+      "compress": false,
+      "expected_text": "./echo:testagent:testagent:-:hello",
       "expected_target": "routerbot@example.com",
       "expected_uses_card": true
     },
@@ -34,7 +38,8 @@
       "name": "send_without_card_uses_send_message",
       "payload": "no card",
       "card": null,
-      "expected_text": "./echo:testagent:no card",
+      "compress": false,
+      "expected_text": "./echo:testagent:testagent:-:no card",
       "expected_target": "routerbot@example.com",
       "expected_uses_card": false
     }

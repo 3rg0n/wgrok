@@ -18,8 +18,8 @@ class TestFullFlow:
         """Full text-only round-trip: sender -> router bot -> receiver."""
         received_payloads: list[tuple] = []
 
-        async def on_receive(slug: str, payload: str, cards: list[dict]) -> None:
-            received_payloads.append((slug, payload, cards))
+        async def on_receive(slug: str, payload: str, cards: list[dict], from_slug: str) -> None:
+            received_payloads.append((slug, payload, cards, from_slug))
 
         sender = WgrokSender(e2e_sender_config)
         bot = WgrokRouterBot(e2e_bot_config)
@@ -27,31 +27,44 @@ class TestFullFlow:
 
         sent_messages: list[dict] = []
 
-        async def capture_send(token, to_email, text, session=None):
-            sent_messages.append({"token": token, "to": to_email, "text": text})
+        async def capture_send(platform, token, to_email, text, session=None):
+            sent_messages.append({"platform": platform, "token": token, "to": to_email, "text": text})
             return {"id": f"msg-{len(sent_messages)}"}
 
         with (
-            patch("wgrok.sender.send_message", side_effect=capture_send),
-            patch("wgrok.router_bot.send_message", side_effect=capture_send),
+            patch("wgrok.sender.platform_send_message", side_effect=capture_send),
+            patch("wgrok.router_bot.platform_send_message", side_effect=capture_send),
             patch.object(bot, "_fetch_cards", return_value=[]),
             patch.object(receiver, "_fetch_cards", return_value=[]),
         ):
             await sender.send("hello")
             assert len(sent_messages) == 1
-            assert sent_messages[0]["text"] == "./echo:e2e-slug:hello"
+            assert sent_messages[0]["text"] == "./echo:e2e-slug:e2e-slug:-:hello"
             assert sent_messages[0]["to"] == "routerbot@example.com"
 
-            echo_input = {"personEmail": "user@example.com", "text": sent_messages[0]["text"], "id": "m1"}
-            await bot._on_message(echo_input)
+            from wgrok.listener import IncomingMessage
+            echo_input = IncomingMessage(
+                sender="user@example.com",
+                text=sent_messages[0]["text"],
+                msg_id="m1",
+                platform="webex",
+                cards=[]
+            )
+            await bot._on_incoming(echo_input)
             assert len(sent_messages) == 2
-            assert sent_messages[1]["text"] == "e2e-slug:hello"
+            assert sent_messages[1]["text"] == "e2e-slug:e2e-slug:-:hello"
             assert sent_messages[1]["to"] == "user@example.com"
 
-            receiver_input = {"personEmail": "routerbot@example.com", "text": sent_messages[1]["text"], "id": "m2"}
-            await receiver._on_message(receiver_input)
+            receiver_input = IncomingMessage(
+                sender="routerbot@example.com",
+                text=sent_messages[1]["text"],
+                msg_id="m2",
+                platform="webex",
+                cards=[]
+            )
+            await receiver._on_incoming(receiver_input)
             assert len(received_payloads) == 1
-            assert received_payloads[0] == ("e2e-slug", "hello", [])
+            assert received_payloads[0] == ("e2e-slug", "hello", [], "e2e-slug")
 
         await sender.close()
 
@@ -62,8 +75,8 @@ class TestFullFlow:
         received: list[tuple] = []
         card = {"type": "AdaptiveCard", "body": [{"type": "TextBlock", "text": "Hello"}]}
 
-        async def on_receive(slug: str, payload: str, cards: list[dict]) -> None:
-            received.append((slug, payload, cards))
+        async def on_receive(slug: str, payload: str, cards: list[dict], from_slug: str) -> None:
+            received.append((slug, payload, cards, from_slug))
 
         sender = WgrokSender(e2e_sender_config)
         bot = WgrokRouterBot(e2e_bot_config)
@@ -71,36 +84,45 @@ class TestFullFlow:
 
         sent: list[dict] = []
 
-        async def capture_msg(token, to_email, text, session=None):
-            sent.append({"text": text, "to": to_email, "card": None})
-            return {"id": "x"}
-
-        async def capture_card(token, to_email, text, card_json, session=None):
+        async def capture_card(platform, token, to_email, text, card_json, session=None):
             sent.append({"text": text, "to": to_email, "card": card_json})
             return {"id": "x"}
 
         with (
-            patch("wgrok.sender.send_card", side_effect=capture_card),
-            patch("wgrok.router_bot.send_card", side_effect=capture_card),
+            patch("wgrok.sender.platform_send_card", side_effect=capture_card),
+            patch("wgrok.router_bot.platform_send_card", side_effect=capture_card),
             patch.object(bot, "_fetch_cards", return_value=[card]),
             patch.object(receiver, "_fetch_cards", return_value=[card]),
         ):
             # Sender sends with card
             await sender.send("form-data", card=card)
             assert len(sent) == 1
-            assert sent[0]["text"] == "./echo:e2e-slug:form-data"
+            assert sent[0]["text"] == "./echo:e2e-slug:e2e-slug:-:form-data"
             assert sent[0]["card"] == card
 
             # Echo bot relays with card
-            await bot._on_message({"personEmail": "user@example.com", "text": sent[0]["text"], "id": "m1"})
+            from wgrok.listener import IncomingMessage
+            await bot._on_incoming(IncomingMessage(
+                sender="user@example.com",
+                text=sent[0]["text"],
+                msg_id="m1",
+                platform="webex",
+                cards=[]
+            ))
             assert len(sent) == 2
-            assert sent[1]["text"] == "e2e-slug:form-data"
+            assert sent[1]["text"] == "e2e-slug:e2e-slug:-:form-data"
             assert sent[1]["card"] == card
 
             # Receiver gets message + card
-            await receiver._on_message({"personEmail": "bot@example.com", "text": sent[1]["text"], "id": "m2"})
+            await receiver._on_incoming(IncomingMessage(
+                sender="bot@example.com",
+                text=sent[1]["text"],
+                msg_id="m2",
+                platform="webex",
+                cards=[card]
+            ))
             assert len(received) == 1
-            assert received[0] == ("e2e-slug", "form-data", [card])
+            assert received[0] == ("e2e-slug", "form-data", [card], "e2e-slug")
 
         await sender.close()
 
@@ -110,8 +132,8 @@ class TestFullFlow:
         """Verify colons in the payload survive the full round-trip."""
         received: list[tuple] = []
 
-        async def on_receive(slug: str, payload: str, cards: list[dict]) -> None:
-            received.append((slug, payload, cards))
+        async def on_receive(slug: str, payload: str, cards: list[dict], from_slug: str) -> None:
+            received.append((slug, payload, cards, from_slug))
 
         sender = WgrokSender(e2e_sender_config)
         bot = WgrokRouterBot(e2e_bot_config)
@@ -119,23 +141,36 @@ class TestFullFlow:
 
         sent: list[dict] = []
 
-        async def capture(token, to_email, text, session=None):
+        async def capture(platform, token, to_email, text, session=None):
             sent.append({"text": text, "to": to_email})
             return {"id": "x"}
 
         with (
-            patch("wgrok.sender.send_message", side_effect=capture),
-            patch("wgrok.router_bot.send_message", side_effect=capture),
+            patch("wgrok.sender.platform_send_message", side_effect=capture),
+            patch("wgrok.router_bot.platform_send_message", side_effect=capture),
             patch.object(bot, "_fetch_cards", return_value=[]),
             patch.object(receiver, "_fetch_cards", return_value=[]),
         ):
             await sender.send("key:value:extra")
 
-            await bot._on_message({"personEmail": "user@example.com", "text": sent[0]["text"], "id": "m1"})
+            from wgrok.listener import IncomingMessage
+            await bot._on_incoming(IncomingMessage(
+                sender="user@example.com",
+                text=sent[0]["text"],
+                msg_id="m1",
+                platform="webex",
+                cards=[]
+            ))
 
-            await receiver._on_message({"personEmail": "bot@example.com", "text": sent[1]["text"], "id": "m2"})
+            await receiver._on_incoming(IncomingMessage(
+                sender="bot@example.com",
+                text=sent[1]["text"],
+                msg_id="m2",
+                platform="webex",
+                cards=[]
+            ))
 
-            assert received == [("e2e-slug", "key:value:extra", [])]
+            assert received == [("e2e-slug", "key:value:extra", [], "e2e-slug")]
 
         await sender.close()
 
@@ -146,15 +181,19 @@ class TestFullFlow:
         bot = WgrokRouterBot(e2e_bot_config)
         sent: list[dict] = []
 
-        async def capture(token, to_email, text, session=None):
+        async def capture(platform, token, to_email, text, session=None):
             sent.append({"text": text})
             return {"id": "x"}
 
-        with patch("wgrok.router_bot.send_message", side_effect=capture):
-            await bot._on_message({
-                "personEmail": "hacker@evil.com",
-                "text": "./echo:e2e-slug:pwned",
-            })
+        with patch("wgrok.router_bot.platform_send_message", side_effect=capture):
+            from wgrok.listener import IncomingMessage
+            await bot._on_incoming(IncomingMessage(
+                sender="hacker@evil.com",
+                text="./echo:e2e-slug:relay:-:pwned",
+                msg_id="m1",
+                platform="webex",
+                cards=[]
+            ))
             assert len(sent) == 0
 
     async def test_wrong_slug_ignored_by_receiver(
@@ -162,10 +201,14 @@ class TestFullFlow:
     ):
         """Receiver ignores messages with non-matching slugs."""
         received: list[tuple] = []
-        receiver = WgrokReceiver(e2e_receiver_config, lambda s, p, c: received.append((s, p, c)))
+        receiver = WgrokReceiver(e2e_receiver_config, lambda s, p, c, f: received.append((s, p, c, f)))
 
-        await receiver._on_message({
-            "personEmail": "bot@example.com",
-            "text": "wrong-slug:payload",
-        })
+        from wgrok.listener import IncomingMessage
+        await receiver._on_incoming(IncomingMessage(
+            sender="bot@example.com",
+            text="wrong-slug:relay:-:payload",
+            msg_id="m1",
+            platform="webex",
+            cards=[]
+        ))
         assert len(received) == 0

@@ -1,4 +1,9 @@
 export { Allowlist } from './allowlist.js';
+export {
+  compress,
+  decompress,
+  chunk,
+} from './codec.js';
 export { WgrokRouterBot } from './router-bot.js';
 export { WgrokReceiver, type MessageHandler } from './receiver.js';
 export { WgrokSender } from './sender.js';
@@ -20,6 +25,8 @@ export {
   isEcho,
   formatResponse,
   parseResponse,
+  parseFlags,
+  formatFlags,
 } from './protocol.js';
 export {
   WEBEX_API_BASE,

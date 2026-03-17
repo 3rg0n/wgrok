@@ -7,6 +7,14 @@ import (
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
 
+// PlatformLimits defines message size limits per platform.
+var PlatformLimits = map[string]int{
+	"webex":   7439,
+	"slack":   4000,
+	"discord": 2000,
+	"irc":     400,
+}
+
 // WgrokSender wraps payloads in the echo protocol and sends via Webex.
 type WgrokSender struct {
 	config *SenderConfig
@@ -25,8 +33,54 @@ func NewSender(config *SenderConfig) *WgrokSender {
 
 // Send formats payload as an echo message and sends to the configured target.
 // If card is non-nil, it is attached as an adaptive card.
+// If compress is true, the payload is gzip+base64 encoded before sending.
 func (s *WgrokSender) Send(payload string, card interface{}) (map[string]interface{}, error) {
-	text := FormatEcho(s.config.Slug, payload)
+	return s.SendWithOptions(payload, card, false)
+}
+
+// SendWithOptions is like Send but with an explicit compress flag.
+func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress bool) (map[string]interface{}, error) {
+	if compress {
+		encoded, err := Compress(payload)
+		if err != nil {
+			return nil, fmt.Errorf("compress payload: %w", err)
+		}
+		payload = encoded
+	}
+
+	// Use slug as both to and from (for sender context)
+	to := s.config.Slug
+	from := s.config.Slug
+	flags := FormatFlags(compress, 0, 0)
+
+	text := FormatEcho(to, from, flags, payload)
+	limit, ok := PlatformLimits[s.config.Platform]
+	if !ok {
+		limit = 7439
+	}
+	if len([]byte(text)) > limit && card == nil {
+		// Estimate overhead for chunked format
+		// Worst case for flags in chunking: "z999/999" = 8 chars, we'll use 10 for safety
+		flagOverhead := 10
+		overhead := len([]byte(EchoPrefix)) + len([]byte(to)) + 1 + len([]byte(from)) + 1 + flagOverhead + 1
+		maxPayload := limit - overhead
+		chunks, err := Chunk(payload, maxPayload)
+		if err != nil {
+			return nil, fmt.Errorf("chunk payload: %w", err)
+		}
+		s.logger.Info(fmt.Sprintf("Payload exceeds %dB limit, sending %d chunks to %s", limit, len(chunks), s.config.Target))
+		var lastResult map[string]interface{}
+		for i, ch := range chunks {
+			chunkFlags := FormatFlags(compress, i+1, len(chunks))
+			chunkText := FormatEcho(to, from, chunkFlags, ch)
+			result, err := PlatformSendMessage(s.config.Platform, s.config.WebexToken, s.config.Target, chunkText, s.client)
+			if err != nil {
+				return nil, err
+			}
+			lastResult = result
+		}
+		return lastResult, nil
+	}
 	s.logger.Info(fmt.Sprintf("Sending to %s: %s", s.config.Target, text))
 	if card != nil {
 		s.logger.Info("Including adaptive card attachment")

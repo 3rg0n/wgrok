@@ -145,14 +145,14 @@ func (b *WgrokRouterBot) onMessageFromListener(msg IncomingMessage) {
 		return
 	}
 
-	slug, payload, err := ParseEcho(text)
+	to, from, flags, payload, err := ParseEcho(text)
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to parse echo message: %v", err))
 		return
 	}
 
-	response := FormatResponse(slug, payload)
-	replyTo := b.resolveTarget(slug, sender)
+	response := FormatResponse(to, from, flags, payload)
+	replyTo := b.resolveTarget(to, sender)
 
 	platform, token, err := b.getSendPlatformToken()
 	if err != nil {
@@ -187,14 +187,14 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 		return
 	}
 
-	slug, payload, err := ParseEcho(text)
+	to, from, flags, payload, err := ParseEcho(text)
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to parse echo message: %v", err))
 		return
 	}
 
-	response := FormatResponse(slug, payload)
-	replyTo := b.resolveTarget(slug, sender)
+	response := FormatResponse(to, from, flags, payload)
+	replyTo := b.resolveTarget(to, sender)
 
 	platform, token, err := b.getSendPlatformToken()
 	if err != nil {
@@ -228,14 +228,14 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 		return
 	}
 
-	slug, payload, err := ParseEcho(text)
+	to, from, flags, payload, err := ParseEcho(text)
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to parse echo message: %v", err))
 		return
 	}
 
-	response := FormatResponse(slug, payload)
-	replyTo := b.resolveTarget(slug, sender)
+	response := FormatResponse(to, from, flags, payload)
+	replyTo := b.resolveTarget(to, sender)
 
 	platform, token, err := b.getSendPlatformToken()
 	if err != nil {

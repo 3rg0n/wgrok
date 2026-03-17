@@ -14,11 +14,12 @@ const { WgrokSender } = await import('../src/sender');
 import { loadCases } from './helpers';
 
 interface SenderCases {
-  config: { token: string; target: string; slug: string };
+  config: { token: string; target: string; slug: string; from_slug: string };
   cases: Array<{
     name: string;
     payload: string;
     card: unknown;
+    compress: boolean;
     expected_text: string;
     expected_target: string;
     expected_uses_card: boolean;
@@ -43,7 +44,7 @@ describe('WgrokSender', () => {
       platform: 'webex',
     });
 
-    await sender.send(tc.payload, tc.card ?? undefined);
+    await sender.send(tc.payload, tc.card ?? undefined, tc.compress);
 
     if (tc.expected_uses_card) {
       expect(mockPlatformSendCard).toHaveBeenCalledTimes(1);

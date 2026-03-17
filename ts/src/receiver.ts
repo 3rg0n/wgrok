@@ -1,12 +1,13 @@
 import type { Logger } from 'webex-message-handler';
 import type { ReceiverConfig } from './config.js';
+import { decompress as codecDecompress } from './codec.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
-import { parseResponse } from './protocol.js';
+import { parseResponse, parseFlags } from './protocol.js';
 import { getMessage, getAttachmentAction, extractCards } from './webex.js';
 import { createListener, type IncomingMessage, type PlatformListener } from './listener.js';
 
-export type MessageHandler = (slug: string, payload: string, cards: unknown[]) => void | Promise<void>;
+export type MessageHandler = (slug: string, payload: string, cards: unknown[], fromSlug: string) => void | Promise<void>;
 
 export class WgrokReceiver {
   private config: ReceiverConfig;
@@ -15,6 +16,7 @@ export class WgrokReceiver {
   private logger: Logger;
   private listener?: PlatformListener;
   private abortController?: AbortController;
+  private chunkBuffer: Map<string, Map<number, string>> = new Map();
 
   constructor(config: ReceiverConfig, handler: MessageHandler) {
     this.config = config;
@@ -65,25 +67,62 @@ export class WgrokReceiver {
       return;
     }
 
-    let slug: string, payload: string;
+    let to: string, from: string, flags: string, payload: string;
     try {
-      ({ slug, payload } = parseResponse(text));
+      ({ to, from, flags, payload } = parseResponse(text));
     } catch {
       this.logger.debug(`Ignoring unparseable message from ${sender}`);
       return;
     }
 
-    if (slug !== this.config.slug) {
-      this.logger.debug(`Ignoring message with slug "${slug}" (expected "${this.config.slug}")`);
+    if (to !== this.config.slug) {
+      this.logger.debug(`Ignoring message with to "${to}" (expected "${this.config.slug}")`);
       return;
     }
 
-    if (cards.length > 0) {
-      this.logger.info(`Received payload for slug "${slug}" from ${sender} (with ${cards.length} card(s))`);
-    } else {
-      this.logger.info(`Received payload for slug "${slug}" from ${sender}`);
+    let compressed = false;
+    let chunkSeq: number | null = null;
+    let chunkTotal: number | null = null;
+
+    try {
+      ({ compressed, chunkSeq, chunkTotal } = parseFlags(flags));
+    } catch {
+      this.logger.debug(`Ignoring message with invalid flags "${flags}"`);
+      return;
     }
-    await this.messageHandler(slug, payload, cards);
+
+    // Handle chunked payload
+    if (chunkSeq !== null && chunkTotal !== null) {
+      const key = `${sender}:${to}`;
+      if (!this.chunkBuffer.has(key)) {
+        this.chunkBuffer.set(key, new Map());
+      }
+      this.chunkBuffer.get(key)!.set(chunkSeq, payload);
+      if (this.chunkBuffer.get(key)!.size < chunkTotal) {
+        this.logger.debug(`Buffered chunk ${chunkSeq}/${chunkTotal} for to "${to}" from ${sender}`);
+        return;
+      }
+      // All chunks received — reassemble
+      const parts: string[] = [];
+      for (let i = 1; i <= chunkTotal; i++) {
+        parts.push(this.chunkBuffer.get(key)!.get(i)!);
+      }
+      payload = parts.join('');
+      this.chunkBuffer.delete(key);
+      this.logger.debug(`Reassembled ${chunkTotal} chunks for to "${to}" from ${sender}`);
+    }
+
+    // Decompress if compressed
+    if (compressed) {
+      payload = codecDecompress(payload);
+    }
+
+    if (cards.length > 0) {
+      this.logger.info(`Received payload for to "${to}" from ${sender} (with ${cards.length} card(s))`);
+    } else {
+      this.logger.info(`Received payload for to "${to}" from ${sender}`);
+    }
+    await this.messageHandler(to, payload, cards, from);
   }
 
   private async onMessage(msg: IncomingMessage): Promise<void> {

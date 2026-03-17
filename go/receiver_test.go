@@ -23,6 +23,7 @@ type receiverCases struct {
 		ExpectHandler   bool          `json:"expect_handler"`
 		ExpectedSlug    string        `json:"expected_slug"`
 		ExpectedPayload string        `json:"expected_payload"`
+		ExpectedFrom    string        `json:"expected_from"`
 		ExpectedCards   []interface{} `json:"expected_cards"`
 	} `json:"cases"`
 }
@@ -46,7 +47,7 @@ func TestWgrokReceiver(t *testing.T) {
 	for _, c := range tc.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			handlerCalled := false
-			var gotSlug, gotPayload string
+			var gotSlug, gotPayload, gotFrom string
 			var gotCards []interface{}
 
 			// Dummy HTTP server for card fetches (returns empty)
@@ -57,11 +58,12 @@ func TestWgrokReceiver(t *testing.T) {
 			defer srv.Close()
 			overrideMessagesURL(t, srv.URL)
 
-			handler := func(slug, payload string, cards []interface{}) {
+			handler := func(slug, payload string, cards []interface{}, fromSlug string) {
 				handlerCalled = true
 				gotSlug = slug
 				gotPayload = payload
 				gotCards = cards
+				gotFrom = fromSlug
 			}
 
 			receiver := NewReceiver(&ReceiverConfig{
@@ -93,6 +95,9 @@ func TestWgrokReceiver(t *testing.T) {
 				}
 				if gotPayload != c.ExpectedPayload {
 					t.Errorf("payload = %q, want %q", gotPayload, c.ExpectedPayload)
+				}
+				if gotFrom != c.ExpectedFrom {
+					t.Errorf("from = %q, want %q", gotFrom, c.ExpectedFrom)
 				}
 				gotCardsJSON, _ := json.Marshal(gotCards)
 				expCardsJSON, _ := json.Marshal(c.ExpectedCards)

@@ -55,10 +55,10 @@ export class WgrokRouterBot {
     this.logger.info('Router bot stopped');
   }
 
-  /** Resolve target address based on slug and routing rules */
-  private resolveTarget(slug: string, sender: string): string {
-    if (this.routes[slug]) {
-      return this.routes[slug];
+  /** Resolve target address based on to and routing rules */
+  private resolveTarget(to: string, sender: string): string {
+    if (this.routes[to]) {
+      return this.routes[to];
     }
     return sender;
   }
@@ -96,16 +96,16 @@ export class WgrokRouterBot {
       return;
     }
 
-    let slug: string, payload: string;
+    let to: string, from: string, flags: string, payload: string;
     try {
-      ({ slug, payload } = parseEcho(text));
+      ({ to, from, flags, payload } = parseEcho(text));
     } catch {
       this.logger.error(`Failed to parse echo message`);
       return;
     }
 
-    const target = this.resolveTarget(slug, sender);
-    const response = formatResponse(slug, payload);
+    const target = this.resolveTarget(to, sender);
+    const response = formatResponse(to, from, flags, payload);
     const [platform, token] = this.getSendPlatformToken();
 
     if (cards.length > 0) {

@@ -42,6 +42,7 @@ class TestWgrokReceiver:
                 tc["expected_slug"],
                 tc["expected_payload"],
                 tc["expected_cards"],
+                tc["expected_from"],
             )
         else:
             handler.assert_not_called()

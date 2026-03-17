@@ -120,11 +120,11 @@ class WgrokRouterBot:
         await self._on_incoming(incoming)
         return web.json_response({"status": "ok"})
 
-    def _resolve_target(self, slug: str, sender: str) -> str:
+    def _resolve_target(self, to: str, sender: str) -> str:
         """Resolve where to send the response. Mode C: registry lookup. Mode B: echo back to sender."""
-        if slug in self._routes:
-            target = self._routes[slug]
-            self._logger.info(f"Route resolved: {slug!r} -> {target}")
+        if to in self._routes:
+            target = self._routes[to]
+            self._logger.info(f"Route resolved: {to!r} -> {target}")
             return target
         return sender
 
@@ -154,13 +154,13 @@ class WgrokRouterBot:
             return
 
         try:
-            slug, payload = parse_echo(text)
+            to, from_slug, flags_str, payload = parse_echo(text)
         except ValueError as e:
             self._logger.error(f"Failed to parse echo message: {e}")
             return
 
-        response = format_response(slug, payload)
-        target = self._resolve_target(slug, sender)
+        response = format_response(to, from_slug, flags_str, payload)
+        target = self._resolve_target(to, sender)
         platform, token = self._get_send_platform_token()
 
         # Use cards from incoming if present, otherwise fetch from Webex (only for webex platform)

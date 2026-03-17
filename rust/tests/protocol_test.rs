@@ -5,17 +5,30 @@ use wgrok::protocol::*;
 #[derive(Deserialize)]
 struct ProtocolCases {
     echo_prefix: String,
-    format_echo: Vec<FormatCase>,
+    format_echo: Vec<FormatEchoCase>,
     parse_echo: ParseCases,
     is_echo: Vec<IsEchoCase>,
-    format_response: Vec<FormatCase>,
+    format_response: Vec<FormatResponseCase>,
     parse_response: ParseCases,
+    parse_flags: Vec<ParseFlagsCase>,
+    format_flags: Vec<FormatFlagsCase>,
     roundtrips: Roundtrips,
 }
 
 #[derive(Deserialize)]
-struct FormatCase {
-    slug: String,
+struct FormatEchoCase {
+    to: String,
+    from: String,
+    flags: String,
+    payload: String,
+    expected: String,
+}
+
+#[derive(Deserialize)]
+struct FormatResponseCase {
+    to: String,
+    from: String,
+    flags: String,
     payload: String,
     expected: String,
 }
@@ -29,7 +42,9 @@ struct ParseCases {
 #[derive(Deserialize)]
 struct ParseValid {
     input: String,
-    slug: String,
+    to: String,
+    from: String,
+    flags: String,
     payload: String,
 }
 
@@ -46,6 +61,22 @@ struct IsEchoCase {
 }
 
 #[derive(Deserialize)]
+struct ParseFlagsCase {
+    input: String,
+    compressed: bool,
+    chunk_seq: Option<usize>,
+    chunk_total: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct FormatFlagsCase {
+    compressed: bool,
+    chunk_seq: Option<usize>,
+    chunk_total: Option<usize>,
+    expected: String,
+}
+
+#[derive(Deserialize)]
 struct Roundtrips {
     echo: Vec<RoundtripCase>,
     response: Vec<RoundtripCase>,
@@ -53,7 +84,9 @@ struct Roundtrips {
 
 #[derive(Deserialize)]
 struct RoundtripCase {
-    slug: String,
+    to: String,
+    from: String,
+    flags: String,
     payload: String,
 }
 
@@ -72,7 +105,10 @@ fn test_echo_prefix() {
 fn test_format_echo() {
     let cases = load_cases();
     for tc in &cases.format_echo {
-        assert_eq!(format_echo(&tc.slug, &tc.payload), tc.expected);
+        assert_eq!(
+            format_echo(&tc.to, &tc.from, &tc.flags, &tc.payload),
+            tc.expected
+        );
     }
 }
 
@@ -80,8 +116,10 @@ fn test_format_echo() {
 fn test_parse_echo_valid() {
     let cases = load_cases();
     for tc in &cases.parse_echo.valid {
-        let (slug, payload) = parse_echo(&tc.input).unwrap();
-        assert_eq!(slug, tc.slug);
+        let (to, from, flags, payload) = parse_echo(&tc.input).unwrap();
+        assert_eq!(to, tc.to);
+        assert_eq!(from, tc.from);
+        assert_eq!(flags, tc.flags);
         assert_eq!(payload, tc.payload);
     }
 }
@@ -114,7 +152,10 @@ fn test_is_echo() {
 fn test_format_response() {
     let cases = load_cases();
     for tc in &cases.format_response {
-        assert_eq!(format_response(&tc.slug, &tc.payload), tc.expected);
+        assert_eq!(
+            format_response(&tc.to, &tc.from, &tc.flags, &tc.payload),
+            tc.expected
+        );
     }
 }
 
@@ -122,8 +163,10 @@ fn test_format_response() {
 fn test_parse_response_valid() {
     let cases = load_cases();
     for tc in &cases.parse_response.valid {
-        let (slug, payload) = parse_response(&tc.input).unwrap();
-        assert_eq!(slug, tc.slug);
+        let (to, from, flags, payload) = parse_response(&tc.input).unwrap();
+        assert_eq!(to, tc.to);
+        assert_eq!(from, tc.from);
+        assert_eq!(flags, tc.flags);
         assert_eq!(payload, tc.payload);
     }
 }
@@ -138,12 +181,36 @@ fn test_parse_response_errors() {
 }
 
 #[test]
+fn test_parse_flags() {
+    let cases = load_cases();
+    for tc in &cases.parse_flags {
+        let (compressed, chunk_seq, chunk_total) = parse_flags(&tc.input);
+        assert_eq!(compressed, tc.compressed, "compressed mismatch for {:?}", tc.input);
+        assert_eq!(chunk_seq, tc.chunk_seq, "chunk_seq mismatch for {:?}", tc.input);
+        assert_eq!(chunk_total, tc.chunk_total, "chunk_total mismatch for {:?}", tc.input);
+    }
+}
+
+#[test]
+fn test_format_flags() {
+    let cases = load_cases();
+    for tc in &cases.format_flags {
+        assert_eq!(
+            format_flags(tc.compressed, tc.chunk_seq, tc.chunk_total),
+            tc.expected
+        );
+    }
+}
+
+#[test]
 fn test_echo_roundtrip() {
     let cases = load_cases();
     for tc in &cases.roundtrips.echo {
-        let text = format_echo(&tc.slug, &tc.payload);
-        let (slug, payload) = parse_echo(&text).unwrap();
-        assert_eq!(slug, tc.slug);
+        let text = format_echo(&tc.to, &tc.from, &tc.flags, &tc.payload);
+        let (to, from, flags, payload) = parse_echo(&text).unwrap();
+        assert_eq!(to, tc.to);
+        assert_eq!(from, tc.from);
+        assert_eq!(flags, tc.flags);
         assert_eq!(payload, tc.payload);
     }
 }
@@ -152,9 +219,11 @@ fn test_echo_roundtrip() {
 fn test_response_roundtrip() {
     let cases = load_cases();
     for tc in &cases.roundtrips.response {
-        let text = format_response(&tc.slug, &tc.payload);
-        let (slug, payload) = parse_response(&text).unwrap();
-        assert_eq!(slug, tc.slug);
+        let text = format_response(&tc.to, &tc.from, &tc.flags, &tc.payload);
+        let (to, from, flags, payload) = parse_response(&text).unwrap();
+        assert_eq!(to, tc.to);
+        assert_eq!(from, tc.from);
+        assert_eq!(flags, tc.flags);
         assert_eq!(payload, tc.payload);
     }
 }

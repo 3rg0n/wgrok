@@ -26,6 +26,8 @@ struct ReceiverCase {
     expect_handler: bool,
     expected_slug: Option<String>,
     expected_payload: Option<String>,
+    expected_from: Option<String>,
+    expected_cards: Option<Vec<Value>>,
 }
 
 fn load_cases() -> ReceiverCases {
@@ -64,11 +66,13 @@ fn test_receiver_cases() {
         let captured_slug = Arc::new(Mutex::new(String::new()));
         let captured_payload = Arc::new(Mutex::new(String::new()));
         let captured_cards = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured_from = Arc::new(Mutex::new(String::new()));
 
         let called_c = called.clone();
         let slug_c = captured_slug.clone();
         let payload_c = captured_payload.clone();
         let cards_c = captured_cards.clone();
+        let from_c = captured_from.clone();
 
         let receiver = WgrokReceiver::new(
             ReceiverConfig {
@@ -78,11 +82,12 @@ fn test_receiver_cases() {
                 debug: false,
                 platform: "webex".to_string(),
             },
-            Box::new(move |slug: &str, payload: &str, cards: &[Value]| {
+            Box::new(move |slug: &str, payload: &str, cards: &[Value], from_slug: &str| {
                 *called_c.lock().unwrap() = true;
                 *slug_c.lock().unwrap() = slug.to_string();
                 *payload_c.lock().unwrap() = payload.to_string();
                 *cards_c.lock().unwrap() = cards.to_vec();
+                *from_c.lock().unwrap() = from_slug.to_string();
             }),
         );
 
@@ -110,6 +115,22 @@ fn test_receiver_cases() {
                     *captured_payload.lock().unwrap(),
                     *expected_payload,
                     "case {}: payload mismatch",
+                    tc.name
+                );
+            }
+            if let Some(ref expected_from) = tc.expected_from {
+                assert_eq!(
+                    *captured_from.lock().unwrap(),
+                    *expected_from,
+                    "case {}: from_slug mismatch",
+                    tc.name
+                );
+            }
+            if let Some(ref expected_cards) = tc.expected_cards {
+                assert_eq!(
+                    *captured_cards.lock().unwrap(),
+                    *expected_cards,
+                    "case {}: cards mismatch",
                     tc.name
                 );
             }

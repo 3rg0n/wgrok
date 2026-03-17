@@ -11,14 +11,16 @@ import (
 
 type senderCases struct {
 	Config struct {
-		Token  string `json:"token"`
-		Target string `json:"target"`
-		Slug   string `json:"slug"`
+		Token     string `json:"token"`
+		Target    string `json:"target"`
+		Slug      string `json:"slug"`
+		FromSlug  string `json:"from_slug"`
 	} `json:"config"`
 	Cases []struct {
 		Name             string      `json:"name"`
 		Payload          string      `json:"payload"`
 		Card             interface{} `json:"card"`
+		Compress         bool        `json:"compress"`
 		ExpectedText     string      `json:"expected_text"`
 		ExpectedTarget   string      `json:"expected_target"`
 		ExpectedUsesCard bool        `json:"expected_uses_card"`

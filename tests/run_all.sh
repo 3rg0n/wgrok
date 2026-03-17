@@ -13,6 +13,7 @@ echo ""
 
 # Python
 cd "$ROOT"
+py_codec=$(python -m pytest python/tests/test_codec.py -q --no-header 2>&1; echo $?)
 py_protocol=$(python -m pytest python/tests/test_protocol.py -q --no-header 2>&1; echo $?)
 py_allowlist=$(python -m pytest python/tests/test_allowlist.py -q --no-header 2>&1; echo $?)
 py_config=$(python -m pytest python/tests/test_config.py -q --no-header 2>&1; echo $?)
@@ -28,6 +29,7 @@ py_platform=$(python -m pytest python/tests/test_platform.py -q --no-header 2>&1
 
 # Go
 cd "$ROOT/go"
+go_codec=$(go test -run 'TestCodec' -count=1 2>/dev/null; echo $?)
 go_protocol=$(go test -run 'TestEcho|TestFormat|TestParse|TestIs|TestResponse' -count=1 2>/dev/null; echo $?)
 go_allowlist=$(go test -run TestAllowlist -count=1 2>/dev/null; echo $?)
 go_config=$(go test -run 'Config|Debug' -count=1 2>/dev/null; echo $?)
@@ -44,6 +46,7 @@ go_platform=$(go test -run 'TestPlatform' -count=1 2>/dev/null; echo $?)
 # TypeScript
 cd "$ROOT/ts"
 ts_cmd="node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.cjs --silent"
+ts_codec=$($ts_cmd --testPathPattern 'codec\.test' 2>/dev/null; echo $?)
 ts_protocol=$($ts_cmd --testPathPattern 'protocol\.test' 2>/dev/null; echo $?)
 ts_allowlist=$($ts_cmd --testPathPattern 'allowlist\.test' 2>/dev/null; echo $?)
 ts_config=$($ts_cmd --testPathPattern 'config\.test' 2>/dev/null; echo $?)
@@ -59,6 +62,7 @@ ts_platform=$($ts_cmd --testPathPattern 'platform\.test' 2>/dev/null; echo $?)
 
 # Rust
 cd "$ROOT/rust"
+rs_codec=$(cargo test --test codec_test 2>/dev/null; echo $?)
 rs_protocol=$(cargo test --test protocol_test 2>/dev/null; echo $?)
 rs_allowlist=$(cargo test --test allowlist_test 2>/dev/null; echo $?)
 rs_config=$(cargo test --test config_test 2>/dev/null; echo $?)
@@ -82,7 +86,7 @@ echo ""
 printf "%-12s | %-6s | %-6s | %-6s | %-6s\n" "Feature" "Python" "Go" "TS" "Rust"
 printf "%-12s-|--------|--------|--------|--------\n" "------------"
 
-features=(protocol allowlist config logging webex sender routerbot receiver slack discord irc platform)
+features=(codec protocol allowlist config logging webex sender routerbot receiver slack discord irc platform)
 for f in "${features[@]}"; do
   eval py_rc="\$(get_rc \"\$py_$f\")"
   eval go_rc="\$(get_rc \"\$go_$f\")"

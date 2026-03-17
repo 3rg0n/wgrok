@@ -8,9 +8,11 @@ import pytest
 from wgrok.protocol import (
     ECHO_PREFIX,
     format_echo,
+    format_flags,
     format_response,
     is_echo,
     parse_echo,
+    parse_flags,
     parse_response,
 )
 
@@ -25,14 +27,16 @@ class TestEchoPrefix:
 class TestFormatEcho:
     @pytest.mark.parametrize("tc", CASES["format_echo"], ids=lambda tc: tc["expected"])
     def test_cases(self, tc):
-        assert format_echo(tc["slug"], tc["payload"]) == tc["expected"]
+        assert format_echo(tc["to"], tc["from"], tc["flags"], tc["payload"]) == tc["expected"]
 
 
 class TestParseEcho:
     @pytest.mark.parametrize("tc", CASES["parse_echo"]["valid"], ids=lambda tc: tc["input"])
     def test_valid(self, tc):
-        slug, payload = parse_echo(tc["input"])
-        assert slug == tc["slug"]
+        to, from_slug, flags, payload = parse_echo(tc["input"])
+        assert to == tc["to"]
+        assert from_slug == tc["from"]
+        assert flags == tc["flags"]
         assert payload == tc["payload"]
 
     @pytest.mark.parametrize("tc", CASES["parse_echo"]["errors"], ids=lambda tc: tc["input"])
@@ -50,14 +54,16 @@ class TestIsEcho:
 class TestFormatResponse:
     @pytest.mark.parametrize("tc", CASES["format_response"], ids=lambda tc: tc["expected"])
     def test_cases(self, tc):
-        assert format_response(tc["slug"], tc["payload"]) == tc["expected"]
+        assert format_response(tc["to"], tc["from"], tc["flags"], tc["payload"]) == tc["expected"]
 
 
 class TestParseResponse:
     @pytest.mark.parametrize("tc", CASES["parse_response"]["valid"], ids=lambda tc: tc["input"])
     def test_valid(self, tc):
-        slug, payload = parse_response(tc["input"])
-        assert slug == tc["slug"]
+        to, from_slug, flags, payload = parse_response(tc["input"])
+        assert to == tc["to"]
+        assert from_slug == tc["from"]
+        assert flags == tc["flags"]
         assert payload == tc["payload"]
 
     @pytest.mark.parametrize("tc", CASES["parse_response"]["errors"], ids=lambda tc: tc["input"])
@@ -66,17 +72,37 @@ class TestParseResponse:
             parse_response(tc["input"])
 
 
+class TestParseFlags:
+    @pytest.mark.parametrize("tc", CASES["parse_flags"], ids=lambda tc: tc["input"])
+    def test_cases(self, tc):
+        compressed, chunk_seq, chunk_total = parse_flags(tc["input"])
+        assert compressed is tc["compressed"]
+        assert chunk_seq == tc["chunk_seq"]
+        assert chunk_total == tc["chunk_total"]
+
+
+class TestFormatFlags:
+    @pytest.mark.parametrize("tc", CASES["format_flags"], ids=lambda tc: tc["expected"])
+    def test_cases(self, tc):
+        result = format_flags(tc["compressed"], tc["chunk_seq"], tc["chunk_total"])
+        assert result == tc["expected"]
+
+
 class TestRoundtrips:
     @pytest.mark.parametrize("tc", CASES["roundtrips"]["echo"])
     def test_echo(self, tc):
-        text = format_echo(tc["slug"], tc["payload"])
-        slug, payload = parse_echo(text)
-        assert slug == tc["slug"]
+        text = format_echo(tc["to"], tc["from"], tc["flags"], tc["payload"])
+        to, from_slug, flags, payload = parse_echo(text)
+        assert to == tc["to"]
+        assert from_slug == tc["from"]
+        assert flags == tc["flags"]
         assert payload == tc["payload"]
 
     @pytest.mark.parametrize("tc", CASES["roundtrips"]["response"])
     def test_response(self, tc):
-        text = format_response(tc["slug"], tc["payload"])
-        slug, payload = parse_response(text)
-        assert slug == tc["slug"]
+        text = format_response(tc["to"], tc["from"], tc["flags"], tc["payload"])
+        to, from_slug, flags, payload = parse_response(text)
+        assert to == tc["to"]
+        assert from_slug == tc["from"]
+        assert flags == tc["flags"]
         assert payload == tc["payload"]

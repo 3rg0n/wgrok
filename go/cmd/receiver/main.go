@@ -21,8 +21,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := func(slug, payload string, cards []interface{}) {
-		fmt.Printf("[RECEIVED] slug=%s payload=%s\n", slug, payload)
+	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+		fmt.Printf("[RECEIVED] slug=%s from=%s payload=%s\n", slug, fromSlug, payload)
 		if len(cards) > 0 {
 			for i, card := range cards {
 				out, _ := json.MarshalIndent(card, "", "  ")

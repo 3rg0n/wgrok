@@ -1,5 +1,6 @@
 pub mod protocol;
 pub mod allowlist;
+pub mod codec;
 pub mod config;
 pub mod logging;
 pub mod webex;
@@ -12,7 +13,8 @@ pub mod router_bot;
 pub mod receiver;
 pub mod listener;
 
-pub use protocol::{ECHO_PREFIX, format_echo, parse_echo, is_echo, format_response, parse_response};
+pub use protocol::{ECHO_PREFIX, format_echo, parse_echo, is_echo, format_response, parse_response, parse_flags, format_flags};
+pub use codec::{compress, decompress};
 pub use allowlist::Allowlist;
 pub use config::{SenderConfig, BotConfig, ReceiverConfig};
 pub use logging::{get_logger, NdjsonLogger, NoopLogger, WgrokLogger};

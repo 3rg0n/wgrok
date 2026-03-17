@@ -1,10 +1,17 @@
+use std::collections::HashMap;
+
 use reqwest::Client;
 use serde_json::Value;
 
+use crate::codec;
 use crate::config::SenderConfig;
 use crate::logging::{get_logger, WgrokLogger};
 use crate::platform;
-use crate::protocol::format_echo;
+use crate::protocol::{format_echo, format_flags, ECHO_PREFIX};
+
+fn platform_limits() -> HashMap<&'static str, usize> {
+    HashMap::from([("webex", 7439), ("slack", 4000), ("discord", 2000), ("irc", 400)])
+}
 
 pub struct WgrokSender {
     config: SenderConfig,
@@ -23,8 +30,57 @@ impl WgrokSender {
     }
 
     pub async fn send(&self, payload: &str, card: Option<&Value>) -> Result<Value, String> {
-        let text = format_echo(&self.config.slug, payload);
-        self.logger.info(&format!("Sending to {}: {}", self.config.target, text));
+        self.send_with_options(payload, card, false).await
+    }
+
+    pub async fn send_with_options(
+        &self,
+        payload: &str,
+        card: Option<&Value>,
+        compress: bool,
+    ) -> Result<Value, String> {
+        let to = &self.config.slug;
+        let from = &self.config.slug;
+        let flags = format_flags(compress, None, None);
+
+        let payload_to_send = if compress {
+            codec::compress(payload)?
+        } else {
+            payload.to_string()
+        };
+
+        let text = format_echo(to, from, &flags, &payload_to_send);
+        let limits = platform_limits();
+        let limit = limits.get(self.config.platform.as_str()).copied().unwrap_or(7439);
+        if text.len() > limit && card.is_none() {
+            // Compute overhead: ./echo:{to}:{from}:{flags}:
+            let overhead = ECHO_PREFIX.len() + to.len() + 1 + from.len() + 1 + flags.len() + 1;
+            let max_payload = limit - overhead;
+            let chunks = codec::chunk(&payload_to_send, max_payload)?;
+            self.logger.info(&format!(
+                "Payload exceeds {}B limit, sending {} chunks to {}",
+                limit,
+                chunks.len(),
+                self.config.target
+            ));
+            let mut last_result = Value::Null;
+            for (i, ch) in chunks.iter().enumerate() {
+                let chunk_flags =
+                    format_flags(compress, Some(i + 1), Some(chunks.len()));
+                let chunk_text = format_echo(to, from, &chunk_flags, ch);
+                last_result = platform::platform_send_message(
+                    &self.config.platform,
+                    &self.config.webex_token,
+                    &self.config.target,
+                    &chunk_text,
+                    &self.client,
+                )
+                .await?;
+            }
+            return Ok(last_result);
+        }
+        self.logger
+            .info(&format!("Sending to {}: {}", self.config.target, text));
         match card {
             Some(c) => {
                 self.logger.info("Including adaptive card attachment");

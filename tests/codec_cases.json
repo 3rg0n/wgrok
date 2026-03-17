@@ -1,0 +1,33 @@
+{
+  "roundtrips": [
+    {"input": "hello world"},
+    {"input": "{\"key\": \"value\", \"nested\": [1,2,3]}"},
+    {"input": "special chars: \n\t\r\"'"},
+    {"input": ""},
+    {"input": "a"}
+  ],
+
+  "chunking": [
+    {
+      "input": "abcdefghij",
+      "max_size": 4,
+      "expected_count": 3,
+      "expected_chunks": ["abcd", "efgh", "ij"],
+      "description": "10 chars at max 4 = 3 chunks (4+4+2)"
+    },
+    {
+      "input": "abcdef",
+      "max_size": 3,
+      "expected_count": 2,
+      "expected_chunks": ["abc", "def"],
+      "description": "6 chars at max 3 = 2 chunks (3+3)"
+    },
+    {
+      "input": "abc",
+      "max_size": 10,
+      "expected_count": 1,
+      "expected_chunks": ["abc"],
+      "description": "fits in one chunk"
+    }
+  ]
+}
