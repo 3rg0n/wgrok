@@ -1,0 +1,111 @@
+ts/tests/codec.test.ts
+  8a6984cc758c8292 1-7,10-21
+ts/src/protocol.ts
+  8a6984cc758c8292 3-4,7,12-22,24,31-48,51-53,55-57,59-80,82-94,96
+rust/src/codec.rs
+  8a6984cc758c8292 1-52
+python/tests/test_codec.py
+  8a6984cc758c8292 1-26
+go/receiver.go
+  8a6984cc758c8292 8,14-15,17-21,32-33,46,121,127-128,132-152,154-166,168,170,172,202-205,208,210,213-214,218-219,223-224,226-227,245,251-252,256-267,269-287,292,294,296
+rust/Cargo.toml
+  8a6984cc758c8292 18-19
+ts/src/receiver.ts
+  8a6984cc758c8292 19,97-99,103-106,108-111,113-114,119
+go/sender.go
+  8a6984cc758c8292 10-17,36,38-83
+rust/tests/codec_test.rs
+  8a6984cc758c8292 1-58
+go/protocol.go
+  8a6984cc758c8292 7,13-15,18-19,21,24-28,30-37,39,47-69,72-77,79-83,85-100,103-117,119
+ts/src/router-bot.ts
+  8a6984cc758c8292 58-61,99,101,107-108
+rust/tests/receiver_test.rs
+  8a6984cc758c8292 29-30,69,75,85,90,121-136
+rust/src/sender.rs
+  8a6984cc758c8292 1-2,6,10-14,33-81
+tests/run_all.sh
+  8a6984cc758c8292 16,32,49,65,89
+tests/codec_cases.json
+  8a6984cc758c8292 1-33
+go/cmd/receiver/main.go
+  8a6984cc758c8292 24-25
+tests/router_bot_cases.json
+  8a6984cc758c8292 15,19,25,29,35,49,56,60,66,70,76,81,87,92,98,103,109,114
+tests/protocol_cases.json
+  8a6984cc758c8292 5-10,15-19,23,28-29,34-36,41-43,46,50-64,67,70
+python/src/wgrok/sender.py
+  8a6984cc758c8292 7,13-18,35,38,44,50,58,60-61,63,68-73,77-78
+tests/receiver_cases.json
+  8a6984cc758c8292 11,16,22,29,36,41,47,54,59,61-71
+python/src/wgrok/router_bot.py
+  8a6984cc758c8292 123,125-127,157,162-163
+ts/src/sender.ts
+  8a6984cc758c8292 3,5,8-14,24-54
+python/src/wgrok/codec.py
+  8a6984cc758c8292 2,6-11,14,16-17,22-24,29-38,40
+ts/tests/sender.test.ts
+  8a6984cc758c8292 17,22,47
+rust/src/router_bot.rs
+  8a6984cc758c8292 120,129-130
+go/codec_test.go
+  8a6984cc758c8292 1-72
+python/tests_e2e/test_full_flow.py
+  8a6984cc758c8292 21-22,30-31,35-36,42,45-53,55,58-65,67,135-136,144,149-150,156-163,165-171,173,184,188-196
+python/src/wgrok/protocol.py
+  8a6984cc758c8292 1-8,13-15,18-19,21-22,26-32,40-99,101-102,104
+ts/tests/protocol.test.ts
+  8a6984cc758c8292 2,6,8,12,14,17-18,20-21,35,43-45,65,73-75,87-101,104-105,107-109,115-116,118-120
+rust/tests/protocol_test.rs
+  8a6984cc758c8292 8,11,13-14,19-22,28-31,45-47,63-76,87-89,109,119-122,156,166-169,183-201,209-213,222-226
+ts/tests/receiver.test.ts
+  8a6984cc758c8292 15,38,40,45,66
+tests/sender_cases.json
+  8a6984cc758c8292 5-6,14-15,23-24,32-33,41-42
+python/tests/test_receiver.py
+  8a6984cc758c8292 45
+rust/src/protocol.rs
+  8a6984cc758c8292 3-4,6-7,11-13,15,18-20,22-24,26-30,38-40,43-59,62-71,73-83,85-101
+python/src/wgrok/receiver.py
+  8a6984cc758c8292 10,36,101,107-108,110,112,116
+rust/src/lib.rs
+  8a6984cc758c8292 3,16-17
+go/sender_test.go
+  8a6984cc758c8292 17,23
+go/receiver_test.go
+  8a6984cc758c8292 26,50,66,99-100
+ts/src/index.ts
+  8a6984cc758c8292 2-6
+ts/src/codec.ts
+  8a6984cc758c8292 1-27
+go/protocol_test.go
+  8a6984cc758c8292 12-14,21-23,36,38,46-47,55-58,60-66,69,71,76-77,106-107,109,119,123-124,126-130,139,165-166,168,178,182-183,185-189,198,209-255,259-261,265-266,275-277,281-282
+python/tests/test_protocol.py
+  8a6984cc758c8292 11,15,30,36-39,57,63-66,75-90,94-98,103-107
+rust/src/receiver.rs
+  8a6984cc758c8292 1-3,10,13,16,18,26,39,122,124-126,128-138,145,148,150
+go/router_bot.go
+  8a6984cc758c8292 148,154-155,231,237-238
+go/codec.go
+  8a6984cc758c8292 1-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "6ff331cad8a422b9ea188d147c630a295f3135fd",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 2979,
+      "total_deletions": 1716,
+      "accepted_lines": 1646,
+      "overriden_lines": 72
+    }
+  }
+}
