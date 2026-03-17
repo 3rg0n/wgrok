@@ -1,0 +1,23 @@
+README.md
+  8a6984cc758c8292 5,7,10,13-16,18,22,25-26,29,31,33-38,40,44,47,49-50,64-66,69,74-75,78,81,84-96,98,104,171,175-176,194-195,210-211,228-229,299,416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "ca56b6e9a2a06b5250ea1719d769beef94ed6f48",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 62,
+      "total_deletions": 66,
+      "accepted_lines": 61,
+      "overriden_lines": 0
+    }
+  }
+}
