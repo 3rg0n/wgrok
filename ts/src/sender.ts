@@ -1,6 +1,6 @@
 import type { Logger } from 'webex-message-handler';
 import type { SenderConfig } from './config.js';
-import { compress as codecCompress, chunk as codecChunk } from './codec.js';
+import { compress as codecCompress, encrypt as codecEncrypt, chunk as codecChunk } from './codec.js';
 import { getLogger } from './logging.js';
 import { ECHO_PREFIX, formatEcho, formatFlags } from './protocol.js';
 import { platformSendMessage, platformSendCard } from './platform.js';
@@ -23,13 +23,18 @@ export class WgrokSender {
 
   async send(payload: string, card?: unknown, compress = false, fromSlug?: string): Promise<Record<string, unknown> | Record<string, unknown>[]> {
     const from = fromSlug ?? this.config.slug;
+    const encrypted = !!this.config.encryptKey;
     let processedPayload = payload;
 
     if (compress) {
       processedPayload = codecCompress(payload);
     }
 
-    const flags = formatFlags(compress);
+    if (encrypted) {
+      processedPayload = codecEncrypt(processedPayload, this.config.encryptKey!);
+    }
+
+    const flags = formatFlags(compress, encrypted);
     const text = formatEcho(this.config.slug, from, flags, processedPayload);
     const limit = PLATFORM_LIMITS[this.config.platform] ?? 7439;
 
@@ -45,7 +50,7 @@ export class WgrokSender {
       this.logger.info(`Payload exceeds ${limit}B limit, sending ${chunks.length} chunks to ${this.config.target}`);
       const results: Record<string, unknown>[] = [];
       for (let i = 0; i < chunks.length; i++) {
-        const chunkFlags = formatFlags(compress, i + 1, chunks.length);
+        const chunkFlags = formatFlags(compress, encrypted, i + 1, chunks.length);
         const chunkText = formatEcho(this.config.slug, from, chunkFlags, chunks[i]);
         results.push(await platformSendMessage(this.config.platform, this.config.webexToken, this.config.target, chunkText));
       }

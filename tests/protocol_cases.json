@@ -7,7 +7,9 @@
     {"to": "slug", "from": "-", "flags": "-", "payload": "a:b:c", "expected": "./echo:slug:-:-:a:b:c"},
     {"to": "worker", "from": "relay", "flags": "z", "payload": "H4sI", "expected": "./echo:worker:relay:z:H4sI"},
     {"to": "worker", "from": "relay", "flags": "1/3", "payload": "chunk", "expected": "./echo:worker:relay:1/3:chunk"},
-    {"to": "worker", "from": "relay", "flags": "z2/5", "payload": "data", "expected": "./echo:worker:relay:z2/5:data"}
+    {"to": "worker", "from": "relay", "flags": "z2/5", "payload": "data", "expected": "./echo:worker:relay:z2/5:data"},
+    {"to": "worker", "from": "relay", "flags": "e", "payload": "encrypted", "expected": "./echo:worker:relay:e:encrypted"},
+    {"to": "worker", "from": "relay", "flags": "ze", "payload": "both", "expected": "./echo:worker:relay:ze:both"}
   ],
 
   "parse_echo": {
@@ -48,18 +50,26 @@
   },
 
   "parse_flags": [
-    {"input": "-", "compressed": false, "chunk_seq": null, "chunk_total": null},
-    {"input": "z", "compressed": true, "chunk_seq": null, "chunk_total": null},
-    {"input": "1/3", "compressed": false, "chunk_seq": 1, "chunk_total": 3},
-    {"input": "z2/5", "compressed": true, "chunk_seq": 2, "chunk_total": 5},
-    {"input": "10/10", "compressed": false, "chunk_seq": 10, "chunk_total": 10}
+    {"input": "-", "compressed": false, "encrypted": false, "chunk_seq": null, "chunk_total": null},
+    {"input": "z", "compressed": true, "encrypted": false, "chunk_seq": null, "chunk_total": null},
+    {"input": "e", "compressed": false, "encrypted": true, "chunk_seq": null, "chunk_total": null},
+    {"input": "ze", "compressed": true, "encrypted": true, "chunk_seq": null, "chunk_total": null},
+    {"input": "1/3", "compressed": false, "encrypted": false, "chunk_seq": 1, "chunk_total": 3},
+    {"input": "z2/5", "compressed": true, "encrypted": false, "chunk_seq": 2, "chunk_total": 5},
+    {"input": "e1/3", "compressed": false, "encrypted": true, "chunk_seq": 1, "chunk_total": 3},
+    {"input": "ze2/5", "compressed": true, "encrypted": true, "chunk_seq": 2, "chunk_total": 5},
+    {"input": "10/10", "compressed": false, "encrypted": false, "chunk_seq": 10, "chunk_total": 10}
   ],
 
   "format_flags": [
-    {"compressed": false, "chunk_seq": null, "chunk_total": null, "expected": "-"},
-    {"compressed": true, "chunk_seq": null, "chunk_total": null, "expected": "z"},
-    {"compressed": false, "chunk_seq": 1, "chunk_total": 3, "expected": "1/3"},
-    {"compressed": true, "chunk_seq": 2, "chunk_total": 5, "expected": "z2/5"}
+    {"compressed": false, "encrypted": false, "chunk_seq": null, "chunk_total": null, "expected": "-"},
+    {"compressed": true, "encrypted": false, "chunk_seq": null, "chunk_total": null, "expected": "z"},
+    {"compressed": false, "encrypted": true, "chunk_seq": null, "chunk_total": null, "expected": "e"},
+    {"compressed": true, "encrypted": true, "chunk_seq": null, "chunk_total": null, "expected": "ze"},
+    {"compressed": false, "encrypted": false, "chunk_seq": 1, "chunk_total": 3, "expected": "1/3"},
+    {"compressed": true, "encrypted": false, "chunk_seq": 2, "chunk_total": 5, "expected": "z2/5"},
+    {"compressed": false, "encrypted": true, "chunk_seq": 1, "chunk_total": 3, "expected": "e1/3"},
+    {"compressed": true, "encrypted": true, "chunk_seq": 2, "chunk_total": 5, "expected": "ze2/5"}
   ],
 
   "roundtrips": {

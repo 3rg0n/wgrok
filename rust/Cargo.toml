@@ -20,6 +20,8 @@ base64 = "0.22"
 tracing = "0.1"
 dotenvy = "0.15"
 async-trait = "0.1"
+aes-gcm = "0.10"
+rand = "0.8"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

@@ -59,17 +59,21 @@ pub fn parse_response(text: &str) -> Result<(String, String, String, String), St
     ))
 }
 
-/// Parse flags string into components: (compressed, chunk_seq, chunk_total)
-/// Format: "-" = no flags, "z" = compressed, "1/3" = chunk 1 of 3, "z2/5" = compressed chunk 2 of 5
-pub fn parse_flags(flags: &str) -> (bool, Option<usize>, Option<usize>) {
+/// Parse flags string into components: (compressed, encrypted, chunk_seq, chunk_total)
+/// Format: "-" = no flags, "z" = compressed, "e" = encrypted, "ze" = both
+/// "1/3" = chunk 1 of 3, "z2/5" = compressed chunk 2 of 5, "e1/3" = encrypted chunk 1 of 3, "ze2/5" = both chunk 2 of 5
+pub fn parse_flags(flags: &str) -> (bool, bool, Option<usize>, Option<usize>) {
     let compressed = flags.contains('z');
+    let encrypted = flags.contains('e');
 
-    // Find the chunk portion (e.g., "2/5" or "1/3")
-    let chunk_part = if compressed {
-        flags.strip_prefix('z').unwrap_or("")
-    } else {
-        flags
-    };
+    // Strip leading z and e to get chunk portion
+    let mut chunk_part = flags;
+    if chunk_part.starts_with('z') {
+        chunk_part = &chunk_part[1..];
+    }
+    if chunk_part.starts_with('e') {
+        chunk_part = &chunk_part[1..];
+    }
 
     // Parse chunk_seq/chunk_total
     let (chunk_seq, chunk_total) = if let Some(slash_pos) = chunk_part.find('/') {
@@ -83,21 +87,33 @@ pub fn parse_flags(flags: &str) -> (bool, Option<usize>, Option<usize>) {
         (None, None)
     };
 
-    (compressed, chunk_seq, chunk_total)
+    (compressed, encrypted, chunk_seq, chunk_total)
 }
 
-/// Format flags: (compressed, chunk_seq, chunk_total) -> string
-/// Returns "-", "z", "1/3", "z2/5", etc.
+/// Format flags: (compressed, encrypted, chunk_seq, chunk_total) -> string
+/// Returns "-", "z", "e", "ze", "1/3", "z2/5", "e1/3", "ze2/5", etc.
 pub fn format_flags(
     compressed: bool,
+    encrypted: bool,
     chunk_seq: Option<usize>,
     chunk_total: Option<usize>,
 ) -> String {
-    match (compressed, chunk_seq, chunk_total) {
-        (false, None, None) => "-".to_string(),
-        (true, None, None) => "z".to_string(),
-        (false, Some(seq), Some(total)) => format!("{}/{}", seq, total),
-        (true, Some(seq), Some(total)) => format!("z{}/{}", seq, total),
-        _ => "-".to_string(), // Default for invalid combinations
+    let mut result = String::new();
+
+    if compressed {
+        result.push('z');
+    }
+    if encrypted {
+        result.push('e');
+    }
+
+    if let (Some(seq), Some(total)) = (chunk_seq, chunk_total) {
+        result.push_str(&format!("{}/{}", seq, total));
+    }
+
+    if result.is_empty() {
+        "-".to_string()
+    } else {
+        result
     }
 }

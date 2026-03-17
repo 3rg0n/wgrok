@@ -14,7 +14,7 @@ pub mod receiver;
 pub mod listener;
 
 pub use protocol::{ECHO_PREFIX, format_echo, parse_echo, is_echo, format_response, parse_response, parse_flags, format_flags};
-pub use codec::{compress, decompress};
+pub use codec::{compress, decompress, encrypt, decrypt};
 pub use allowlist::Allowlist;
 pub use config::{SenderConfig, BotConfig, ReceiverConfig};
 pub use logging::{get_logger, NdjsonLogger, NoopLogger, WgrokLogger};

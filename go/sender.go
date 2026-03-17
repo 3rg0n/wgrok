@@ -40,6 +40,8 @@ func (s *WgrokSender) Send(payload string, card interface{}) (map[string]interfa
 
 // SendWithOptions is like Send but with an explicit compress flag.
 func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress bool) (map[string]interface{}, error) {
+	encrypted := s.config.EncryptKey != nil
+
 	if compress {
 		encoded, err := Compress(payload)
 		if err != nil {
@@ -48,10 +50,18 @@ func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress
 		payload = encoded
 	}
 
+	if encrypted {
+		encoded, err := Encrypt(payload, s.config.EncryptKey)
+		if err != nil {
+			return nil, fmt.Errorf("encrypt payload: %w", err)
+		}
+		payload = encoded
+	}
+
 	// Use slug as both to and from (for sender context)
 	to := s.config.Slug
 	from := s.config.Slug
-	flags := FormatFlags(compress, 0, 0)
+	flags := FormatFlags(compress, encrypted, 0, 0)
 
 	text := FormatEcho(to, from, flags, payload)
 	limit, ok := PlatformLimits[s.config.Platform]
@@ -60,8 +70,8 @@ func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress
 	}
 	if len([]byte(text)) > limit && card == nil {
 		// Estimate overhead for chunked format
-		// Worst case for flags in chunking: "z999/999" = 8 chars, we'll use 10 for safety
-		flagOverhead := 10
+		// Worst case for flags in chunking: "ze999/999" = 9 chars, we'll use 11 for safety
+		flagOverhead := 11
 		overhead := len([]byte(EchoPrefix)) + len([]byte(to)) + 1 + len([]byte(from)) + 1 + flagOverhead + 1
 		maxPayload := limit - overhead
 		chunks, err := Chunk(payload, maxPayload)
@@ -71,7 +81,7 @@ func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress
 		s.logger.Info(fmt.Sprintf("Payload exceeds %dB limit, sending %d chunks to %s", limit, len(chunks), s.config.Target))
 		var lastResult map[string]interface{}
 		for i, ch := range chunks {
-			chunkFlags := FormatFlags(compress, i+1, len(chunks))
+			chunkFlags := FormatFlags(compress, encrypted, i+1, len(chunks))
 			chunkText := FormatEcho(to, from, chunkFlags, ch)
 			result, err := PlatformSendMessage(s.config.Platform, s.config.WebexToken, s.config.Target, chunkText, s.client)
 			if err != nil {

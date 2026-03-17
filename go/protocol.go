@@ -69,22 +69,31 @@ func ParseResponse(text string) (to, from, flags, payload string, err error) {
 	return to, from, flags, payload, nil
 }
 
-// ParseFlags parses a flags string and returns (compressed, chunkSeq, chunkTotal).
-// Format: "-" for no flags, "z" for compressed, "N/T" for chunk N of T, "zN/T" for compressed chunk.
+// ParseFlags parses a flags string and returns (compressed, encrypted, chunkSeq, chunkTotal).
+// Format: "-" for no flags, "z" for compressed, "e" for encrypted, "N/T" for chunk N of T.
+// Combinations: "z", "e", "ze", "1/3", "z1/3", "e1/3", "ze1/3" etc.
 // If chunkSeq is 0, there is no chunking.
-func ParseFlags(flags string) (compressed bool, chunkSeq, chunkTotal int, err error) {
+func ParseFlags(flags string) (compressed, encrypted bool, chunkSeq, chunkTotal int, err error) {
 	if flags == "" || flags == "-" {
-		return false, 0, 0, nil
+		return false, false, 0, 0, nil
 	}
 
-	compressed = strings.HasPrefix(flags, "z")
 	remainder := flags
+
+	// Strip leading 'z' for compression
+	compressed = strings.HasPrefix(remainder, "z")
 	if compressed {
-		remainder = flags[1:]
+		remainder = remainder[1:]
+	}
+
+	// Strip leading 'e' for encryption
+	encrypted = strings.HasPrefix(remainder, "e")
+	if encrypted {
+		remainder = remainder[1:]
 	}
 
 	if remainder == "" {
-		return compressed, 0, 0, nil
+		return compressed, encrypted, 0, 0, nil
 	}
 
 	// Try to parse as N/T
@@ -93,28 +102,37 @@ func ParseFlags(flags string) (compressed bool, chunkSeq, chunkTotal int, err er
 		seq, errSeq := strconv.Atoi(parts[0])
 		total, errTotal := strconv.Atoi(parts[1])
 		if errSeq == nil && errTotal == nil && seq > 0 && total > 0 {
-			return compressed, seq, total, nil
+			return compressed, encrypted, seq, total, nil
 		}
 	}
 
-	return false, 0, 0, fmt.Errorf("invalid flags format: %q", flags)
+	return false, false, 0, 0, fmt.Errorf("invalid flags format: %q", flags)
 }
 
 // FormatFlags formats a flags string from components.
-// If chunkSeq is 0, no chunking. Otherwise format is "N/T" or "zN/T" if compressed.
-func FormatFlags(compressed bool, chunkSeq, chunkTotal int) string {
+// If chunkSeq is 0, no chunking. Otherwise format is "N/T" or "zN/T" if compressed, "eN/T" if encrypted, "zeN/T" if both.
+func FormatFlags(compressed, encrypted bool, chunkSeq, chunkTotal int) string {
+	var flags string
+
 	if chunkSeq == 0 {
 		// No chunking
-		if compressed {
-			return "z"
-		}
-		return "-"
+		flags = ""
+	} else {
+		// Has chunking
+		flags = fmt.Sprintf("%d/%d", chunkSeq, chunkTotal)
 	}
 
-	// Has chunking
-	flags := fmt.Sprintf("%d/%d", chunkSeq, chunkTotal)
-	if compressed {
-		flags = "z" + flags
+	// Prepend markers: z first (compression), then e (encryption)
+	result := flags
+	if encrypted {
+		result = "e" + result
 	}
-	return flags
+	if compressed {
+		result = "z" + result
+	}
+
+	if result == "" {
+		return "-"
+	}
+	return result
 }

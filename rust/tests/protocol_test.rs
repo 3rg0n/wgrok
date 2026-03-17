@@ -64,6 +64,8 @@ struct IsEchoCase {
 struct ParseFlagsCase {
     input: String,
     compressed: bool,
+    #[serde(default)]
+    encrypted: bool,
     chunk_seq: Option<usize>,
     chunk_total: Option<usize>,
 }
@@ -71,6 +73,8 @@ struct ParseFlagsCase {
 #[derive(Deserialize)]
 struct FormatFlagsCase {
     compressed: bool,
+    #[serde(default)]
+    encrypted: bool,
     chunk_seq: Option<usize>,
     chunk_total: Option<usize>,
     expected: String,
@@ -184,8 +188,9 @@ fn test_parse_response_errors() {
 fn test_parse_flags() {
     let cases = load_cases();
     for tc in &cases.parse_flags {
-        let (compressed, chunk_seq, chunk_total) = parse_flags(&tc.input);
+        let (compressed, encrypted, chunk_seq, chunk_total) = parse_flags(&tc.input);
         assert_eq!(compressed, tc.compressed, "compressed mismatch for {:?}", tc.input);
+        assert_eq!(encrypted, tc.encrypted, "encrypted mismatch for {:?}", tc.input);
         assert_eq!(chunk_seq, tc.chunk_seq, "chunk_seq mismatch for {:?}", tc.input);
         assert_eq!(chunk_total, tc.chunk_total, "chunk_total mismatch for {:?}", tc.input);
     }
@@ -196,7 +201,7 @@ fn test_format_flags() {
     let cases = load_cases();
     for tc in &cases.format_flags {
         assert_eq!(
-            format_flags(tc.compressed, tc.chunk_seq, tc.chunk_total),
+            format_flags(tc.compressed, tc.encrypted, tc.chunk_seq, tc.chunk_total),
             tc.expected
         );
     }

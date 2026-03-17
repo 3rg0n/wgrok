@@ -1,6 +1,7 @@
 package wgrok
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -14,6 +15,7 @@ type SenderConfig struct {
 	Domains    []string
 	Platform   string
 	Debug      bool
+	EncryptKey []byte // nil if not set; must be 32 bytes for AES-256
 }
 
 // BotConfig holds configuration for WgrokRouterBot.
@@ -34,6 +36,7 @@ type ReceiverConfig struct {
 	Domains    []string
 	Platform   string
 	Debug      bool
+	EncryptKey []byte // nil if not set; must be 32 bytes for AES-256
 }
 
 func envRequire(name string) (string, error) {
@@ -132,6 +135,22 @@ func parseStringPtr(raw string) *string {
 	return &raw
 }
 
+func parseEncryptKey(raw string) []byte {
+	if raw == "" {
+		return nil
+	}
+	key, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		// Log warning but don't fail
+		return nil
+	}
+	if len(key) != 32 {
+		// Log warning but don't fail
+		return nil
+	}
+	return key
+}
+
 // SenderConfigFromEnv loads a SenderConfig from environment variables.
 func SenderConfigFromEnv() (*SenderConfig, error) {
 	token, err := envRequire("WGROK_TOKEN")
@@ -157,6 +176,7 @@ func SenderConfigFromEnv() (*SenderConfig, error) {
 		Domains:    envParseDomains(os.Getenv("WGROK_DOMAINS")),
 		Platform:   platform,
 		Debug:      envParseDebug(os.Getenv("WGROK_DEBUG")),
+		EncryptKey: parseEncryptKey(os.Getenv("WGROK_ENCRYPT_KEY")),
 	}, nil
 }
 
@@ -216,5 +236,6 @@ func ReceiverConfigFromEnv() (*ReceiverConfig, error) {
 		Domains:    envParseDomains(domainsRaw),
 		Platform:   platform,
 		Debug:      envParseDebug(os.Getenv("WGROK_DEBUG")),
+		EncryptKey: parseEncryptKey(os.Getenv("WGROK_ENCRYPT_KEY")),
 	}, nil
 }

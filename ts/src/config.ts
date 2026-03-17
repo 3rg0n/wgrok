@@ -7,6 +7,7 @@ export interface SenderConfig {
   domains: string[];
   debug: boolean;
   platform: string;
+  encryptKey?: Buffer;
 }
 
 export interface BotConfig {
@@ -25,6 +26,7 @@ export interface ReceiverConfig {
   domains: string[];
   debug: boolean;
   platform: string;
+  encryptKey?: Buffer;
 }
 
 function envRequire(name: string): string {
@@ -85,6 +87,15 @@ export function parsePlatformTokens(): Record<string, string[]> {
   return tokens;
 }
 
+function parseEncryptKey(raw: string | undefined): Buffer | undefined {
+  if (!raw) return undefined;
+  try {
+    return Buffer.from(raw, 'base64');
+  } catch {
+    throw new Error('WGROK_ENCRYPT_KEY must be valid base64');
+  }
+}
+
 export function senderConfigFromEnv(envFile?: string): SenderConfig {
   if (envFile) dotenvConfig({ path: envFile, override: true });
   return {
@@ -94,6 +105,7 @@ export function senderConfigFromEnv(envFile?: string): SenderConfig {
     domains: parseDomains(process.env.WGROK_DOMAINS),
     debug: parseDebug(process.env.WGROK_DEBUG),
     platform: process.env.WGROK_PLATFORM || 'webex',
+    encryptKey: parseEncryptKey(process.env.WGROK_ENCRYPT_KEY),
   };
 }
 
@@ -130,5 +142,6 @@ export function receiverConfigFromEnv(envFile?: string): ReceiverConfig {
     domains: parseDomains(envRequire('WGROK_DOMAINS')),
     debug: parseDebug(process.env.WGROK_DEBUG),
     platform: process.env.WGROK_PLATFORM || 'webex',
+    encryptKey: parseEncryptKey(process.env.WGROK_ENCRYPT_KEY),
   };
 }

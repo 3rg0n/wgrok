@@ -41,13 +41,21 @@ impl WgrokSender {
     ) -> Result<Value, String> {
         let to = &self.config.slug;
         let from = &self.config.slug;
-        let flags = format_flags(compress, None, None);
+        let encrypted = self.config.encrypt_key.is_some();
 
-        let payload_to_send = if compress {
-            codec::compress(payload)?
-        } else {
-            payload.to_string()
-        };
+        let flags = format_flags(compress, encrypted, None, None);
+
+        let mut payload_to_send = payload.to_string();
+
+        // Compress if requested
+        if compress {
+            payload_to_send = codec::compress(&payload_to_send)?;
+        }
+
+        // Encrypt if key is configured
+        if let Some(key) = &self.config.encrypt_key {
+            payload_to_send = codec::encrypt(&payload_to_send, key)?;
+        }
 
         let text = format_echo(to, from, &flags, &payload_to_send);
         let limits = platform_limits();
@@ -66,7 +74,7 @@ impl WgrokSender {
             let mut last_result = Value::Null;
             for (i, ch) in chunks.iter().enumerate() {
                 let chunk_flags =
-                    format_flags(compress, Some(i + 1), Some(chunks.len()));
+                    format_flags(compress, encrypted, Some(i + 1), Some(chunks.len()));
                 let chunk_text = format_echo(to, from, &chunk_flags, ch);
                 last_result = platform::platform_send_message(
                     &self.config.platform,

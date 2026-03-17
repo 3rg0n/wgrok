@@ -7,6 +7,15 @@
     {"input": "a"}
   ],
 
+  "encrypt_roundtrips": [
+    {"input": "hello world"},
+    {"input": "{\"key\": \"value\"}"},
+    {"input": ""},
+    {"input": "a"}
+  ],
+
+  "encrypt_test_key": "tt7dPJslKrAF8lZ+ja9mIK6sIZLHw2FZwKxcAe7Wn1U=",
+
   "chunking": [
     {
       "input": "abcdefghij",

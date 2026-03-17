@@ -64,6 +64,21 @@ def _parse_int(raw: str | None) -> int | None:
     return int(raw.strip())
 
 
+def _parse_encrypt_key(raw: str | None) -> bytes | None:
+    """Parse base64-encoded encryption key. Must be exactly 32 bytes when decoded."""
+    if raw is None or not raw.strip():
+        return None
+    try:
+        import base64
+
+        key = base64.b64decode(raw.strip())
+        if len(key) != 32:
+            raise ValueError(f"encryption key must be 32 bytes when decoded, got {len(key)}")
+        return key
+    except Exception as e:
+        raise ValueError(f"Invalid encryption key format: {e}") from e
+
+
 def _parse_platform_tokens(env: dict[str, str] | None = None) -> dict[str, list[str]]:
     """Parse platform-specific token env vars into a dict of platform -> token list."""
     get = (env or os.environ).get
@@ -90,6 +105,7 @@ class SenderConfig:
     domains: list[str]
     debug: bool = False
     platform: str = "webex"
+    encrypt_key: bytes | None = None
 
     @classmethod
     def from_env(cls, env_file: str | None = None) -> SenderConfig:
@@ -101,6 +117,7 @@ class SenderConfig:
             domains=_parse_domains(os.environ.get("WGROK_DOMAINS", "")),
             debug=_parse_debug(os.environ.get("WGROK_DEBUG")),
             platform=_parse_platform(os.environ.get("WGROK_PLATFORM")),
+            encrypt_key=_parse_encrypt_key(os.environ.get("WGROK_ENCRYPT_KEY")),
         )
 
 
@@ -144,6 +161,7 @@ class ReceiverConfig:
     domains: list[str]
     debug: bool = False
     platform: str = "webex"
+    encrypt_key: bytes | None = None
 
     @classmethod
     def from_env(cls, env_file: str | None = None) -> ReceiverConfig:
@@ -154,4 +172,5 @@ class ReceiverConfig:
             domains=_parse_domains(_require("WGROK_DOMAINS")),
             debug=_parse_debug(os.environ.get("WGROK_DEBUG")),
             platform=_parse_platform(os.environ.get("WGROK_PLATFORM")),
+            encrypt_key=_parse_encrypt_key(os.environ.get("WGROK_ENCRYPT_KEY")),
         )

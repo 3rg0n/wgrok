@@ -55,11 +55,13 @@ type protocolCases struct {
 	ParseFlags []struct {
 		Input       string `json:"input"`
 		Compressed  bool   `json:"compressed"`
+		Encrypted   bool   `json:"encrypted"`
 		ChunkSeq    *int   `json:"chunk_seq"`
 		ChunkTotal  *int   `json:"chunk_total"`
 	} `json:"parse_flags"`
 	FormatFlags []struct {
 		Compressed bool   `json:"compressed"`
+		Encrypted  bool   `json:"encrypted"`
 		ChunkSeq   *int   `json:"chunk_seq"`
 		ChunkTotal *int   `json:"chunk_total"`
 		Expected   string `json:"expected"`
@@ -210,12 +212,15 @@ func TestParseFlags(t *testing.T) {
 	cases := loadProtocolCases(t)
 	for _, tc := range cases.ParseFlags {
 		t.Run(tc.Input, func(t *testing.T) {
-			compressed, chunkSeq, chunkTotal, err := ParseFlags(tc.Input)
+			compressed, encrypted, chunkSeq, chunkTotal, err := ParseFlags(tc.Input)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if compressed != tc.Compressed {
 				t.Errorf("compressed = %v, want %v", compressed, tc.Compressed)
+			}
+			if encrypted != tc.Encrypted {
+				t.Errorf("encrypted = %v, want %v", encrypted, tc.Encrypted)
 			}
 			var expectedSeq, expectedTotal int
 			if tc.ChunkSeq != nil {
@@ -245,9 +250,9 @@ func TestFormatFlags(t *testing.T) {
 			total = *tc.ChunkTotal
 		}
 		t.Run(tc.Expected, func(t *testing.T) {
-			got := FormatFlags(tc.Compressed, seq, total)
+			got := FormatFlags(tc.Compressed, tc.Encrypted, seq, total)
 			if got != tc.Expected {
-				t.Errorf("FormatFlags(%v, %d, %d) = %q, want %q", tc.Compressed, seq, total, got, tc.Expected)
+				t.Errorf("FormatFlags(%v, %v, %d, %d) = %q, want %q", tc.Compressed, tc.Encrypted, seq, total, got, tc.Expected)
 			}
 		})
 	}

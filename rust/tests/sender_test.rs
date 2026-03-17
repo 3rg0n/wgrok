@@ -56,6 +56,7 @@ async fn test_sender_cases() {
             domains: vec!["example.com".to_string()],
             debug: false,
             platform: "webex".to_string(),
+            encrypt_key: None,
         });
 
         let card = if tc.card.is_null() {

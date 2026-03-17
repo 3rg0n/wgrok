@@ -2,6 +2,8 @@ export { Allowlist } from './allowlist.js';
 export {
   compress,
   decompress,
+  encrypt,
+  decrypt,
   chunk,
 } from './codec.js';
 export { WgrokRouterBot } from './router-bot.js';

@@ -75,8 +75,9 @@ class TestParseResponse:
 class TestParseFlags:
     @pytest.mark.parametrize("tc", CASES["parse_flags"], ids=lambda tc: tc["input"])
     def test_cases(self, tc):
-        compressed, chunk_seq, chunk_total = parse_flags(tc["input"])
+        compressed, encrypted, chunk_seq, chunk_total = parse_flags(tc["input"])
         assert compressed is tc["compressed"]
+        assert encrypted is tc["encrypted"]
         assert chunk_seq == tc["chunk_seq"]
         assert chunk_total == tc["chunk_total"]
 
@@ -84,7 +85,7 @@ class TestParseFlags:
 class TestFormatFlags:
     @pytest.mark.parametrize("tc", CASES["format_flags"], ids=lambda tc: tc["expected"])
     def test_cases(self, tc):
-        result = format_flags(tc["compressed"], tc["chunk_seq"], tc["chunk_total"])
+        result = format_flags(tc["compressed"], tc["encrypted"], tc["chunk_seq"], tc["chunk_total"])
         assert result == tc["expected"]
 
 

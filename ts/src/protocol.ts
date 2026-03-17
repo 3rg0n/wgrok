@@ -48,12 +48,13 @@ export function parseResponse(text: string): { to: string; from: string; flags: 
   return { to, from, flags, payload };
 }
 
-export function parseFlags(flags: string): { compressed: boolean; chunkSeq: number | null; chunkTotal: number | null } {
+export function parseFlags(flags: string): { compressed: boolean; encrypted: boolean; chunkSeq: number | null; chunkTotal: number | null } {
   if (flags === '-') {
-    return { compressed: false, chunkSeq: null, chunkTotal: null };
+    return { compressed: false, encrypted: false, chunkSeq: null, chunkTotal: null };
   }
 
   let compressed = false;
+  let encrypted = false;
   let remaining = flags;
 
   if (flags.startsWith('z')) {
@@ -61,8 +62,13 @@ export function parseFlags(flags: string): { compressed: boolean; chunkSeq: numb
     remaining = flags.slice(1);
   }
 
+  if (remaining.startsWith('e')) {
+    encrypted = true;
+    remaining = remaining.slice(1);
+  }
+
   if (remaining === '') {
-    return { compressed, chunkSeq: null, chunkTotal: null };
+    return { compressed, encrypted, chunkSeq: null, chunkTotal: null };
   }
 
   const slashIdx = remaining.indexOf('/');
@@ -77,14 +83,18 @@ export function parseFlags(flags: string): { compressed: boolean; chunkSeq: numb
     throw new Error(`Invalid chunk numbers in flags: "${flags}"`);
   }
 
-  return { compressed, chunkSeq: seq, chunkTotal: total };
+  return { compressed, encrypted, chunkSeq: seq, chunkTotal: total };
 }
 
-export function formatFlags(compressed: boolean, chunkSeq: number | null = null, chunkTotal: number | null = null): string {
+export function formatFlags(compressed: boolean, encrypted: boolean = false, chunkSeq: number | null = null, chunkTotal: number | null = null): string {
   let result = '';
 
   if (compressed) {
     result += 'z';
+  }
+
+  if (encrypted) {
+    result += 'e';
   }
 
   if (chunkSeq !== null && chunkTotal !== null) {

@@ -14,8 +14,8 @@ interface ProtocolCases {
     valid: Array<{ input: string; to: string; from: string; flags: string; payload: string }>;
     errors: Array<{ input: string; error_contains: string }>;
   };
-  parse_flags: Array<{ input: string; compressed: boolean; chunk_seq: number | null; chunk_total: number | null }>;
-  format_flags: Array<{ compressed: boolean; chunk_seq: number | null; chunk_total: number | null; expected: string }>;
+  parse_flags: Array<{ input: string; compressed: boolean; encrypted: boolean; chunk_seq: number | null; chunk_total: number | null }>;
+  format_flags: Array<{ compressed: boolean; encrypted: boolean; chunk_seq: number | null; chunk_total: number | null; expected: string }>;
   roundtrips: {
     echo: Array<{ to: string; from: string; flags: string; payload: string }>;
     response: Array<{ to: string; from: string; flags: string; payload: string }>;
@@ -88,14 +88,15 @@ describe('parseFlags', () => {
   it.each(CASES.parse_flags)('$input', (tc) => {
     const result = parseFlags(tc.input);
     expect(result.compressed).toBe(tc.compressed);
+    expect(result.encrypted).toBe(tc.encrypted);
     expect(result.chunkSeq).toBe(tc.chunk_seq);
     expect(result.chunkTotal).toBe(tc.chunk_total);
   });
 });
 
 describe('formatFlags', () => {
-  it.each(CASES.format_flags)('compressed=$compressed seq=$chunk_seq total=$chunk_total', (tc) => {
-    expect(formatFlags(tc.compressed, tc.chunk_seq, tc.chunk_total)).toBe(tc.expected);
+  it.each(CASES.format_flags)('compressed=$compressed encrypted=$encrypted seq=$chunk_seq total=$chunk_total', (tc) => {
+    expect(formatFlags(tc.compressed, tc.encrypted, tc.chunk_seq, tc.chunk_total)).toBe(tc.expected);
   });
 });
 

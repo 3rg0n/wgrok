@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::env;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 
 #[derive(Debug, Clone)]
 pub struct SenderConfig {
@@ -9,6 +11,7 @@ pub struct SenderConfig {
     pub domains: Vec<String>,
     pub debug: bool,
     pub platform: String,
+    pub encrypt_key: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +32,7 @@ pub struct ReceiverConfig {
     pub domains: Vec<String>,
     pub debug: bool,
     pub platform: String,
+    pub encrypt_key: Option<Vec<u8>>,
 }
 
 fn env_require(name: &str) -> Result<String, String> {
@@ -45,6 +49,31 @@ fn parse_domains(raw: &str) -> Vec<String> {
 pub fn parse_debug(raw: &str) -> bool {
     let v = raw.trim().to_lowercase();
     v == "true" || v == "1" || v == "yes"
+}
+
+fn parse_encrypt_key() -> Option<Vec<u8>> {
+    match env::var("WGROK_ENCRYPT_KEY") {
+        Ok(key_str) => {
+            match BASE64.decode(&key_str) {
+                Ok(key_bytes) => {
+                    if key_bytes.len() == 32 {
+                        Some(key_bytes)
+                    } else {
+                        eprintln!(
+                            "Warning: WGROK_ENCRYPT_KEY decoded to {} bytes, expected 32 bytes",
+                            key_bytes.len()
+                        );
+                        None
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Warning: failed to base64-decode WGROK_ENCRYPT_KEY: {}", e);
+                    None
+                }
+            }
+        }
+        Err(_) => None,
+    }
 }
 
 fn parse_routes(raw: &str) -> HashMap<String, String> {
@@ -141,6 +170,7 @@ impl SenderConfig {
             domains: parse_domains(&env::var("WGROK_DOMAINS").unwrap_or_default()),
             debug: parse_debug(&env::var("WGROK_DEBUG").unwrap_or_default()),
             platform: env::var("WGROK_PLATFORM").unwrap_or_else(|_| "webex".to_string()),
+            encrypt_key: parse_encrypt_key(),
         })
     }
 }
@@ -178,6 +208,7 @@ impl ReceiverConfig {
             domains: parse_domains(&env_require("WGROK_DOMAINS")?),
             debug: parse_debug(&env::var("WGROK_DEBUG").unwrap_or_default()),
             platform: env::var("WGROK_PLATFORM").unwrap_or_else(|_| "webex".to_string()),
+            encrypt_key: parse_encrypt_key(),
         })
     }
 }

@@ -56,21 +56,30 @@ def parse_response(text: str) -> tuple[str, str, str, str]:
     return to, from_slug, flags, payload
 
 
-def parse_flags(flags: str) -> tuple[bool, int | None, int | None]:
-    """Parse flags string, returning (compressed, chunk_seq, chunk_total).
+def parse_flags(flags: str) -> tuple[bool, bool, int | None, int | None]:
+    """Parse flags string, returning (compressed, encrypted, chunk_seq, chunk_total).
 
     Flag formats:
-    - "-": (False, None, None)
-    - "z": (True, None, None)
-    - "1/3": (False, 1, 3)
-    - "z2/5": (True, 2, 5)
+    - "-": (False, False, None, None)
+    - "z": (True, False, None, None)
+    - "e": (False, True, None, None)
+    - "ze": (True, True, None, None)
+    - "1/3": (False, False, 1, 3)
+    - "z2/5": (True, False, 2, 5)
+    - "e1/3": (False, True, 1, 3)
+    - "ze2/5": (True, True, 2, 5)
     """
     compressed = False
+    encrypted = False
     chunk_seq = None
     chunk_total = None
 
     if flags.startswith("z"):
         compressed = True
+        flags = flags[1:]
+
+    if flags.startswith("e"):
+        encrypted = True
         flags = flags[1:]
 
     if "/" in flags:
@@ -82,21 +91,29 @@ def parse_flags(flags: str) -> tuple[bool, int | None, int | None]:
             except ValueError:
                 pass
 
-    return compressed, chunk_seq, chunk_total
+    return compressed, encrypted, chunk_seq, chunk_total
 
 
-def format_flags(compressed: bool, chunk_seq: int | None = None, chunk_total: int | None = None) -> str:
+def format_flags(
+    compressed: bool, encrypted: bool = False, chunk_seq: int | None = None, chunk_total: int | None = None
+) -> str:
     """Build flags string from components.
 
     Returns:
-    - "-": if not compressed and no chunking
+    - "-": if not compressed, not encrypted, and no chunking
     - "z": if compressed and no chunking
+    - "e": if encrypted and no chunking
+    - "ze": if compressed and encrypted and no chunking
     - "1/3": if chunking (seq 1 of 3)
     - "z2/5": if compressed and chunking
+    - "e1/3": if encrypted and chunking
+    - "ze2/5": if compressed, encrypted, and chunking
     """
     result = ""
     if compressed:
         result = "z"
+    if encrypted:
+        result += "e"
 
     if chunk_seq is not None and chunk_total is not None:
         result += f"{chunk_seq}/{chunk_total}"

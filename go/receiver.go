@@ -129,8 +129,8 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 		return
 	}
 
-	// Parse flags to extract compression and chunking info
-	compressed, chunkSeq, chunkTotal, _ := ParseFlags(flags)
+	// Parse flags to extract compression, encryption, and chunking info
+	compressed, encrypted, chunkSeq, chunkTotal, _ := ParseFlags(flags)
 
 	// Handle chunking
 	if chunkSeq > 0 {
@@ -154,6 +154,20 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 		r.chunkMu.Unlock()
 		payload = assembled.String()
 		r.logger.Debug(fmt.Sprintf("Reassembled %d chunks for slug %q from %s", chunkTotal, to, sender))
+	}
+
+	// Decrypt if needed
+	if encrypted {
+		if r.config.EncryptKey == nil {
+			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
+		} else {
+			decoded, err := Decrypt(payload, r.config.EncryptKey)
+			if err != nil {
+				r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
+				return
+			}
+			payload = decoded
+		}
 	}
 
 	// Decompress if needed
@@ -193,8 +207,8 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 		return
 	}
 
-	// Parse flags to extract compression and chunking info
-	compressed, chunkSeq, chunkTotal, _ := ParseFlags(flags)
+	// Parse flags to extract compression, encryption, and chunking info
+	compressed, encrypted, chunkSeq, chunkTotal, _ := ParseFlags(flags)
 
 	// Handle chunking
 	if chunkSeq > 0 {
@@ -215,6 +229,20 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 		delete(r.chunkBuffer, key)
 		r.chunkMu.Unlock()
 		payload = assembled.String()
+	}
+
+	// Decrypt if needed
+	if encrypted {
+		if r.config.EncryptKey == nil {
+			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
+		} else {
+			decoded, err := Decrypt(payload, r.config.EncryptKey)
+			if err != nil {
+				r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
+				return
+			}
+			payload = decoded
+		}
 	}
 
 	// Decompress if needed
@@ -253,8 +281,8 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 		return
 	}
 
-	// Parse flags to extract compression and chunking info
-	compressed, chunkSeq, chunkTotal, _ := ParseFlags(flags)
+	// Parse flags to extract compression, encryption, and chunking info
+	compressed, encrypted, chunkSeq, chunkTotal, _ := ParseFlags(flags)
 
 	// Handle chunking
 	if chunkSeq > 0 {
@@ -275,6 +303,20 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 		delete(r.chunkBuffer, key)
 		r.chunkMu.Unlock()
 		payload = assembled.String()
+	}
+
+	// Decrypt if needed
+	if encrypted {
+		if r.config.EncryptKey == nil {
+			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
+		} else {
+			decoded, err := Decrypt(payload, r.config.EncryptKey)
+			if err != nil {
+				r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
+				return
+			}
+			payload = decoded
+		}
 	}
 
 	// Decompress if needed

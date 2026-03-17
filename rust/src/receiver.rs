@@ -114,7 +114,7 @@ impl WgrokReceiver {
             return;
         }
 
-        let (compressed, chunk_seq, chunk_total) = parse_flags(&flags);
+        let (compressed, encrypted, chunk_seq, chunk_total) = parse_flags(&flags);
 
         // Handle chunking
         if let (Some(seq), Some(total)) = (chunk_seq, chunk_total) {
@@ -141,6 +141,18 @@ impl WgrokReceiver {
                 total, to, sender
             ));
             payload = assembled;
+        }
+
+        // Decrypt if needed
+        if encrypted {
+            if let Some(key) = &self.config.encrypt_key {
+                payload = codec::decrypt(&payload, key).unwrap_or_else(|e| {
+                    self.logger.warn(&format!("Decryption failed: {}", e));
+                    payload
+                });
+            } else {
+                self.logger.warn("Message is encrypted but WGROK_ENCRYPT_KEY not set, skipping decryption");
+            }
         }
 
         // Decompress if needed

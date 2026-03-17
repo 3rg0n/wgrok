@@ -46,11 +46,15 @@ class WgrokSender:
         """
         session = await self._ensure_session()
         from_slug = from_slug or self._config.slug
+        encrypted = self._config.encrypt_key is not None
 
         if compress:
             payload = codec.compress(payload)
 
-        flags = format_flags(compress)
+        if encrypted:
+            payload = codec.encrypt(payload, self._config.encrypt_key)
+
+        flags = format_flags(compress, encrypted)
         text = format_echo(self._config.slug, from_slug, flags, payload)
         platform = self._config.platform
         token = self._config.webex_token
@@ -72,7 +76,7 @@ class WgrokSender:
             )
             results = []
             for i, ch in enumerate(chunks):
-                chunk_flags = format_flags(compress, i + 1, len(chunks))
+                chunk_flags = format_flags(compress, encrypted, i + 1, len(chunks))
                 chunk_text = format_echo(self._config.slug, from_slug, chunk_flags, ch)
                 results.append(await platform_send_message(platform, token, target, chunk_text, session))
             return results

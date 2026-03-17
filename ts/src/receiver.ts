@@ -1,6 +1,6 @@
 import type { Logger } from 'webex-message-handler';
 import type { ReceiverConfig } from './config.js';
-import { decompress as codecDecompress } from './codec.js';
+import { decompress as codecDecompress, decrypt as codecDecrypt } from './codec.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
 import { parseResponse, parseFlags } from './protocol.js';
@@ -81,11 +81,12 @@ export class WgrokReceiver {
     }
 
     let compressed = false;
+    let encrypted = false;
     let chunkSeq: number | null = null;
     let chunkTotal: number | null = null;
 
     try {
-      ({ compressed, chunkSeq, chunkTotal } = parseFlags(flags));
+      ({ compressed, encrypted, chunkSeq, chunkTotal } = parseFlags(flags));
     } catch {
       this.logger.debug(`Ignoring message with invalid flags "${flags}"`);
       return;
@@ -110,6 +111,20 @@ export class WgrokReceiver {
       payload = parts.join('');
       this.chunkBuffer.delete(key);
       this.logger.debug(`Reassembled ${chunkTotal} chunks for to "${to}" from ${sender}`);
+    }
+
+    // Decrypt if encrypted
+    if (encrypted) {
+      if (!this.config.encryptKey) {
+        this.logger.warn(`Received encrypted message but no WGROK_ENCRYPT_KEY is set`);
+        return;
+      }
+      try {
+        payload = codecDecrypt(payload, this.config.encryptKey);
+      } catch (err) {
+        this.logger.warn(`Failed to decrypt message: ${err}`);
+        return;
+      }
     }
 
     // Decompress if compressed

@@ -1,7 +1,7 @@
 """wgrok - ngrok clone using Webex API as a message bus."""
 
 from .allowlist import Allowlist
-from .codec import compress, decompress
+from .codec import compress, decompress, decrypt, encrypt
 from .config import BotConfig, ReceiverConfig, SenderConfig
 from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
@@ -23,7 +23,9 @@ __all__ = [
     "WgrokSender",
     "compress",
     "create_listener",
+    "decrypt",
     "decompress",
+    "encrypt",
     "format_flags",
     "get_logger",
     "parse_flags",

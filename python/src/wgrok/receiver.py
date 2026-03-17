@@ -95,8 +95,8 @@ class WgrokReceiver:
             self._logger.debug(f"Ignoring message with slug {to!r} (expected {self._config.slug!r})")
             return
 
-        # Parse flags to get compression and chunking info
-        compressed, chunk_seq, chunk_total = parse_flags(flags_str)
+        # Parse flags to get compression, encryption, and chunking info
+        compressed, encrypted, chunk_seq, chunk_total = parse_flags(flags_str)
 
         # Check if this is a chunked payload
         if chunk_seq is not None and chunk_total is not None:
@@ -109,6 +109,19 @@ class WgrokReceiver:
             payload = "".join(self._chunk_buffer[key][i] for i in range(1, chunk_total + 1))
             del self._chunk_buffer[key]
             self._logger.debug(f"Reassembled {chunk_total} chunks for slug {to!r} from {sender}")
+
+        # Decrypt if marked as encrypted
+        if encrypted:
+            if not self._config.encrypt_key:
+                self._logger.warning(
+                    f"Message from {sender} marked as encrypted but no WGROK_ENCRYPT_KEY configured — skipping"
+                )
+                return
+            try:
+                payload = codec.decrypt(payload, self._config.encrypt_key)
+            except Exception as e:
+                self._logger.warning(f"Failed to decrypt message from {sender}: {e}")
+                return
 
         # Decompress if marked as compressed
         if compressed:

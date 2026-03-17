@@ -81,6 +81,7 @@ fn test_receiver_cases() {
                 domains: cases.config.domains.clone(),
                 debug: false,
                 platform: "webex".to_string(),
+                encrypt_key: None,
             },
             Box::new(move |slug: &str, payload: &str, cards: &[Value], from_slug: &str| {
                 *called_c.lock().unwrap() = true;
