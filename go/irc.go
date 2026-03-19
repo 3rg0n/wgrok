@@ -61,6 +61,9 @@ func ParseIRCConnectionString(connStr string) (*IRCParams, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid port: %s", portStr)
 			}
+			if parsedPort < 1 || parsedPort > 65535 {
+				return nil, fmt.Errorf("port out of range (1-65535): %d", parsedPort)
+			}
 			port = parsedPort
 		} else {
 			server = hostPort
@@ -77,6 +80,9 @@ func ParseIRCConnectionString(connStr string) (*IRCParams, error) {
 			parsedPort, err := strconv.Atoi(portStr)
 			if err != nil {
 				return nil, fmt.Errorf("invalid port: %s", portStr)
+			}
+			if parsedPort < 1 || parsedPort > 65535 {
+				return nil, fmt.Errorf("port out of range (1-65535): %d", parsedPort)
 			}
 			port = parsedPort
 		} else {

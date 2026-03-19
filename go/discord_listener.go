@@ -37,7 +37,8 @@ type DiscordListener struct {
 	running        bool
 	heartbeatDone  chan struct{}
 	stopHeartbeat  chan struct{}
-	sequence       *int
+	sequence       int
+	hasSequence    bool
 	seqMu          sync.Mutex
 }
 
@@ -74,7 +75,7 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 
 	// Wait for Hello (opcode 10)
 	var helloMsg map[string]interface{}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	_, data, err := ws.Read(ctx)
 	cancel()
 	if err != nil {
@@ -129,8 +130,15 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 			},
 		},
 	}
-	ctx, cancel = context.WithCancel(context.Background())
-	err = ws.Write(ctx, websocket.MessageText, mustMarshalJSON(identify))
+	identifyData, err := marshalJSON(identify)
+	if err != nil {
+		l.ws.Close(websocket.StatusNormalClosure, "")
+		l.ws = nil
+		l.running = false
+		return fmt.Errorf("marshal identify: %w", err)
+	}
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	err = ws.Write(ctx, websocket.MessageText, identifyData)
 	cancel()
 	if err != nil {
 		l.ws.Close(websocket.StatusNormalClosure, "")
@@ -156,7 +164,8 @@ func (l *DiscordListener) getGatewayURL() (string, error) {
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	// Limit response body to 1MB to prevent memory exhaustion
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return "", err
 	}
@@ -194,13 +203,22 @@ func (l *DiscordListener) heartbeatLoop(interval time.Duration) {
 			}
 
 			l.seqMu.Lock()
+			var seqVal interface{}
+			if l.hasSequence {
+				seqVal = l.sequence
+			}
 			heartbeat := map[string]interface{}{
 				"op": opHeartbeat,
-				"d":  l.sequence,
+				"d":  seqVal,
 			}
 			l.seqMu.Unlock()
+			hbData, err := marshalJSON(heartbeat)
+			if err != nil {
+				l.logger.Debug(fmt.Sprintf("marshal heartbeat: %v", err))
+				continue
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = l.ws.Write(ctx, websocket.MessageText, mustMarshalJSON(heartbeat))
+			_ = l.ws.Write(ctx, websocket.MessageText, hbData)
 			cancel()
 		}
 	}
@@ -211,7 +229,7 @@ func (l *DiscordListener) readLoop() {
 	defer l.close()
 
 	for l.running && l.ws != nil {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		_, data, err := l.ws.Read(ctx)
 		cancel()
 
@@ -227,9 +245,9 @@ func (l *DiscordListener) readLoop() {
 
 		// Track sequence number for heartbeat (mutex-protected)
 		if s, ok := msg["s"].(float64); ok {
-			seq := int(s)
 			l.seqMu.Lock()
-			l.sequence = &seq
+			l.sequence = int(s)
+			l.hasSequence = true
 			l.seqMu.Unlock()
 		}
 
@@ -308,7 +326,7 @@ func (l *DiscordListener) close() {
 	// Wait for heartbeat loop to finish
 	select {
 	case <-l.heartbeatDone:
-	case <-time.After(1 * time.Second):
+	case <-time.After(5 * time.Second):
 	}
 }
 
@@ -319,8 +337,7 @@ func (l *DiscordListener) Disconnect(ctx context.Context) error {
 	return nil
 }
 
-// Helper to marshal JSON data
-func mustMarshalJSON(v interface{}) []byte {
-	data, _ := json.Marshal(v)
-	return data
+// marshalJSON marshals v to JSON, returning an error if serialization fails.
+func marshalJSON(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
 }

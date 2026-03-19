@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"nhooyr.io/websocket"
 	wmh "github.com/3rg0n/webex-message-handler/go"
@@ -134,7 +135,7 @@ func (l *SlackListener) readLoop() {
 	defer l.close()
 
 	for l.running && l.ws != nil {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		messageType, data, err := l.ws.Read(ctx)
 		cancel()
 
@@ -159,10 +160,12 @@ func (l *SlackListener) handleEvent(raw string) {
 	// Acknowledge the envelope
 	if envelopeID, ok := envelope["envelope_id"].(string); ok && l.ws != nil {
 		ack := map[string]interface{}{"envelope_id": envelopeID}
-		ackData, _ := json.Marshal(ack)
-		ctx, cancel := context.WithCancel(context.Background())
-		_ = l.ws.Write(ctx, websocket.MessageText, ackData)
-		cancel()
+		ackData, err := json.Marshal(ack)
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = l.ws.Write(ctx, websocket.MessageText, ackData)
+			cancel()
+		}
 	}
 
 	// Check if this is an events_api envelope
