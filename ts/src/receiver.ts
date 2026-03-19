@@ -3,25 +3,28 @@ import type { ReceiverConfig } from './config.js';
 import { decompress as codecDecompress, decrypt as codecDecrypt } from './codec.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
-import { parseResponse, parseFlags } from './protocol.js';
+import { parseResponse, parseFlags, isPause, isResume } from './protocol.js';
 import { getMessage, getAttachmentAction, extractCards } from './webex.js';
 import { createListener, type IncomingMessage, type PlatformListener } from './listener.js';
 
 export type MessageHandler = (slug: string, payload: string, cards: unknown[], fromSlug: string) => void | Promise<void>;
+export type ControlHandler = (cmd: string) => void | Promise<void>;
 
 export class WgrokReceiver {
   private config: ReceiverConfig;
   private allowlist: Allowlist;
   private messageHandler: MessageHandler;
+  private controlHandler?: ControlHandler;
   private logger: Logger;
   private listener?: PlatformListener;
   private abortController?: AbortController;
   private chunkBuffer: Map<string, Map<number, string>> = new Map();
 
-  constructor(config: ReceiverConfig, handler: MessageHandler) {
+  constructor(config: ReceiverConfig, handler: MessageHandler, controlHandler?: ControlHandler) {
     this.config = config;
     this.allowlist = new Allowlist(config.domains);
     this.messageHandler = handler;
+    this.controlHandler = controlHandler;
     this.logger = getLogger(config.debug, 'wgrok.receiver');
   }
 
@@ -67,6 +70,23 @@ export class WgrokReceiver {
       return;
     }
 
+    // Handle control commands before parsing as response
+    if (isPause(text)) {
+      this.logger.info(`Received pause command from ${sender}`);
+      if (this.controlHandler) {
+        await this.controlHandler('pause');
+      }
+      return;
+    }
+
+    if (isResume(text)) {
+      this.logger.info(`Received resume command from ${sender}`);
+      if (this.controlHandler) {
+        await this.controlHandler('resume');
+      }
+      return;
+    }
+
     let to: string, from: string, flags: string, payload: string;
     try {
       ({ to, from, flags, payload } = parseResponse(text));
@@ -94,6 +114,10 @@ export class WgrokReceiver {
 
     // Handle chunked payload
     if (chunkSeq !== null && chunkTotal !== null) {
+      if (chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1) {
+        this.logger.warn(`Invalid chunk ${chunkSeq}/${chunkTotal} from ${sender}`);
+        return;
+      }
       const key = `${sender}:${to}`;
       if (!this.chunkBuffer.has(key)) {
         this.chunkBuffer.set(key, new Map());
@@ -129,7 +153,12 @@ export class WgrokReceiver {
 
     // Decompress if compressed
     if (compressed) {
-      payload = codecDecompress(payload);
+      try {
+        payload = codecDecompress(payload);
+      } catch (err) {
+        this.logger.warn(`Failed to decompress message: ${err}`);
+        return;
+      }
     }
 
     if (cards.length > 0) {

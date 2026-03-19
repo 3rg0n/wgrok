@@ -37,7 +37,10 @@ async def _request_with_retry(session, method, url, headers, **kwargs):
             if resp.status == 429:
                 if attempt >= MAX_RETRIES:
                     resp.raise_for_status()
-                retry_after = int(resp.headers.get("Retry-After", "1"))
+                try:
+                    retry_after = min(int(resp.headers.get("Retry-After", "1")), 300)
+                except (ValueError, TypeError):
+                    retry_after = 1
                 await asyncio.sleep(retry_after)
                 continue
             resp.raise_for_status()

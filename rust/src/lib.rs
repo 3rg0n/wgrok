@@ -13,7 +13,7 @@ pub mod router_bot;
 pub mod receiver;
 pub mod listener;
 
-pub use protocol::{ECHO_PREFIX, format_echo, parse_echo, is_echo, format_response, parse_response, parse_flags, format_flags};
+pub use protocol::{ECHO_PREFIX, PAUSE_CMD, RESUME_CMD, format_echo, parse_echo, is_echo, format_response, parse_response, parse_flags, format_flags, is_pause, is_resume};
 pub use codec::{compress, decompress, encrypt, decrypt};
 pub use allowlist::Allowlist;
 pub use config::{SenderConfig, BotConfig, ReceiverConfig};
@@ -25,5 +25,5 @@ pub use irc::{IrcParams, parse_connection_string, send_message as irc_send_messa
 pub use platform::{platform_send_message, platform_send_card};
 pub use sender::WgrokSender;
 pub use router_bot::WgrokRouterBot;
-pub use receiver::WgrokReceiver;
+pub use receiver::{WgrokReceiver, ControlHandler};
 pub use listener::{IncomingMessage, MessageCallback, PlatformListener, create_listener};

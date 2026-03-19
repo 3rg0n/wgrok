@@ -108,3 +108,123 @@ func TestWgrokReceiver(t *testing.T) {
 		})
 	}
 }
+
+func TestReceiverPauseControl(t *testing.T) {
+	controlCalled := false
+	var controlCmd string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"msg-1"}`))
+	}))
+	defer srv.Close()
+	overrideMessagesURL(t, srv.URL)
+
+	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+		t.Error("handler should not be called for control messages")
+	}
+
+	controlHandler := func(cmd string) {
+		controlCalled = true
+		controlCmd = cmd
+	}
+
+	receiver := NewReceiver(&ReceiverConfig{
+		WebexToken: "fake-token",
+		Slug:       "myslug",
+		Domains:    []string{"webex.bot"},
+	}, handler)
+	receiver.OnControl = controlHandler
+	receiver.client = srv.Client()
+
+	msg := wmh.DecryptedMessage{
+		PersonEmail: "sender@webex.bot",
+		Text:        "./pause",
+		ID:          "pause-msg-id",
+	}
+
+	receiver.onMessageWithCards(msg, []interface{}{})
+
+	if !controlCalled {
+		t.Error("expected OnControl to be called for pause message")
+	}
+	if controlCmd != "pause" {
+		t.Errorf("expected control cmd 'pause', got %q", controlCmd)
+	}
+}
+
+func TestReceiverResumeControl(t *testing.T) {
+	controlCalled := false
+	var controlCmd string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"msg-1"}`))
+	}))
+	defer srv.Close()
+	overrideMessagesURL(t, srv.URL)
+
+	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+		t.Error("handler should not be called for control messages")
+	}
+
+	controlHandler := func(cmd string) {
+		controlCalled = true
+		controlCmd = cmd
+	}
+
+	receiver := NewReceiver(&ReceiverConfig{
+		WebexToken: "fake-token",
+		Slug:       "myslug",
+		Domains:    []string{"webex.bot"},
+	}, handler)
+	receiver.OnControl = controlHandler
+	receiver.client = srv.Client()
+
+	msg := wmh.DecryptedMessage{
+		PersonEmail: "sender@webex.bot",
+		Text:        "./resume",
+		ID:          "resume-msg-id",
+	}
+
+	receiver.onMessageWithCards(msg, []interface{}{})
+
+	if !controlCalled {
+		t.Error("expected OnControl to be called for resume message")
+	}
+	if controlCmd != "resume" {
+		t.Errorf("expected control cmd 'resume', got %q", controlCmd)
+	}
+}
+
+func TestReceiverControlNoCallback(t *testing.T) {
+	// Test that receiver handles control messages gracefully even without a callback
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"msg-1"}`))
+	}))
+	defer srv.Close()
+	overrideMessagesURL(t, srv.URL)
+
+	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+		t.Error("handler should not be called for control messages")
+	}
+
+	receiver := NewReceiver(&ReceiverConfig{
+		WebexToken: "fake-token",
+		Slug:       "myslug",
+		Domains:    []string{"webex.bot"},
+	}, handler)
+	receiver.OnControl = nil // No callback set
+	receiver.client = srv.Client()
+
+	msg := wmh.DecryptedMessage{
+		PersonEmail: "sender@webex.bot",
+		Text:        "./pause",
+		ID:          "pause-msg-id",
+	}
+
+	// Should not panic
+	receiver.onMessageWithCards(msg, []interface{}{})
+}

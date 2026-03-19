@@ -1,4 +1,14 @@
 export const ECHO_PREFIX = './echo:';
+export const PAUSE_CMD = './pause';
+export const RESUME_CMD = './resume';
+
+export function isPause(text: string): boolean {
+  return text.trim() === PAUSE_CMD;
+}
+
+export function isResume(text: string): boolean {
+  return text.trim() === RESUME_CMD;
+}
 
 export function formatEcho(to: string, from: string, flags: string, payload: string): string {
   return ECHO_PREFIX + to + ':' + from + ':' + flags + ':' + payload;

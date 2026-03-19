@@ -96,3 +96,202 @@ func TestWgrokSender(t *testing.T) {
 		})
 	}
 }
+
+func TestSenderPause(t *testing.T) {
+	sendCount := 0
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sendCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"msg-1"}`))
+	}))
+	defer srv.Close()
+	overrideMessagesURL(t, srv.URL)
+
+	sender := NewSender(&SenderConfig{
+		WebexToken: "fake-token",
+		Target:     "target@webex.bot",
+		Slug:       "myslug",
+		Platform:   "webex",
+	})
+	sender.client = srv.Client()
+
+	// Pause without notification
+	err := sender.Pause(false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Send should buffer, not send
+	result, err := sender.Send("hello", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check that result indicates buffered
+	if buffered, ok := result["buffered"].(bool); !ok || !buffered {
+		t.Error("expected result to indicate buffered:true")
+	}
+
+	// No sends should have happened
+	if sendCount != 0 {
+		t.Errorf("expected 0 sends, got %d", sendCount)
+	}
+
+	// Check sender is paused
+	sender.pauseMu.Lock()
+	if !sender.paused {
+		t.Error("expected sender to be paused")
+	}
+	if len(sender.buffer) != 1 {
+		t.Errorf("expected 1 buffered message, got %d", len(sender.buffer))
+	}
+	sender.pauseMu.Unlock()
+}
+
+func TestSenderResume(t *testing.T) {
+	sendCount := 0
+	var capturedTexts []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sendCount++
+		var body map[string]interface{}
+		var buffer [4096]byte
+		n, _ := r.Body.Read(buffer[:])
+		json.Unmarshal(buffer[:n], &body)
+		if text, ok := body["text"].(string); ok {
+			capturedTexts = append(capturedTexts, text)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"msg-1"}`))
+	}))
+	defer srv.Close()
+	overrideMessagesURL(t, srv.URL)
+
+	sender := NewSender(&SenderConfig{
+		WebexToken: "fake-token",
+		Target:     "target@webex.bot",
+		Slug:       "myslug",
+		Platform:   "webex",
+	})
+	sender.client = srv.Client()
+
+	// Pause without notification
+	sender.Pause(false)
+
+	// Buffer a message
+	sender.Send("msg1", nil)
+	sender.Send("msg2", nil)
+
+	// Resume with notification
+	err := sender.Resume(true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have sent resume + 2 buffered messages = 3 sends
+	if sendCount != 3 {
+		t.Errorf("expected 3 sends (resume + 2 buffered), got %d", sendCount)
+	}
+
+	// First send should be the resume command
+	if sendCount > 0 && capturedTexts[0] != "./resume" {
+		t.Errorf("first send expected ./resume, got %s", capturedTexts[0])
+	}
+
+	// Check sender is no longer paused
+	sender.pauseMu.Lock()
+	if sender.paused {
+		t.Error("expected sender to not be paused after resume")
+	}
+	if len(sender.buffer) != 0 {
+		t.Errorf("expected 0 buffered messages after resume, got %d", len(sender.buffer))
+	}
+	sender.pauseMu.Unlock()
+}
+
+func TestSenderPauseNotify(t *testing.T) {
+	sendCount := 0
+	var capturedText string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sendCount++
+		var body map[string]interface{}
+		var buffer [4096]byte
+		n, _ := r.Body.Read(buffer[:])
+		json.Unmarshal(buffer[:n], &body)
+		if text, ok := body["text"].(string); ok {
+			capturedText = text
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"msg-1"}`))
+	}))
+	defer srv.Close()
+	overrideMessagesURL(t, srv.URL)
+
+	sender := NewSender(&SenderConfig{
+		WebexToken: "fake-token",
+		Target:     "target@webex.bot",
+		Slug:       "myslug",
+		Platform:   "webex",
+	})
+	sender.client = srv.Client()
+
+	// Pause with notification
+	err := sender.Pause(true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have sent pause command
+	if sendCount != 1 {
+		t.Errorf("expected 1 send for pause notification, got %d", sendCount)
+	}
+
+	if capturedText != "./pause" {
+		t.Errorf("expected pause notification text ./pause, got %s", capturedText)
+	}
+}
+
+func TestSenderResumeNotify(t *testing.T) {
+	sendCount := 0
+	var capturedTexts []string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sendCount++
+		var body map[string]interface{}
+		var buffer [4096]byte
+		n, _ := r.Body.Read(buffer[:])
+		json.Unmarshal(buffer[:n], &body)
+		if text, ok := body["text"].(string); ok {
+			capturedTexts = append(capturedTexts, text)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"msg-1"}`))
+	}))
+	defer srv.Close()
+	overrideMessagesURL(t, srv.URL)
+
+	sender := NewSender(&SenderConfig{
+		WebexToken: "fake-token",
+		Target:     "target@webex.bot",
+		Slug:       "myslug",
+		Platform:   "webex",
+	})
+	sender.client = srv.Client()
+
+	// Pause and buffer
+	sender.Pause(false)
+	sender.Send("msg1", nil)
+
+	// Resume without notification
+	err := sender.Resume(false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have only 1 send (buffered message, no resume notification)
+	if sendCount != 1 {
+		t.Errorf("expected 1 send without notification, got %d", sendCount)
+	}
+}

@@ -10,10 +10,11 @@ use crate::allowlist::Allowlist;
 use crate::codec;
 use crate::config::ReceiverConfig;
 use crate::logging::{get_logger, WgrokLogger};
-use crate::protocol::{parse_flags, parse_response};
+use crate::protocol::{parse_flags, parse_response, is_pause, is_resume};
 use crate::webex;
 
 pub type MessageHandler = Box<dyn Fn(&str, &str, &[Value], &str) + Send + Sync>;
+pub type ControlHandler = Box<dyn Fn(&str) + Send + Sync>;
 
 type ChunkKey = (String, String); // (sender, slug)
 
@@ -21,6 +22,7 @@ pub struct WgrokReceiver {
     config: ReceiverConfig,
     allowlist: Allowlist,
     handler: MessageHandler,
+    on_control: Option<ControlHandler>,
     logger: WgrokLogger,
     client: Client,
     chunk_buffer: Mutex<HashMap<ChunkKey, HashMap<usize, String>>>,
@@ -34,10 +36,15 @@ impl WgrokReceiver {
             config,
             allowlist,
             handler,
+            on_control: None,
             logger,
             client: Client::new(),
             chunk_buffer: Mutex::new(HashMap::new()),
         }
+    }
+
+    pub fn set_control_handler(&mut self, on_control: ControlHandler) {
+        self.on_control = Some(on_control);
     }
 
     pub async fn listen(&self, mut shutdown_rx: watch::Receiver<bool>) -> Result<(), String> {
@@ -97,6 +104,23 @@ impl WgrokReceiver {
             return;
         }
 
+        // Check for control commands before parsing as response
+        if is_pause(text) {
+            self.logger.info(&format!("Received pause command from {}", sender));
+            if let Some(ref handler) = self.on_control {
+                handler("pause");
+            }
+            return;
+        }
+
+        if is_resume(text) {
+            self.logger.info(&format!("Received resume command from {}", sender));
+            if let Some(ref handler) = self.on_control {
+                handler("resume");
+            }
+            return;
+        }
+
         let (to, from_slug, flags, mut payload) = match parse_response(text) {
             Ok(v) => v,
             Err(_) => {
@@ -118,6 +142,10 @@ impl WgrokReceiver {
 
         // Handle chunking
         if let (Some(seq), Some(total)) = (chunk_seq, chunk_total) {
+            if total > 999 || seq > total || seq < 1 {
+                self.logger.warn(&format!("Invalid chunk {}/{} from {}", seq, total, sender));
+                return;
+            }
             let key = (sender.clone(), to.clone());
             let mut buffer = self.chunk_buffer.lock().unwrap();
             buffer.entry(key.clone()).or_default().insert(seq, payload);
@@ -146,18 +174,28 @@ impl WgrokReceiver {
         // Decrypt if needed
         if encrypted {
             if let Some(key) = &self.config.encrypt_key {
-                payload = codec::decrypt(&payload, key).unwrap_or_else(|e| {
-                    self.logger.warn(&format!("Decryption failed: {}", e));
-                    payload
-                });
+                match codec::decrypt(&payload, key) {
+                    Ok(plaintext) => payload = plaintext,
+                    Err(e) => {
+                        self.logger.warn(&format!("Decryption failed: {}", e));
+                        return;
+                    }
+                }
             } else {
-                self.logger.warn("Message is encrypted but WGROK_ENCRYPT_KEY not set, skipping decryption");
+                self.logger.warn("Message is encrypted but WGROK_ENCRYPT_KEY not set, skipping");
+                return;
             }
         }
 
         // Decompress if needed
         if compressed {
-            payload = codec::decompress(&payload).unwrap_or(payload);
+            match codec::decompress(&payload) {
+                Ok(decompressed) => payload = decompressed,
+                Err(e) => {
+                    self.logger.warn(&format!("Decompression failed: {}", e));
+                    return;
+                }
+            }
         }
 
         if !cards.is_empty() {

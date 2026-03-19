@@ -83,6 +83,9 @@ func postMessage(token string, payload sendMessagePayload, client *http.Client) 
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
 					if parsed, err := strconv.Atoi(retryAfterStr); err == nil {
 						retryAfter = parsed
+						if retryAfter > 300 {
+							retryAfter = 300
+						}
 					}
 				}
 				time.Sleep(time.Duration(retryAfter) * time.Second)
@@ -136,6 +139,9 @@ func getJSON(token, url string, client *http.Client) (map[string]interface{}, er
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
 					if parsed, err := strconv.Atoi(retryAfterStr); err == nil {
 						retryAfter = parsed
+						if retryAfter > 300 {
+							retryAfter = 300
+						}
 					}
 				}
 				time.Sleep(time.Duration(retryAfter) * time.Second)

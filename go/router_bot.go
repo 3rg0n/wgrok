@@ -5,32 +5,45 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
 
+// bufferedMsg represents a message buffered during pause.
+type bufferedMsg struct {
+	response string
+	target   string
+	cards    []interface{}
+}
+
 // WgrokRouterBot listens for messages, validates allowlist, strips prefix, relays back.
 type WgrokRouterBot struct {
-	config     *BotConfig
-	allowlist  *Allowlist
-	logger     wmh.Logger
-	listeners  map[string]PlatformListener
-	client     *http.Client
-	cancel     context.CancelFunc
-	routes     map[string]string
+	config         *BotConfig
+	allowlist      *Allowlist
+	logger         wmh.Logger
+	listeners      map[string]PlatformListener
+	client         *http.Client
+	cancel         context.CancelFunc
+	routes         map[string]string
+	pausedTargets  map[string]bool
+	pauseBuffer    map[string][]bufferedMsg
+	pauseMu        sync.Mutex
 	// Deprecated: handler is kept for backward compatibility with existing tests
-	handler    *wmh.WebexMessageHandler
+	handler        *wmh.WebexMessageHandler
 }
 
 // NewRouterBot creates a new WgrokRouterBot.
 func NewRouterBot(config *BotConfig) *WgrokRouterBot {
 	return &WgrokRouterBot{
-		config:    config,
-		allowlist: NewAllowlist(config.Domains),
-		logger:    GetLogger(config.Debug, "wgrok.router_bot"),
-		listeners: make(map[string]PlatformListener),
-		client:    &http.Client{},
-		routes:    config.Routes,
+		config:        config,
+		allowlist:     NewAllowlist(config.Domains),
+		logger:        GetLogger(config.Debug, "wgrok.router_bot"),
+		listeners:     make(map[string]PlatformListener),
+		client:        &http.Client{},
+		routes:        config.Routes,
+		pausedTargets: make(map[string]bool),
+		pauseBuffer:   make(map[string][]bufferedMsg),
 	}
 }
 
@@ -140,6 +153,30 @@ func (b *WgrokRouterBot) onMessageFromListener(msg IncomingMessage) {
 		return
 	}
 
+	// Check for control messages before echo parsing
+	if IsPause(text) {
+		b.pauseMu.Lock()
+		b.pausedTargets[sender] = true
+		if b.pauseBuffer[sender] == nil {
+			b.pauseBuffer[sender] = []bufferedMsg{}
+		}
+		b.pauseMu.Unlock()
+		b.logger.Info(fmt.Sprintf("Paused message delivery for %s", sender))
+		return
+	}
+
+	if IsResume(text) {
+		b.pauseMu.Lock()
+		delete(b.pausedTargets, sender)
+		buffer := b.pauseBuffer[sender]
+		delete(b.pauseBuffer, sender)
+		b.pauseMu.Unlock()
+
+		b.logger.Info(fmt.Sprintf("Resumed message delivery for %s, flushing %d buffered message(s)", sender, len(buffer)))
+		b.flushBuffer(sender, buffer)
+		return
+	}
+
 	if !IsEcho(text) {
 		b.logger.Debug(fmt.Sprintf("Ignoring non-echo message from %s", sender))
 		return
@@ -159,6 +196,24 @@ func (b *WgrokRouterBot) onMessageFromListener(msg IncomingMessage) {
 		b.logger.Error(fmt.Sprintf("Failed to get send platform token: %v", err))
 		return
 	}
+
+	// Check if target is paused
+	b.pauseMu.Lock()
+	if b.pausedTargets[replyTo] {
+		b.logger.Info(fmt.Sprintf("Target %s is paused, buffering message", replyTo))
+		if len(b.pauseBuffer[replyTo]) >= 1000 {
+			b.logger.Warn(fmt.Sprintf("Pause buffer full for %s, dropping oldest message", replyTo))
+			b.pauseBuffer[replyTo] = b.pauseBuffer[replyTo][1:]
+		}
+		b.pauseBuffer[replyTo] = append(b.pauseBuffer[replyTo], bufferedMsg{
+			response: response,
+			target:   replyTo,
+			cards:    cards,
+		})
+		b.pauseMu.Unlock()
+		return
+	}
+	b.pauseMu.Unlock()
 
 	if len(cards) > 0 {
 		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
@@ -182,6 +237,30 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 		return
 	}
 
+	// Check for control messages before echo parsing
+	if IsPause(text) {
+		b.pauseMu.Lock()
+		b.pausedTargets[sender] = true
+		if b.pauseBuffer[sender] == nil {
+			b.pauseBuffer[sender] = []bufferedMsg{}
+		}
+		b.pauseMu.Unlock()
+		b.logger.Info(fmt.Sprintf("Paused message delivery for %s", sender))
+		return
+	}
+
+	if IsResume(text) {
+		b.pauseMu.Lock()
+		delete(b.pausedTargets, sender)
+		buffer := b.pauseBuffer[sender]
+		delete(b.pauseBuffer, sender)
+		b.pauseMu.Unlock()
+
+		b.logger.Info(fmt.Sprintf("Resumed message delivery for %s, flushing %d buffered message(s)", sender, len(buffer)))
+		b.flushBuffer(sender, buffer)
+		return
+	}
+
 	if !IsEcho(text) {
 		b.logger.Debug(fmt.Sprintf("Ignoring non-echo message from %s", sender))
 		return
@@ -201,6 +280,24 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 		b.logger.Error(fmt.Sprintf("Failed to get send platform token: %v", err))
 		return
 	}
+
+	// Check if target is paused
+	b.pauseMu.Lock()
+	if b.pausedTargets[replyTo] {
+		b.logger.Info(fmt.Sprintf("Target %s is paused, buffering message", replyTo))
+		if len(b.pauseBuffer[replyTo]) >= 1000 {
+			b.logger.Warn(fmt.Sprintf("Pause buffer full for %s, dropping oldest message", replyTo))
+			b.pauseBuffer[replyTo] = b.pauseBuffer[replyTo][1:]
+		}
+		b.pauseBuffer[replyTo] = append(b.pauseBuffer[replyTo], bufferedMsg{
+			response: response,
+			target:   replyTo,
+			cards:    cards,
+		})
+		b.pauseMu.Unlock()
+		return
+	}
+	b.pauseMu.Unlock()
 
 	if len(cards) > 0 {
 		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
@@ -223,6 +320,30 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 		return
 	}
 
+	// Check for control messages before echo parsing
+	if IsPause(text) {
+		b.pauseMu.Lock()
+		b.pausedTargets[sender] = true
+		if b.pauseBuffer[sender] == nil {
+			b.pauseBuffer[sender] = []bufferedMsg{}
+		}
+		b.pauseMu.Unlock()
+		b.logger.Info(fmt.Sprintf("Paused message delivery for %s", sender))
+		return
+	}
+
+	if IsResume(text) {
+		b.pauseMu.Lock()
+		delete(b.pausedTargets, sender)
+		buffer := b.pauseBuffer[sender]
+		delete(b.pauseBuffer, sender)
+		b.pauseMu.Unlock()
+
+		b.logger.Info(fmt.Sprintf("Resumed message delivery for %s, flushing %d buffered message(s)", sender, len(buffer)))
+		b.flushBuffer(sender, buffer)
+		return
+	}
+
 	if !IsEcho(text) {
 		b.logger.Debug(fmt.Sprintf("Ignoring non-echo message from %s", sender))
 		return
@@ -242,6 +363,25 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 		b.logger.Error(fmt.Sprintf("Failed to get send platform token: %v", err))
 		return
 	}
+
+	// Check if target is paused
+	b.pauseMu.Lock()
+	if b.pausedTargets[replyTo] {
+		b.logger.Info(fmt.Sprintf("Target %s is paused, buffering message", replyTo))
+		cards := b.fetchCards(msg.ID, "webex")
+		if len(b.pauseBuffer[replyTo]) >= 1000 {
+			b.logger.Warn(fmt.Sprintf("Pause buffer full for %s, dropping oldest message", replyTo))
+			b.pauseBuffer[replyTo] = b.pauseBuffer[replyTo][1:]
+		}
+		b.pauseBuffer[replyTo] = append(b.pauseBuffer[replyTo], bufferedMsg{
+			response: response,
+			target:   replyTo,
+			cards:    cards,
+		})
+		b.pauseMu.Unlock()
+		return
+	}
+	b.pauseMu.Unlock()
 
 	// Check for card attachments on the original message (only for webex)
 	cards := b.fetchCards(msg.ID, "webex")
@@ -268,4 +408,60 @@ func (b *WgrokRouterBot) fetchCards(messageID, platform string) []interface{} {
 		return nil
 	}
 	return ExtractCards(fullMsg)
+}
+
+// flushBuffer sends all buffered messages for a target and removes them from the buffer.
+func (b *WgrokRouterBot) flushBuffer(target string, buffer []bufferedMsg) {
+	platform, token, err := b.getSendPlatformToken()
+	if err != nil {
+		b.logger.Error(fmt.Sprintf("Failed to get send platform token for flush: %v", err))
+		return
+	}
+
+	for _, buffMsg := range buffer {
+		if len(buffMsg.cards) > 0 {
+			b.logger.Info(fmt.Sprintf("Flushing buffered message to %s (with %d card(s))", buffMsg.target, len(buffMsg.cards)))
+			_, err = PlatformSendCard(platform, token, buffMsg.target, buffMsg.response, buffMsg.cards[0], b.client)
+		} else {
+			b.logger.Info(fmt.Sprintf("Flushing buffered message to %s", buffMsg.target))
+			_, err = PlatformSendMessage(platform, token, buffMsg.target, buffMsg.response, b.client)
+		}
+		if err != nil {
+			b.logger.Error(fmt.Sprintf("Failed to send buffered message: %v", err))
+		}
+	}
+}
+
+// Pause sends a pause control message to all Mode C route targets.
+func (b *WgrokRouterBot) Pause() error {
+	platform, token, err := b.getSendPlatformToken()
+	if err != nil {
+		return fmt.Errorf("get send platform token: %w", err)
+	}
+
+	for _, target := range b.routes {
+		b.logger.Info(fmt.Sprintf("Sending pause to route target %s", target))
+		_, err = PlatformSendMessage(platform, token, target, PauseCmd, b.client)
+		if err != nil {
+			b.logger.Error(fmt.Sprintf("Failed to send pause to %s: %v", target, err))
+		}
+	}
+	return nil
+}
+
+// Resume sends a resume control message to all Mode C route targets.
+func (b *WgrokRouterBot) Resume() error {
+	platform, token, err := b.getSendPlatformToken()
+	if err != nil {
+		return fmt.Errorf("get send platform token: %w", err)
+	}
+
+	for _, target := range b.routes {
+		b.logger.Info(fmt.Sprintf("Sending resume to route target %s", target))
+		_, err = PlatformSendMessage(platform, token, target, ResumeCmd, b.client)
+		if err != nil {
+			b.logger.Error(fmt.Sprintf("Failed to send resume to %s: %v", target, err))
+		}
+	}
+	return nil
 }

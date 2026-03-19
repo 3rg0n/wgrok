@@ -65,7 +65,7 @@ async function postMessage(
     if (resp.status === 429) {
       if (attempt < MAX_RETRIES) {
         const retryAfter = resp.headers.get('Retry-After') || '1';
-        const delaySecs = parseInt(retryAfter, 10) || 1;
+        const delaySecs = Math.min(parseInt(retryAfter, 10) || 1, 300);
         await sleep(delaySecs * 1000);
         continue;
       }
@@ -115,7 +115,7 @@ async function getJSON(
     if (resp.status === 429) {
       if (attempt < MAX_RETRIES) {
         const retryAfter = resp.headers.get('Retry-After') || '1';
-        const delaySecs = parseInt(retryAfter, 10) || 1;
+        const delaySecs = Math.min(parseInt(retryAfter, 10) || 1, 300);
         await sleep(delaySecs * 1000);
         continue;
       }

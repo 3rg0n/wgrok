@@ -1,4 +1,6 @@
 pub const ECHO_PREFIX: &str = "./echo:";
+pub const PAUSE_CMD: &str = "./pause";
+pub const RESUME_CMD: &str = "./resume";
 
 /// Format a v2 echo message: ./echo:{to}:{from}:{flags}:{payload}
 pub fn format_echo(to: &str, from: &str, flags: &str, payload: &str) -> String {
@@ -116,4 +118,14 @@ pub fn format_flags(
     } else {
         result
     }
+}
+
+/// Check if text is a pause control command
+pub fn is_pause(text: &str) -> bool {
+    text.trim() == PAUSE_CMD
+}
+
+/// Check if text is a resume control command
+pub fn is_resume(text: &str) -> bool {
+    text.trim() == RESUME_CMD
 }

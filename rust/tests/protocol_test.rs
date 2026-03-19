@@ -12,6 +12,8 @@ struct ProtocolCases {
     parse_response: ParseCases,
     parse_flags: Vec<ParseFlagsCase>,
     format_flags: Vec<FormatFlagsCase>,
+    is_pause: Vec<IsPauseCase>,
+    is_resume: Vec<IsResumeCase>,
     roundtrips: Roundtrips,
 }
 
@@ -56,6 +58,18 @@ struct ParseError {
 
 #[derive(Deserialize)]
 struct IsEchoCase {
+    input: String,
+    expected: bool,
+}
+
+#[derive(Deserialize)]
+struct IsPauseCase {
+    input: String,
+    expected: bool,
+}
+
+#[derive(Deserialize)]
+struct IsResumeCase {
     input: String,
     expected: bool,
 }
@@ -230,5 +244,21 @@ fn test_response_roundtrip() {
         assert_eq!(from, tc.from);
         assert_eq!(flags, tc.flags);
         assert_eq!(payload, tc.payload);
+    }
+}
+
+#[test]
+fn test_is_pause() {
+    let cases = load_cases();
+    for tc in &cases.is_pause {
+        assert_eq!(is_pause(&tc.input), tc.expected, "is_pause(\"{}\")", tc.input);
+    }
+}
+
+#[test]
+fn test_is_resume() {
+    let cases = load_cases();
+    for tc in &cases.is_resume {
+        assert_eq!(is_resume(&tc.input), tc.expected, "is_resume(\"{}\")", tc.input);
     }
 }

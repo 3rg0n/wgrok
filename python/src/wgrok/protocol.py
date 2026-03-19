@@ -8,6 +8,8 @@ v2.0 wire format: ./echo:{to}:{from}:{flags}:{payload}
 """
 
 ECHO_PREFIX = "./echo:"
+PAUSE_CMD = "./pause"
+RESUME_CMD = "./resume"
 
 
 def format_echo(to: str, from_slug: str, flags: str, payload: str) -> str:
@@ -35,6 +37,16 @@ def parse_echo(text: str) -> tuple[str, str, str, str]:
 def is_echo(text: str) -> bool:
     """Check if text is an echo-formatted message."""
     return text.startswith(ECHO_PREFIX)
+
+
+def is_pause(text: str) -> bool:
+    """Check if text is a pause control command."""
+    return text.strip() == PAUSE_CMD
+
+
+def is_resume(text: str) -> bool:
+    """Check if text is a resume control command."""
+    return text.strip() == RESUME_CMD
 
 
 def format_response(to: str, from_slug: str, flags: str, payload: str) -> str:

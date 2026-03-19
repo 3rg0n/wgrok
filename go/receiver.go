@@ -14,6 +14,10 @@ import (
 // It receives the slug, payload, cards, and fromSlug (sender identifier).
 type MessageHandler func(slug, payload string, cards []interface{}, fromSlug string)
 
+// ControlHandler is the callback type for control messages (pause/resume).
+// It receives the control command name.
+type ControlHandler func(cmd string)
+
 // chunkKey identifies a chunk stream by sender + slug.
 type chunkKey struct {
 	sender string
@@ -25,6 +29,7 @@ type WgrokReceiver struct {
 	config      *ReceiverConfig
 	allowlist   *Allowlist
 	handler     MessageHandler
+	OnControl   ControlHandler
 	logger      wmh.Logger
 	listener    PlatformListener
 	client      *http.Client
@@ -118,6 +123,23 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 		return
 	}
 
+	// Check for control messages
+	if IsPause(text) {
+		r.logger.Info(fmt.Sprintf("Received pause from %s", sender))
+		if r.OnControl != nil {
+			r.OnControl("pause")
+		}
+		return
+	}
+
+	if IsResume(text) {
+		r.logger.Info(fmt.Sprintf("Received resume from %s", sender))
+		if r.OnControl != nil {
+			r.OnControl("resume")
+		}
+		return
+	}
+
 	to, from, flags, payload, err := ParseResponse(text)
 	if err != nil {
 		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
@@ -134,6 +156,10 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 
 	// Handle chunking
 	if chunkSeq > 0 {
+		if chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1 {
+			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender))
+			return
+		}
 		key := chunkKey{sender: sender, slug: to}
 		r.chunkMu.Lock()
 		if r.chunkBuffer[key] == nil {
@@ -160,22 +186,24 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 	if encrypted {
 		if r.config.EncryptKey == nil {
 			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
-		} else {
-			decoded, err := Decrypt(payload, r.config.EncryptKey)
-			if err != nil {
-				r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
-				return
-			}
-			payload = decoded
+			return
 		}
+		decoded, err := Decrypt(payload, r.config.EncryptKey)
+		if err != nil {
+			r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
+			return
+		}
+		payload = decoded
 	}
 
 	// Decompress if needed
 	if compressed {
 		decoded, err := Decompress(payload)
-		if err == nil {
-			payload = decoded
+		if err != nil {
+			r.logger.Warn(fmt.Sprintf("Decompress failed: %v", err))
+			return
 		}
+		payload = decoded
 	}
 
 	if len(cards) > 0 {
@@ -196,6 +224,23 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 		return
 	}
 
+	// Check for control messages
+	if IsPause(text) {
+		r.logger.Info(fmt.Sprintf("Received pause from %s", sender))
+		if r.OnControl != nil {
+			r.OnControl("pause")
+		}
+		return
+	}
+
+	if IsResume(text) {
+		r.logger.Info(fmt.Sprintf("Received resume from %s", sender))
+		if r.OnControl != nil {
+			r.OnControl("resume")
+		}
+		return
+	}
+
 	to, from, flags, payload, err := ParseResponse(text)
 	if err != nil {
 		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
@@ -212,6 +257,10 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 
 	// Handle chunking
 	if chunkSeq > 0 {
+		if chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1 {
+			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender))
+			return
+		}
 		key := chunkKey{sender: sender, slug: to}
 		r.chunkMu.Lock()
 		if r.chunkBuffer[key] == nil {
@@ -235,22 +284,24 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 	if encrypted {
 		if r.config.EncryptKey == nil {
 			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
-		} else {
-			decoded, err := Decrypt(payload, r.config.EncryptKey)
-			if err != nil {
-				r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
-				return
-			}
-			payload = decoded
+			return
 		}
+		decoded, err := Decrypt(payload, r.config.EncryptKey)
+		if err != nil {
+			r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
+			return
+		}
+		payload = decoded
 	}
 
 	// Decompress if needed
 	if compressed {
 		decoded, decErr := Decompress(payload)
-		if decErr == nil {
-			payload = decoded
+		if decErr != nil {
+			r.logger.Warn(fmt.Sprintf("Decompress failed: %v", decErr))
+			return
 		}
+		payload = decoded
 	}
 
 	if len(cards) > 0 {
@@ -270,6 +321,23 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 		return
 	}
 
+	// Check for control messages
+	if IsPause(text) {
+		r.logger.Info(fmt.Sprintf("Received pause from %s", sender))
+		if r.OnControl != nil {
+			r.OnControl("pause")
+		}
+		return
+	}
+
+	if IsResume(text) {
+		r.logger.Info(fmt.Sprintf("Received resume from %s", sender))
+		if r.OnControl != nil {
+			r.OnControl("resume")
+		}
+		return
+	}
+
 	to, from, flags, payload, err := ParseResponse(text)
 	if err != nil {
 		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
@@ -286,6 +354,10 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 
 	// Handle chunking
 	if chunkSeq > 0 {
+		if chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1 {
+			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender))
+			return
+		}
 		key := chunkKey{sender: sender, slug: to}
 		r.chunkMu.Lock()
 		if r.chunkBuffer[key] == nil {
@@ -309,22 +381,24 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 	if encrypted {
 		if r.config.EncryptKey == nil {
 			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
-		} else {
-			decoded, err := Decrypt(payload, r.config.EncryptKey)
-			if err != nil {
-				r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
-				return
-			}
-			payload = decoded
+			return
 		}
+		decoded, err := Decrypt(payload, r.config.EncryptKey)
+		if err != nil {
+			r.logger.Warn(fmt.Sprintf("Decrypt failed: %v", err))
+			return
+		}
+		payload = decoded
 	}
 
 	// Decompress if needed
 	if compressed {
 		decoded, decErr := Decompress(payload)
-		if decErr == nil {
-			payload = decoded
+		if decErr != nil {
+			r.logger.Warn(fmt.Sprintf("Decompress failed: %v", decErr))
+			return
 		}
+		payload = decoded
 	}
 
 	// Fetch card attachments from the full message

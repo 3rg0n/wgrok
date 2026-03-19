@@ -72,6 +72,24 @@
     {"compressed": true, "encrypted": true, "chunk_seq": 2, "chunk_total": 5, "expected": "ze2/5"}
   ],
 
+  "is_pause": [
+    {"input": "./pause", "expected": true},
+    {"input": "./resume", "expected": false},
+    {"input": "./echo:pause:from:-:payload", "expected": false},
+    {"input": "pause", "expected": false},
+    {"input": " ./pause ", "expected": true},
+    {"input": "", "expected": false}
+  ],
+
+  "is_resume": [
+    {"input": "./resume", "expected": true},
+    {"input": "./pause", "expected": false},
+    {"input": "./echo:resume:from:-:payload", "expected": false},
+    {"input": "resume", "expected": false},
+    {"input": " ./resume ", "expected": true},
+    {"input": "", "expected": false}
+  ],
+
   "roundtrips": {
     "echo": [
       {"to": "worker", "from": "relay", "flags": "-", "payload": "some data here"}

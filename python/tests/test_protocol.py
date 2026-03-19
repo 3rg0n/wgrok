@@ -11,6 +11,8 @@ from wgrok.protocol import (
     format_flags,
     format_response,
     is_echo,
+    is_pause,
+    is_resume,
     parse_echo,
     parse_flags,
     parse_response,
@@ -87,6 +89,18 @@ class TestFormatFlags:
     def test_cases(self, tc):
         result = format_flags(tc["compressed"], tc["encrypted"], tc["chunk_seq"], tc["chunk_total"])
         assert result == tc["expected"]
+
+
+class TestIsPause:
+    @pytest.mark.parametrize("tc", CASES["is_pause"], ids=lambda tc: tc["input"] or "(empty)")
+    def test_cases(self, tc):
+        assert is_pause(tc["input"]) is tc["expected"]
+
+
+class TestIsResume:
+    @pytest.mark.parametrize("tc", CASES["is_resume"], ids=lambda tc: tc["input"] or "(empty)")
+    def test_cases(self, tc):
+        assert is_resume(tc["input"]) is tc["expected"]
 
 
 class TestRoundtrips:

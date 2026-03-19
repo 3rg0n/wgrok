@@ -2,10 +2,16 @@ import type { Logger } from 'webex-message-handler';
 import type { BotConfig } from './config.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
-import { isEcho, parseEcho, formatResponse } from './protocol.js';
+import { isEcho, parseEcho, formatResponse, isPause, isResume } from './protocol.js';
 import { getMessage, extractCards } from './webex.js';
 import { platformSendMessage, platformSendCard } from './platform.js';
 import { createListener, type IncomingMessage, type PlatformListener } from './listener.js';
+
+interface BufferedMessage {
+  response: string;
+  target: string;
+  cards: unknown[];
+}
 
 export class WgrokRouterBot {
   private config: BotConfig;
@@ -14,6 +20,8 @@ export class WgrokRouterBot {
   private listeners: PlatformListener[] = [];
   private abortController?: AbortController;
   private routes: Record<string, string>;
+  private pausedTargets: Set<string> = new Set();
+  private pauseBuffer: Map<string, BufferedMessage[]> = new Map();
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -91,6 +99,23 @@ export class WgrokRouterBot {
       return;
     }
 
+    // Handle pause/resume commands before checking for echo
+    if (isPause(text)) {
+      this.logger.info(`Received pause command from ${sender}`);
+      this.pausedTargets.add(sender);
+      if (!this.pauseBuffer.has(sender)) {
+        this.pauseBuffer.set(sender, []);
+      }
+      return;
+    }
+
+    if (isResume(text)) {
+      this.logger.info(`Received resume command from ${sender}`);
+      await this.flushBuffer(sender);
+      this.pausedTargets.delete(sender);
+      return;
+    }
+
     if (!isEcho(text)) {
       this.logger.debug(`Ignoring non-echo message from ${sender}`);
       return;
@@ -107,6 +132,21 @@ export class WgrokRouterBot {
     const target = this.resolveTarget(to, sender);
     const response = formatResponse(to, from, flags, payload);
     const [platform, token] = this.getSendPlatformToken();
+
+    // Check if target is paused — if so, buffer instead of sending
+    if (this.pausedTargets.has(target)) {
+      this.logger.info(`Target ${target} is paused, buffering message`);
+      if (!this.pauseBuffer.has(target)) {
+        this.pauseBuffer.set(target, []);
+      }
+      const buf = this.pauseBuffer.get(target)!;
+      if (buf.length >= 1000) {
+        this.logger.warn(`Pause buffer full for ${target}, dropping oldest message`);
+        buf.shift();
+      }
+      buf.push({ response, target, cards });
+      return;
+    }
 
     if (cards.length > 0) {
       this.logger.info(`Relaying to ${target}: ${response} (with ${cards.length} card(s))`);
@@ -135,5 +175,47 @@ export class WgrokRouterBot {
       this.logger.debug(`Could not fetch message attachments: ${err}`);
       return [];
     }
+  }
+
+  async pause(): Promise<void> {
+    const [platform, token] = this.getSendPlatformToken();
+    for (const target of Object.values(this.routes)) {
+      this.logger.info(`Sending pause command to Mode C route target: ${target}`);
+      this.pausedTargets.add(target);
+      if (!this.pauseBuffer.has(target)) {
+        this.pauseBuffer.set(target, []);
+      }
+      await platformSendMessage(platform, token, target, './pause');
+    }
+  }
+
+  async resume(): Promise<void> {
+    const [platform, token] = this.getSendPlatformToken();
+    for (const target of Object.values(this.routes)) {
+      this.logger.info(`Sending resume command to Mode C route target: ${target}`);
+      await platformSendMessage(platform, token, target, './resume');
+      await this.flushBuffer(target);
+      this.pausedTargets.delete(target);
+    }
+  }
+
+  private async flushBuffer(target: string): Promise<void> {
+    const buffered = this.pauseBuffer.get(target);
+    if (!buffered || buffered.length === 0) {
+      return;
+    }
+
+    const [platform, token] = this.getSendPlatformToken();
+    this.logger.info(`Flushing ${buffered.length} buffered messages for ${target}`);
+
+    for (const msg of buffered) {
+      if (msg.cards.length > 0) {
+        await platformSendCard(platform, token, msg.target, msg.response, msg.cards[0]);
+      } else {
+        await platformSendMessage(platform, token, msg.target, msg.response);
+      }
+    }
+
+    this.pauseBuffer.delete(target);
   }
 }

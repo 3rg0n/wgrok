@@ -76,6 +76,9 @@ func postDiscordMessage(token, channelID string, payload discordMessagePayload, 
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
 					if parsed, err := strconv.Atoi(retryAfterStr); err == nil {
 						retryAfter = parsed
+						if retryAfter > 300 {
+							retryAfter = 300
+						}
 					}
 				}
 				time.Sleep(time.Duration(retryAfter) * time.Second)

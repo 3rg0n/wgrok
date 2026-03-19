@@ -9,6 +9,8 @@ import (
 )
 
 const EchoPrefix = "./echo:"
+const PauseCmd = "./pause"
+const ResumeCmd = "./resume"
 
 // FormatEcho formats an outgoing echo message: ./echo:{to}:{from}:{flags}:{payload}
 func FormatEcho(to, from, flags, payload string) string {
@@ -135,4 +137,14 @@ func FormatFlags(compressed, encrypted bool, chunkSeq, chunkTotal int) string {
 		return "-"
 	}
 	return result
+}
+
+// IsPause checks if text is a pause control message.
+func IsPause(text string) bool {
+	return strings.TrimSpace(text) == PauseCmd
+}
+
+// IsResume checks if text is a resume control message.
+func IsResume(text string) bool {
+	return strings.TrimSpace(text) == ResumeCmd
 }

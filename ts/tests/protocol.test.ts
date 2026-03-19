@@ -1,5 +1,5 @@
 import { loadCases } from './helpers';
-import { ECHO_PREFIX, formatEcho, parseEcho, isEcho, formatResponse, parseResponse, parseFlags, formatFlags } from '../src/protocol';
+import { ECHO_PREFIX, formatEcho, parseEcho, isEcho, isPause, isResume, formatResponse, parseResponse, parseFlags, formatFlags } from '../src/protocol';
 
 interface ProtocolCases {
   echo_prefix: string;
@@ -9,6 +9,8 @@ interface ProtocolCases {
     errors: Array<{ input: string; error_contains: string }>;
   };
   is_echo: Array<{ input: string; expected: boolean }>;
+  is_pause: Array<{ input: string; expected: boolean }>;
+  is_resume: Array<{ input: string; expected: boolean }>;
   format_response: Array<{ to: string; from: string; flags: string; payload: string; expected: string }>;
   parse_response: {
     valid: Array<{ input: string; to: string; from: string; flags: string; payload: string }>;
@@ -57,6 +59,18 @@ describe('parseEcho', () => {
 describe('isEcho', () => {
   it.each(CASES.is_echo)('$input -> $expected', (tc) => {
     expect(isEcho(tc.input)).toBe(tc.expected);
+  });
+});
+
+describe('isPause', () => {
+  it.each(CASES.is_pause)('$input -> $expected', (tc) => {
+    expect(isPause(tc.input)).toBe(tc.expected);
+  });
+});
+
+describe('isResume', () => {
+  it.each(CASES.is_resume)('$input -> $expected', (tc) => {
+    expect(isResume(tc.input)).toBe(tc.expected);
   });
 });
 

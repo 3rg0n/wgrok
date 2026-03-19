@@ -66,6 +66,14 @@ type protocolCases struct {
 		ChunkTotal *int   `json:"chunk_total"`
 		Expected   string `json:"expected"`
 	} `json:"format_flags"`
+	IsPause []struct {
+		Input    string `json:"input"`
+		Expected bool   `json:"expected"`
+	} `json:"is_pause"`
+	IsResume []struct {
+		Input    string `json:"input"`
+		Expected bool   `json:"expected"`
+	} `json:"is_resume"`
 	Roundtrips struct {
 		Echo []struct {
 			To      string `json:"to"`
@@ -285,6 +293,30 @@ func TestResponseRoundtrip(t *testing.T) {
 			}
 			if to != tc.To || from != tc.From || flags != tc.Flags || payload != tc.Payload {
 				t.Errorf("roundtrip failed: got (%q, %q, %q, %q), want (%q, %q, %q, %q)", to, from, flags, payload, tc.To, tc.From, tc.Flags, tc.Payload)
+			}
+		})
+	}
+}
+
+func TestIsPause(t *testing.T) {
+	cases := loadProtocolCases(t)
+	for _, tc := range cases.IsPause {
+		t.Run(tc.Input, func(t *testing.T) {
+			got := IsPause(tc.Input)
+			if got != tc.Expected {
+				t.Errorf("IsPause(%q) = %v, want %v", tc.Input, got, tc.Expected)
+			}
+		})
+	}
+}
+
+func TestIsResume(t *testing.T) {
+	cases := loadProtocolCases(t)
+	for _, tc := range cases.IsResume {
+		t.Run(tc.Input, func(t *testing.T) {
+			got := IsResume(tc.Input)
+			if got != tc.Expected {
+				t.Errorf("IsResume(%q) = %v, want %v", tc.Input, got, tc.Expected)
 			}
 		})
 	}

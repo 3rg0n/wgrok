@@ -90,8 +90,13 @@ export function parsePlatformTokens(): Record<string, string[]> {
 function parseEncryptKey(raw: string | undefined): Buffer | undefined {
   if (!raw) return undefined;
   try {
-    return Buffer.from(raw, 'base64');
-  } catch {
+    const buf = Buffer.from(raw, 'base64');
+    if (buf.length !== 32) {
+      throw new Error(`WGROK_ENCRYPT_KEY must decode to 32 bytes, got ${buf.length}`);
+    }
+    return buf;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('32 bytes')) throw err;
     throw new Error('WGROK_ENCRYPT_KEY must be valid base64');
   }
 }

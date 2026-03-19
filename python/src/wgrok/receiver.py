@@ -12,10 +12,11 @@ from .allowlist import Allowlist
 from .config import ReceiverConfig
 from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
-from .protocol import parse_flags, parse_response
+from .protocol import is_pause, is_resume, parse_flags, parse_response
 from .webex import extract_cards, get_attachment_action, get_message
 
 MessageHandler = Callable[[str, str, list[dict], str], Awaitable[None]]
+ControlHandler = Callable[[str], None] | None
 
 
 class WgrokReceiver:
@@ -25,10 +26,11 @@ class WgrokReceiver:
     list of adaptive card content dicts (empty if no cards attached).
     """
 
-    def __init__(self, config: ReceiverConfig, handler: MessageHandler) -> None:
+    def __init__(self, config: ReceiverConfig, handler: MessageHandler, on_control: ControlHandler = None) -> None:
         self._config = config
         self._allowlist = Allowlist(config.domains)
         self._handler_callback = handler
+        self._on_control = on_control
         self._logger = get_logger(config.debug, "wgrok.receiver")
         self._listener: PlatformListener | None = None
         self._session: aiohttp.ClientSession | None = None
@@ -85,6 +87,13 @@ class WgrokReceiver:
             self._logger.warning(f"Rejected message from {sender}: not in allowlist")
             return
 
+        if is_pause(text) or is_resume(text):
+            cmd = "pause" if is_pause(text) else "resume"
+            self._logger.info(f"Received {cmd} control from {sender}")
+            if self._on_control:
+                self._on_control(cmd)
+            return
+
         try:
             to, from_slug, flags_str, payload = parse_response(text)
         except ValueError:
@@ -100,6 +109,9 @@ class WgrokReceiver:
 
         # Check if this is a chunked payload
         if chunk_seq is not None and chunk_total is not None:
+            if chunk_total > 999 or chunk_seq > chunk_total or chunk_seq < 1:
+                self._logger.warning(f"Invalid chunk {chunk_seq}/{chunk_total} from {sender}")
+                return
             key = (sender, to)
             self._chunk_buffer.setdefault(key, {})[chunk_seq] = payload
             if len(self._chunk_buffer[key]) < chunk_total:

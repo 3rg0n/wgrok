@@ -115,7 +115,8 @@ async fn post_message(
                 .get("Retry-After")
                 .and_then(|h| h.to_str().ok())
                 .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(1);
+                .unwrap_or(1)
+                .min(300);
 
             sleep(Duration::from_secs(retry_after)).await;
             attempt += 1;
@@ -171,7 +172,8 @@ async fn get_json(token: &str, url: &str, client: &Client) -> Result<Value, Stri
                 .get("Retry-After")
                 .and_then(|h| h.to_str().ok())
                 .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(1);
+                .unwrap_or(1)
+                .min(300);
 
             sleep(Duration::from_secs(retry_after)).await;
             attempt += 1;

@@ -10,6 +10,7 @@ Optionally exposes a webhook endpoint when WGROK_WEBHOOK_PORT is configured.
 from __future__ import annotations
 
 import asyncio
+import hmac
 from typing import Any
 
 import aiohttp
@@ -19,7 +20,7 @@ from .config import BotConfig
 from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
 from .platform import platform_send_card, platform_send_message
-from .protocol import format_response, is_echo, parse_echo
+from .protocol import PAUSE_CMD, RESUME_CMD, format_response, is_echo, is_pause, is_resume, parse_echo
 from .webex import extract_cards, get_message
 
 
@@ -33,6 +34,8 @@ class WgrokRouterBot:
         self._session: aiohttp.ClientSession | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
         self._webhook_runner: Any = None
+        self._paused_targets: set[str] = set()
+        self._pause_buffer: dict[str, list[dict]] = {}
 
     async def run(self) -> None:
         """Connect to all configured platforms and listen for echo messages."""
@@ -98,7 +101,7 @@ class WgrokRouterBot:
         if self._config.webhook_secret:
             auth = request.headers.get("Authorization", "")
             expected = f"Bearer {self._config.webhook_secret}"
-            if auth != expected:
+            if not hmac.compare_digest(auth, expected):
                 self._logger.warning("Webhook request rejected: invalid authorization")
                 return web.json_response({"error": "unauthorized"}, status=401)
 
@@ -149,6 +152,16 @@ class WgrokRouterBot:
             self._logger.warning(f"Rejected message from {sender}: not in allowlist")
             return
 
+        if is_pause(text):
+            self._paused_targets.add(sender)
+            self._pause_buffer.setdefault(sender, [])
+            self._logger.info(f"Paused delivery to {sender}")
+            return
+
+        if is_resume(text):
+            await self._flush_buffer(sender)
+            return
+
         if not is_echo(text):
             self._logger.debug(f"Ignoring non-echo message from {sender}")
             return
@@ -168,12 +181,48 @@ class WgrokRouterBot:
             await self._fetch_cards(msg_id) if incoming.platform == "webex" else []
         )
 
+        if target in self._paused_targets:
+            buf = self._pause_buffer[target]
+            if len(buf) >= 1000:
+                self._logger.warning(f"Pause buffer full for {target}, dropping oldest message")
+                buf.pop(0)
+            buf.append({"response": response, "target": target, "cards": cards})
+            self._logger.info(f"Buffered message for paused target {target}")
+            return
+
         if cards:
             self._logger.info(f"Relaying to {target} via {platform}: {response} (with {len(cards)} card(s))")
             await platform_send_card(platform, token, target, response, cards[0], self._session)
         else:
             self._logger.info(f"Relaying to {target} via {platform}: {response}")
             await platform_send_message(platform, token, target, response, self._session)
+
+    async def _flush_buffer(self, target: str) -> None:
+        """Flush buffered messages for a target and resume delivery."""
+        self._paused_targets.discard(target)
+        buffered = self._pause_buffer.pop(target, [])
+        platform, token = self._get_send_platform_token()
+        for msg in buffered:
+            if msg["cards"]:
+                card = msg["cards"][0]
+                await platform_send_card(platform, token, msg["target"], msg["response"], card, self._session)
+            else:
+                await platform_send_message(platform, token, msg["target"], msg["response"], self._session)
+        self._logger.info(f"Resumed delivery to {target}, flushed {len(buffered)} message(s)")
+
+    async def pause(self) -> None:
+        """Send pause control to all registered agents (Mode C routes)."""
+        platform, token = self._get_send_platform_token()
+        for target in self._routes.values():
+            await platform_send_message(platform, token, target, PAUSE_CMD, self._session)
+            self._logger.info(f"Sent pause to {target}")
+
+    async def resume(self) -> None:
+        """Send resume control to all registered agents (Mode C routes)."""
+        platform, token = self._get_send_platform_token()
+        for target in self._routes.values():
+            await platform_send_message(platform, token, target, RESUME_CMD, self._session)
+            self._logger.info(f"Sent resume to {target}")
 
     async def _on_message(self, message) -> None:
         """Backward-compat: process a raw dict/object message (used by tests)."""

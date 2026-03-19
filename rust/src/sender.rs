@@ -7,7 +7,7 @@ use crate::codec;
 use crate::config::SenderConfig;
 use crate::logging::{get_logger, WgrokLogger};
 use crate::platform;
-use crate::protocol::{format_echo, format_flags, ECHO_PREFIX};
+use crate::protocol::{format_echo, format_flags, ECHO_PREFIX, PAUSE_CMD, RESUME_CMD};
 
 fn platform_limits() -> HashMap<&'static str, usize> {
     HashMap::from([("webex", 7439), ("slack", 4000), ("discord", 2000), ("irc", 400)])
@@ -17,6 +17,8 @@ pub struct WgrokSender {
     config: SenderConfig,
     client: Client,
     logger: WgrokLogger,
+    paused: bool,
+    buffer: Vec<(String, Option<Value>, bool)>,
 }
 
 impl WgrokSender {
@@ -26,19 +28,32 @@ impl WgrokSender {
             config,
             client: Client::new(),
             logger,
+            paused: false,
+            buffer: Vec::new(),
         }
     }
 
-    pub async fn send(&self, payload: &str, card: Option<&Value>) -> Result<Value, String> {
+    pub async fn send(&mut self, payload: &str, card: Option<&Value>) -> Result<Value, String> {
         self.send_with_options(payload, card, false).await
     }
 
     pub async fn send_with_options(
-        &self,
+        &mut self,
         payload: &str,
         card: Option<&Value>,
         compress: bool,
     ) -> Result<Value, String> {
+        // If paused, buffer the message and return immediately
+        if self.paused {
+            if self.buffer.len() >= 1000 {
+                self.logger.warn("Pause buffer full (1000), dropping oldest message");
+                self.buffer.remove(0);
+            }
+            self.buffer.push((payload.to_string(), card.cloned(), compress));
+            self.logger.debug(&format!("Message buffered (paused). Buffer size: {}", self.buffer.len()));
+            return Ok(Value::Null);
+        }
+
         let to = &self.config.slug;
         let from = &self.config.slug;
         let encrypted = self.config.encrypt_key.is_some();
@@ -113,5 +128,54 @@ impl WgrokSender {
                 .await
             }
         }
+    }
+
+    pub async fn pause(&mut self, notify: bool) -> Result<(), String> {
+        if notify {
+            self.logger.info("Sending pause command");
+            platform::platform_send_message(
+                &self.config.platform,
+                &self.config.webex_token,
+                &self.config.target,
+                PAUSE_CMD,
+                &self.client,
+            )
+            .await?;
+        }
+        self.paused = true;
+        self.logger.info("Sender paused");
+        Ok(())
+    }
+
+    pub async fn resume(&mut self, notify: bool) -> Result<(), String> {
+        self.paused = false;
+
+        if notify {
+            self.logger.info("Sending resume command");
+            platform::platform_send_message(
+                &self.config.platform,
+                &self.config.webex_token,
+                &self.config.target,
+                RESUME_CMD,
+                &self.client,
+            )
+            .await?;
+        }
+
+        self.logger.info("Sender resumed, flushing buffer");
+
+        // Flush buffered messages
+        let buffer_size = self.buffer.len();
+        let buffered = std::mem::take(&mut self.buffer);
+
+        for (payload, card, compress) in buffered {
+            self.send_with_options(&payload, card.as_ref(), compress).await?;
+        }
+
+        if buffer_size > 0 {
+            self.logger.info(&format!("Flushed {} buffered messages", buffer_size));
+        }
+
+        Ok(())
     }
 }

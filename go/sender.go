@@ -3,6 +3,7 @@ package wgrok
 import (
 	"fmt"
 	"net/http"
+	"sync"
 
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
@@ -15,11 +16,21 @@ var PlatformLimits = map[string]int{
 	"irc":     400,
 }
 
+// bufferedSend represents a message buffered during pause.
+type bufferedSend struct {
+	payload  string
+	card     interface{}
+	compress bool
+}
+
 // WgrokSender wraps payloads in the echo protocol and sends via Webex.
 type WgrokSender struct {
-	config *SenderConfig
-	client *http.Client
-	logger wmh.Logger
+	config  *SenderConfig
+	client  *http.Client
+	logger  wmh.Logger
+	paused  bool
+	buffer  []bufferedSend
+	pauseMu sync.Mutex
 }
 
 // NewSender creates a new WgrokSender.
@@ -40,6 +51,23 @@ func (s *WgrokSender) Send(payload string, card interface{}) (map[string]interfa
 
 // SendWithOptions is like Send but with an explicit compress flag.
 func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress bool) (map[string]interface{}, error) {
+	s.pauseMu.Lock()
+	if s.paused {
+		if len(s.buffer) >= 1000 {
+			s.logger.Warn("Pause buffer full (1000), dropping oldest message")
+			s.buffer = s.buffer[1:]
+		}
+		s.buffer = append(s.buffer, bufferedSend{
+			payload:  payload,
+			card:     card,
+			compress: compress,
+		})
+		s.pauseMu.Unlock()
+		s.logger.Info("Sender is paused, buffering message")
+		return map[string]interface{}{"buffered": true}, nil
+	}
+	s.pauseMu.Unlock()
+
 	encrypted := s.config.EncryptKey != nil
 
 	if compress {
@@ -97,4 +125,47 @@ func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress
 		return PlatformSendCard(s.config.Platform, s.config.WebexToken, s.config.Target, text, card, s.client)
 	}
 	return PlatformSendMessage(s.config.Platform, s.config.WebexToken, s.config.Target, text, s.client)
+}
+
+// Pause pauses message delivery. If notify is true, sends a pause control message to the target.
+func (s *WgrokSender) Pause(notify bool) error {
+	s.pauseMu.Lock()
+	s.paused = true
+	s.pauseMu.Unlock()
+
+	if notify {
+		s.logger.Info(fmt.Sprintf("Sending pause notification to %s", s.config.Target))
+		_, err := PlatformSendMessage(s.config.Platform, s.config.WebexToken, s.config.Target, PauseCmd, s.client)
+		if err != nil {
+			return fmt.Errorf("send pause message: %w", err)
+		}
+	}
+	return nil
+}
+
+// Resume resumes message delivery. If notify is true, sends a resume control message to the target.
+// Then flushes any buffered messages.
+func (s *WgrokSender) Resume(notify bool) error {
+	s.pauseMu.Lock()
+	s.paused = false
+	buffer := s.buffer
+	s.buffer = []bufferedSend{}
+	s.pauseMu.Unlock()
+
+	if notify {
+		s.logger.Info(fmt.Sprintf("Sending resume notification to %s", s.config.Target))
+		_, err := PlatformSendMessage(s.config.Platform, s.config.WebexToken, s.config.Target, ResumeCmd, s.client)
+		if err != nil {
+			return fmt.Errorf("send resume message: %w", err)
+		}
+	}
+
+	s.logger.Info(fmt.Sprintf("Resumed, flushing %d buffered message(s)", len(buffer)))
+	for _, buffSend := range buffer {
+		_, err := s.SendWithOptions(buffSend.payload, buffSend.card, buffSend.compress)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to send buffered message: %v", err))
+		}
+	}
+	return nil
 }

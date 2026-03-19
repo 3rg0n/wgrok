@@ -87,4 +87,114 @@ describe('WgrokRouterBot', () => {
       expect(mockSendCard).not.toHaveBeenCalled();
     }
   });
+
+  describe('pause/resume', () => {
+    it('pause command is recognized', async () => {
+      const bot = new WgrokRouterBot({
+        webexToken: 'fake-token',
+        domains: ['example.com'],
+        debug: false,
+        routes: {},
+        platformTokens: { webex: ['fake-token'] },
+        webhookPort: null,
+        webhookSecret: null,
+      });
+
+      const msg = fakeMsg('endpoint@example.com', './pause');
+      await bot.onMessageWithCards(msg, []);
+
+      expect(mockSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('pause buffers messages sent back to paused endpoint', async () => {
+      const bot = new WgrokRouterBot({
+        webexToken: 'fake-token',
+        domains: ['example.com'],
+        debug: false,
+        routes: {},
+        platformTokens: { webex: ['fake-token'] },
+        webhookPort: null,
+        webhookSecret: null,
+      });
+
+      // Endpoint pauses (in Mode B, this is the same as sender)
+      const pauseMsg = fakeMsg('endpoint@example.com', './pause');
+      await bot.onMessageWithCards(pauseMsg, []);
+
+      mockSendMessage.mockClear();
+
+      // Send echo from endpoint to itself (Mode B echo back)
+      const echoMsg = fakeMsg('endpoint@example.com', './echo:slug:from:-:test');
+      await bot.onMessageWithCards(echoMsg, []);
+
+      // Should buffer, not send
+      expect(mockSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('resume flushes buffered messages', async () => {
+      const bot = new WgrokRouterBot({
+        webexToken: 'fake-token',
+        domains: ['example.com'],
+        debug: false,
+        routes: {},
+        platformTokens: { webex: ['fake-token'] },
+        webhookPort: null,
+        webhookSecret: null,
+      });
+
+      // Endpoint pauses
+      const pauseMsg = fakeMsg('endpoint@example.com', './pause');
+      await bot.onMessageWithCards(pauseMsg, []);
+
+      // Buffer some messages
+      const echoMsg1 = fakeMsg('endpoint@example.com', './echo:slug:from:-:msg1');
+      await bot.onMessageWithCards(echoMsg1, []);
+
+      const echoMsg2 = fakeMsg('endpoint@example.com', './echo:slug:from:-:msg2');
+      await bot.onMessageWithCards(echoMsg2, []);
+
+      mockSendMessage.mockClear();
+
+      // Resume
+      const resumeMsg = fakeMsg('endpoint@example.com', './resume');
+      await bot.onMessageWithCards(resumeMsg, []);
+
+      // Should flush both buffered messages
+      expect(mockSendMessage).toHaveBeenCalledTimes(2);
+      const [, to1, text1] = mockSendMessage.mock.calls[0] as [string, string, string];
+      expect(to1).toBe('endpoint@example.com');
+      expect(text1).toBe('slug:from:-:msg1');
+
+      const [, to2, text2] = mockSendMessage.mock.calls[1] as [string, string, string];
+      expect(to2).toBe('endpoint@example.com');
+      expect(text2).toBe('slug:from:-:msg2');
+    });
+
+    it('pause does not affect messages to other endpoints', async () => {
+      const bot = new WgrokRouterBot({
+        webexToken: 'fake-token',
+        domains: ['example.com'],
+        debug: false,
+        routes: {},
+        platformTokens: { webex: ['fake-token'] },
+        webhookPort: null,
+        webhookSecret: null,
+      });
+
+      // endpoint1 pauses
+      const pauseMsg = fakeMsg('endpoint1@example.com', './pause');
+      await bot.onMessageWithCards(pauseMsg, []);
+
+      mockSendMessage.mockClear();
+
+      // Send echo from endpoint2 (not paused)
+      const echoMsg = fakeMsg('endpoint2@example.com', './echo:slug:from:-:test');
+      await bot.onMessageWithCards(echoMsg, []);
+
+      // Should send normally
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const [, to] = mockSendMessage.mock.calls[0] as [string, string];
+      expect(to).toBe('endpoint2@example.com');
+    });
+  });
 });

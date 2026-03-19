@@ -7,7 +7,7 @@ export {
   chunk,
 } from './codec.js';
 export { WgrokRouterBot } from './router-bot.js';
-export { WgrokReceiver, type MessageHandler } from './receiver.js';
+export { WgrokReceiver, type MessageHandler, type ControlHandler } from './receiver.js';
 export { WgrokSender } from './sender.js';
 export { NdjsonLogger, noopLogger, getLogger } from './logging.js';
 export {
@@ -22,9 +22,13 @@ export {
 } from './config.js';
 export {
   ECHO_PREFIX,
+  PAUSE_CMD,
+  RESUME_CMD,
   formatEcho,
   parseEcho,
   isEcho,
+  isPause,
+  isResume,
   formatResponse,
   parseResponse,
   parseFlags,

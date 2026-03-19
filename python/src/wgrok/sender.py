@@ -8,7 +8,7 @@ from . import codec
 from .config import SenderConfig
 from .logging import get_logger
 from .platform import platform_send_card, platform_send_message
-from .protocol import ECHO_PREFIX, format_echo, format_flags
+from .protocol import ECHO_PREFIX, PAUSE_CMD, RESUME_CMD, format_echo, format_flags
 
 PLATFORM_LIMITS = {
     "webex": 7439,
@@ -23,6 +23,8 @@ class WgrokSender:
         self._config = config
         self._session: aiohttp.ClientSession | None = None
         self._logger = get_logger(config.debug, "wgrok.sender")
+        self._paused = False
+        self._buffer: list[tuple] = []
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None:
@@ -44,6 +46,11 @@ class WgrokSender:
             compress: If True, gzip+base64 encode the payload.
             from_slug: Sender identifier (defaults to config slug).
         """
+        if self._paused:
+            self._buffer.append((payload, card, compress, from_slug))
+            self._logger.info("Buffered message (sender paused)")
+            return {"buffered": True}
+
         session = await self._ensure_session()
         from_slug = from_slug or self._config.slug
         encrypted = self._config.encrypt_key is not None
@@ -86,6 +93,42 @@ class WgrokSender:
             self._logger.info("Including card/rich content attachment")
             return await platform_send_card(platform, token, target, text, card, session)
         return await platform_send_message(platform, token, target, text, session)
+
+    async def pause(self, notify: bool = True) -> None:
+        """Pause sending — buffer all subsequent send() calls locally.
+
+        Args:
+            notify: If True (default), send ./pause to the router first.
+                    Set to False when pause is router-initiated.
+        """
+        if notify:
+            session = await self._ensure_session()
+            await platform_send_message(
+                self._config.platform, self._config.webex_token,
+                self._config.target, PAUSE_CMD, session,
+            )
+        self._paused = True
+        self._logger.info("Sender paused, buffering messages")
+
+    async def resume(self, notify: bool = True) -> None:
+        """Resume sending — flush buffered messages.
+
+        Args:
+            notify: If True (default), send ./resume to the router first.
+                    Set to False when resume is router-initiated.
+        """
+        self._paused = False
+        if notify:
+            session = await self._ensure_session()
+            await platform_send_message(
+                self._config.platform, self._config.webex_token,
+                self._config.target, RESUME_CMD, session,
+            )
+        buffered = self._buffer[:]
+        self._buffer.clear()
+        for p, c, comp, fs in buffered:
+            await self.send(p, c, comp, fs)
+        self._logger.info(f"Sender resumed, flushed {len(buffered)} message(s)")
 
     async def close(self) -> None:
         """Clean up the HTTP session."""

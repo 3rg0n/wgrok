@@ -12,6 +12,7 @@ export function decompress(data: string): string {
 }
 
 export function encrypt(data: string, key: Buffer): string {
+  if (key.length !== 32) throw new Error(`Encryption key must be 32 bytes, got ${key.length}`);
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
   const encrypted = Buffer.concat([cipher.update(data, 'utf-8'), cipher.final()]);
@@ -20,7 +21,9 @@ export function encrypt(data: string, key: Buffer): string {
 }
 
 export function decrypt(data: string, key: Buffer): string {
+  if (key.length !== 32) throw new Error(`Decryption key must be 32 bytes, got ${key.length}`);
   const raw = Buffer.from(data, 'base64');
+  if (raw.length < 28) throw new Error(`Encrypted payload too short: ${raw.length} bytes (minimum 28)`);
   const iv = raw.subarray(0, 12);
   const tag = raw.subarray(raw.length - 16);
   const ciphertext = raw.subarray(12, raw.length - 16);
