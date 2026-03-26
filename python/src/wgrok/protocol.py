@@ -7,7 +7,10 @@ v2.0 wire format: ./echo:{to}:{from}:{flags}:{payload}
 - payload: message body (can contain colons)
 """
 
+import re
+
 ECHO_PREFIX = "./echo:"
+_SPARK_MENTION_RE = re.compile(r'<spark-mention[^>]*>([^<]+)</spark-mention>')
 PAUSE_CMD = "./pause"
 RESUME_CMD = "./resume"
 
@@ -131,3 +134,16 @@ def format_flags(
         result += f"{chunk_seq}/{chunk_total}"
 
     return result if result else "-"
+
+
+def strip_bot_mention(text: str, html: str | None) -> str:
+    """Strip bot display name prefix from text using spark-mention tags in HTML."""
+    if not html:
+        return text
+    match = _SPARK_MENTION_RE.search(html)
+    if not match:
+        return text
+    display_name = match.group(1)
+    if text.startswith(display_name):
+        return text[len(display_name) :].lstrip()
+    return text

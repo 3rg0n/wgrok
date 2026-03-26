@@ -6,6 +6,15 @@ import (
 	"testing"
 )
 
+type stripMentionCases struct {
+	StripBotMention []struct {
+		Name     string  `json:"name"`
+		Text     string  `json:"text"`
+		HTML     *string `json:"html"`
+		Expected string  `json:"expected"`
+	} `json:"strip_bot_mention"`
+}
+
 type protocolCases struct {
 	EchoPrefix string `json:"echo_prefix"`
 	FormatEcho []struct {
@@ -88,6 +97,19 @@ type protocolCases struct {
 			Payload string `json:"payload"`
 		} `json:"response"`
 	} `json:"roundtrips"`
+}
+
+func loadStripMentionCases(t *testing.T) stripMentionCases {
+	t.Helper()
+	data, err := os.ReadFile("../tests/strip_mention_cases.json")
+	if err != nil {
+		t.Fatalf("load strip mention cases: %v", err)
+	}
+	var cases stripMentionCases
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatalf("parse strip mention cases: %v", err)
+	}
+	return cases
 }
 
 func loadProtocolCases(t *testing.T) protocolCases {
@@ -317,6 +339,22 @@ func TestIsResume(t *testing.T) {
 			got := IsResume(tc.Input)
 			if got != tc.Expected {
 				t.Errorf("IsResume(%q) = %v, want %v", tc.Input, got, tc.Expected)
+			}
+		})
+	}
+}
+
+func TestStripBotMention(t *testing.T) {
+	cases := loadStripMentionCases(t)
+	for _, tc := range cases.StripBotMention {
+		t.Run(tc.Name, func(t *testing.T) {
+			html := ""
+			if tc.HTML != nil {
+				html = *tc.HTML
+			}
+			got := StripBotMention(tc.Text, html)
+			if got != tc.Expected {
+				t.Errorf("StripBotMention(%q, %q) = %q, want %q", tc.Text, html, got, tc.Expected)
 			}
 		})
 	}

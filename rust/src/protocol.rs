@@ -129,3 +129,31 @@ pub fn is_pause(text: &str) -> bool {
 pub fn is_resume(text: &str) -> bool {
     text.trim() == RESUME_CMD
 }
+
+/// Strip bot display name prefix from text using spark-mention tags in HTML.
+/// Extracts the display name from <spark-mention>DisplayName</spark-mention>
+/// and removes it from the start of the text if present.
+pub fn strip_bot_mention(text: &str, html: &str) -> String {
+    if html.is_empty() {
+        return text.to_string();
+    }
+
+    // Find <spark-mention ...>DisplayName</spark-mention>
+    let start_tag = "<spark-mention";
+    let end_tag = "</spark-mention>";
+
+    if let Some(tag_start) = html.find(start_tag) {
+        // Find the closing > of the opening tag
+        if let Some(content_start_offset) = html[tag_start..].find('>') {
+            let content_start = tag_start + content_start_offset + 1;
+            if let Some(end_pos) = html[content_start..].find(end_tag) {
+                let display_name = &html[content_start..content_start + end_pos];
+                if let Some(stripped) = text.strip_prefix(display_name) {
+                    return stripped.trim_start().to_string();
+                }
+            }
+        }
+    }
+
+    text.to_string()
+}

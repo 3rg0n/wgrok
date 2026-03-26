@@ -4,6 +4,7 @@ package wgrok
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -11,6 +12,24 @@ import (
 const EchoPrefix = "./echo:"
 const PauseCmd = "./pause"
 const ResumeCmd = "./resume"
+
+var sparkMentionRe = regexp.MustCompile(`<spark-mention[^>]*>([^<]+)</spark-mention>`)
+
+// StripBotMention strips a bot display name prefix from text using spark-mention tags in HTML.
+func StripBotMention(text, html string) string {
+	if html == "" {
+		return text
+	}
+	matches := sparkMentionRe.FindStringSubmatch(html)
+	if len(matches) < 2 {
+		return text
+	}
+	displayName := matches[1]
+	if strings.HasPrefix(text, displayName) {
+		return strings.TrimLeft(text[len(displayName):], " ")
+	}
+	return text
+}
 
 // FormatEcho formats an outgoing echo message: ./echo:{to}:{from}:{flags}:{payload}
 func FormatEcho(to, from, flags, payload string) string {

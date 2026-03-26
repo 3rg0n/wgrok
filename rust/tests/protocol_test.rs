@@ -18,6 +18,19 @@ struct ProtocolCases {
 }
 
 #[derive(Deserialize)]
+struct StripMentionCases {
+    strip_bot_mention: Vec<StripMentionCase>,
+}
+
+#[derive(Deserialize)]
+struct StripMentionCase {
+    name: String,
+    text: String,
+    html: Option<String>,
+    expected: String,
+}
+
+#[derive(Deserialize)]
 struct FormatEchoCase {
     to: String,
     from: String,
@@ -260,5 +273,20 @@ fn test_is_resume() {
     let cases = load_cases();
     for tc in &cases.is_resume {
         assert_eq!(is_resume(&tc.input), tc.expected, "is_resume(\"{}\")", tc.input);
+    }
+}
+
+fn load_strip_mention_cases() -> StripMentionCases {
+    let data = fs::read_to_string("../tests/strip_mention_cases.json").expect("load strip mention cases");
+    serde_json::from_str(&data).expect("parse strip mention cases")
+}
+
+#[test]
+fn test_strip_bot_mention() {
+    let cases = load_strip_mention_cases();
+    for tc in &cases.strip_bot_mention {
+        let html = tc.html.as_deref().unwrap_or("");
+        let result = strip_bot_mention(&tc.text, html);
+        assert_eq!(result, tc.expected, "test case '{}': strip_bot_mention({:?}, {:?})", tc.name, tc.text, tc.html);
     }
 }

@@ -8,7 +8,7 @@ use crate::allowlist::Allowlist;
 use crate::config::BotConfig;
 use crate::logging::{get_logger, WgrokLogger};
 use crate::platform;
-use crate::protocol::{format_response, is_echo, parse_echo};
+use crate::protocol::{format_response, is_echo, parse_echo, strip_bot_mention};
 use crate::webex;
 
 pub struct WgrokRouterBot {
@@ -103,7 +103,8 @@ impl WgrokRouterBot {
 
     pub async fn on_message_with_cards(&self, msg: &DecryptedMessage, cards: &[Value]) {
         let sender = &msg.person_email;
-        let text = msg.text.trim();
+        let html = msg.html.as_deref().unwrap_or("");
+        let text = strip_bot_mention(msg.text.trim(), html);
 
         if !self.allowlist.is_allowed(sender) {
             self.logger
@@ -111,13 +112,13 @@ impl WgrokRouterBot {
             return;
         }
 
-        if !is_echo(text) {
+        if !is_echo(&text) {
             self.logger
                 .debug(&format!("Ignoring non-echo message from {}", sender));
             return;
         }
 
-        let (to, from_slug, flags, payload) = match parse_echo(text) {
+        let (to, from_slug, flags, payload) = match parse_echo(&text) {
             Ok(v) => v,
             Err(e) => {
                 self.logger

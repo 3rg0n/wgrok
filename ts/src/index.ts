@@ -33,6 +33,7 @@ export {
   parseResponse,
   parseFlags,
   formatFlags,
+  stripBotMention,
 } from './protocol.js';
 export {
   WEBEX_API_BASE,

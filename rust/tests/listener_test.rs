@@ -49,6 +49,7 @@ fn test_incoming_message_structure() {
     let msg = IncomingMessage {
         sender: "user@example.com".to_string(),
         text: "Hello, world!".to_string(),
+        html: String::new(),
         msg_id: "msg_123".to_string(),
         platform: "webex".to_string(),
         cards,
@@ -68,6 +69,7 @@ fn test_incoming_message_clone() {
     let msg1 = IncomingMessage {
         sender: "alice@example.com".to_string(),
         text: "Test message".to_string(),
+        html: String::new(),
         msg_id: "id_1".to_string(),
         platform: "slack".to_string(),
         cards: vec![],
@@ -88,6 +90,7 @@ async fn test_message_callback_mpsc() {
     let msg = IncomingMessage {
         sender: "test@example.com".to_string(),
         text: "Test".to_string(),
+        html: String::new(),
         msg_id: "123".to_string(),
         platform: "test".to_string(),
         cards: vec![],

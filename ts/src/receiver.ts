@@ -3,7 +3,7 @@ import type { ReceiverConfig } from './config.js';
 import { decompress as codecDecompress, decrypt as codecDecrypt } from './codec.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
-import { parseResponse, parseFlags, isPause, isResume } from './protocol.js';
+import { parseResponse, parseFlags, isPause, isResume, stripBotMention } from './protocol.js';
 import { getMessage, getAttachmentAction, extractCards } from './webex.js';
 import { createListener, type IncomingMessage, type PlatformListener } from './listener.js';
 
@@ -63,7 +63,7 @@ export class WgrokReceiver {
   /** Exposed for testing with injected cards */
   async onMessageWithCards(msg: IncomingMessage, cards: unknown[]): Promise<void> {
     const sender = msg.sender;
-    const text = msg.text;
+    const text = stripBotMention(msg.text, msg.html);
 
     if (!this.allowlist.isAllowed(sender)) {
       this.logger.warn(`Rejected message from ${sender}: not in allowlist`);

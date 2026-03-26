@@ -10,7 +10,7 @@ use crate::allowlist::Allowlist;
 use crate::codec;
 use crate::config::ReceiverConfig;
 use crate::logging::{get_logger, WgrokLogger};
-use crate::protocol::{parse_flags, parse_response, is_pause, is_resume};
+use crate::protocol::{parse_flags, parse_response, is_pause, is_resume, strip_bot_mention};
 use crate::webex;
 
 pub type MessageHandler = Box<dyn Fn(&str, &str, &[Value], &str) + Send + Sync>;
@@ -96,7 +96,8 @@ impl WgrokReceiver {
 
     pub fn on_message_with_cards(&self, msg: &DecryptedMessage, cards: &[Value]) {
         let sender = &msg.person_email;
-        let text = msg.text.trim();
+        let html = msg.html.as_deref().unwrap_or("");
+        let text = strip_bot_mention(msg.text.trim(), html);
 
         if !self.allowlist.is_allowed(sender) {
             self.logger
@@ -105,7 +106,7 @@ impl WgrokReceiver {
         }
 
         // Check for control commands before parsing as response
-        if is_pause(text) {
+        if is_pause(&text) {
             self.logger.info(&format!("Received pause command from {}", sender));
             if let Some(ref handler) = self.on_control {
                 handler("pause");
@@ -113,7 +114,7 @@ impl WgrokReceiver {
             return;
         }
 
-        if is_resume(text) {
+        if is_resume(&text) {
             self.logger.info(&format!("Received resume command from {}", sender));
             if let Some(ref handler) = self.on_control {
                 handler("resume");
@@ -121,7 +122,7 @@ impl WgrokReceiver {
             return;
         }
 
-        let (to, from_slug, flags, mut payload) = match parse_response(text) {
+        let (to, from_slug, flags, mut payload) = match parse_response(&text) {
             Ok(v) => v,
             Err(_) => {
                 self.logger

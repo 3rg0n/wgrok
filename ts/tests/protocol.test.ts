@@ -1,5 +1,5 @@
 import { loadCases } from './helpers';
-import { ECHO_PREFIX, formatEcho, parseEcho, isEcho, isPause, isResume, formatResponse, parseResponse, parseFlags, formatFlags } from '../src/protocol';
+import { ECHO_PREFIX, formatEcho, parseEcho, isEcho, isPause, isResume, formatResponse, parseResponse, parseFlags, formatFlags, stripBotMention } from '../src/protocol';
 
 interface ProtocolCases {
   echo_prefix: string;
@@ -24,7 +24,12 @@ interface ProtocolCases {
   };
 }
 
+interface StripMentionCases {
+  strip_bot_mention: Array<{ name: string; text: string; html: string | null; expected: string }>;
+}
+
 const CASES = loadCases<ProtocolCases>('protocol_cases.json');
+const STRIP_CASES = loadCases<StripMentionCases>('strip_mention_cases.json');
 
 describe('ECHO_PREFIX', () => {
   it('matches expected value', () => {
@@ -135,5 +140,11 @@ describe('roundtrips', () => {
       expect(result.flags).toBe(tc.flags);
       expect(result.payload).toBe(tc.payload);
     });
+  });
+});
+
+describe('stripBotMention', () => {
+  it.each(STRIP_CASES.strip_bot_mention)('$name', (tc) => {
+    expect(stripBotMention(tc.text, tc.html)).toBe(tc.expected);
   });
 });

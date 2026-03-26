@@ -146,6 +146,7 @@ func (b *WgrokRouterBot) getSendPlatformToken() (platform, token string, err err
 func (b *WgrokRouterBot) onMessageFromListener(msg IncomingMessage) {
 	sender := msg.Sender
 	text := msg.Text
+	text = StripBotMention(text, msg.HTML)
 	cards := msg.Cards
 
 	if !b.allowlist.IsAllowed(sender) {
@@ -231,6 +232,7 @@ func (b *WgrokRouterBot) onMessageFromListener(msg IncomingMessage) {
 func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []interface{}) {
 	sender := msg.PersonEmail
 	text := strings.TrimSpace(msg.Text)
+	text = StripBotMention(text, "")
 
 	if !b.allowlist.IsAllowed(sender) {
 		b.logger.Warn(fmt.Sprintf("Rejected message from %s: not in allowlist", sender))
@@ -314,6 +316,7 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 	sender := msg.PersonEmail
 	text := strings.TrimSpace(msg.Text)
+	text = StripBotMention(text, "")
 
 	if !b.allowlist.IsAllowed(sender) {
 		b.logger.Warn(fmt.Sprintf("Rejected message from %s: not in allowlist", sender))

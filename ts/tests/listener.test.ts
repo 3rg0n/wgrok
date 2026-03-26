@@ -39,6 +39,7 @@ describe('IncomingMessage', () => {
     const msg: IncomingMessage = {
       sender: 'user@example.com',
       text: 'Hello world',
+      html: '',
       msgId: 'msg-123',
       platform: 'webex',
       cards: [],
@@ -56,6 +57,7 @@ describe('IncomingMessage', () => {
     const msg: IncomingMessage = {
       sender: 'user@example.com',
       text: 'Message with card',
+      html: '',
       msgId: 'msg-456',
       platform: 'webex',
       cards: [card],

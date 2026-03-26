@@ -1,0 +1,76 @@
+{
+  "strip_bot_mention": [
+    {
+      "name": "no_html_returns_text_unchanged",
+      "text": "BotName ./echo:test:from:-:payload",
+      "html": null,
+      "expected": "BotName ./echo:test:from:-:payload"
+    },
+    {
+      "name": "empty_html_returns_text_unchanged",
+      "text": "BotName ./echo:test:from:-:payload",
+      "html": "",
+      "expected": "BotName ./echo:test:from:-:payload"
+    },
+    {
+      "name": "strips_bot_name_prefix",
+      "text": "Things Bot ./echo:test:from:-:payload",
+      "html": "<spark-mention data-object-type=\"person\" data-object-id=\"Y2lz\">Things Bot</spark-mention> ./echo:test:from:-:payload",
+      "expected": "./echo:test:from:-:payload"
+    },
+    {
+      "name": "strips_pause_mention",
+      "text": "Things Bot ./pause",
+      "html": "<spark-mention data-object-type=\"person\">Things Bot</spark-mention> ./pause",
+      "expected": "./pause"
+    },
+    {
+      "name": "strips_resume_mention",
+      "text": "Things Bot ./resume",
+      "html": "<spark-mention data-object-type=\"person\">Things Bot</spark-mention> ./resume",
+      "expected": "./resume"
+    },
+    {
+      "name": "no_mention_tag_returns_unchanged",
+      "text": "Things Bot ./echo:test:from:-:payload",
+      "html": "<p>Things Bot ./echo:test:from:-:payload</p>",
+      "expected": "Things Bot ./echo:test:from:-:payload"
+    },
+    {
+      "name": "text_already_clean_no_strip",
+      "text": "./echo:test:from:-:payload",
+      "html": "<spark-mention data-object-type=\"person\">Things Bot</spark-mention> ./echo:test:from:-:payload",
+      "expected": "./echo:test:from:-:payload"
+    },
+    {
+      "name": "mention_not_at_start_no_strip",
+      "text": "hello Things Bot ./echo:test:from:-:payload",
+      "html": "hello <spark-mention data-object-type=\"person\">Things Bot</spark-mention> ./echo:test:from:-:payload",
+      "expected": "hello Things Bot ./echo:test:from:-:payload"
+    },
+    {
+      "name": "multiple_spaces_after_mention_trimmed",
+      "text": "Bot   ./echo:test:from:-:payload",
+      "html": "<spark-mention data-object-type=\"person\">Bot</spark-mention>   ./echo:test:from:-:payload",
+      "expected": "./echo:test:from:-:payload"
+    },
+    {
+      "name": "display_name_with_special_chars",
+      "text": "Bot (v2.0) ./echo:test:from:-:payload",
+      "html": "<spark-mention data-object-type=\"person\">Bot (v2.0)</spark-mention> ./echo:test:from:-:payload",
+      "expected": "./echo:test:from:-:payload"
+    },
+    {
+      "name": "empty_text_returns_empty",
+      "text": "",
+      "html": "<spark-mention data-object-type=\"person\">Bot</spark-mention>",
+      "expected": ""
+    },
+    {
+      "name": "group_type_mention_also_stripped",
+      "text": "TestBot ./echo:test:from:-:data",
+      "html": "<spark-mention data-object-type=\"groupMention\">TestBot</spark-mention> ./echo:test:from:-:data",
+      "expected": "./echo:test:from:-:data"
+    }
+  ]
+}

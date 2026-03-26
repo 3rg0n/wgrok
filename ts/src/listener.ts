@@ -20,6 +20,7 @@ type DiscordData = Record<string, unknown>;
 export interface IncomingMessage {
   sender: string;
   text: string;
+  html: string;
   msgId: string;
   platform: string;
   cards: unknown[];
@@ -69,6 +70,7 @@ export class WebexListener implements PlatformListener {
       const incoming: IncomingMessage = {
         sender: msg.personEmail as string,
         text: ((msg.text as string) || '').trim(),
+        html: ((msg.html as string) || ''),
         msgId: msg.id as string,
         platform: 'webex',
         cards: [],
@@ -195,6 +197,7 @@ export class SlackListener implements PlatformListener {
       const incoming: IncomingMessage = {
         sender: (event.user as string) || '',
         text: (((event.text as string) || '').trim()),
+        html: '',
         msgId: (event.ts as string) || '',
         platform: 'slack',
         cards: [],
@@ -362,6 +365,7 @@ export class DiscordListener implements PlatformListener {
       const incoming: IncomingMessage = {
         sender: (author.id as string) || '',
         text: (((event.content as string) || '').trim()),
+        html: '',
         msgId: (event.id as string) || '',
         platform: 'discord',
         cards: embeds || [],
@@ -538,6 +542,7 @@ export class IrcListener implements PlatformListener {
           const incoming: IncomingMessage = {
             sender: nick,
             text: text.trim(),
+            html: '',
             msgId: '',
             platform: 'irc',
             cards: [],

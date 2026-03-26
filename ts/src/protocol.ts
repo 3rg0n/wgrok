@@ -2,6 +2,23 @@ export const ECHO_PREFIX = './echo:';
 export const PAUSE_CMD = './pause';
 export const RESUME_CMD = './resume';
 
+const SPARK_MENTION_RE = /<spark-mention[^>]*>([^<]+)<\/spark-mention>/;
+
+export function stripBotMention(text: string, html: string | null): string {
+  if (!html) {
+    return text;
+  }
+  const match = SPARK_MENTION_RE.exec(html);
+  if (!match) {
+    return text;
+  }
+  const displayName = match[1];
+  if (text.startsWith(displayName)) {
+    return text.slice(displayName.length).trimStart();
+  }
+  return text;
+}
+
 export function isPause(text: string): boolean {
   return text.trim() === PAUSE_CMD;
 }

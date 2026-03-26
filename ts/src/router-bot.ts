@@ -2,7 +2,7 @@ import type { Logger } from 'webex-message-handler';
 import type { BotConfig } from './config.js';
 import { Allowlist } from './allowlist.js';
 import { getLogger } from './logging.js';
-import { isEcho, parseEcho, formatResponse, isPause, isResume } from './protocol.js';
+import { isEcho, parseEcho, formatResponse, isPause, isResume, stripBotMention } from './protocol.js';
 import { getMessage, extractCards } from './webex.js';
 import { platformSendMessage, platformSendCard } from './platform.js';
 import { createListener, type IncomingMessage, type PlatformListener } from './listener.js';
@@ -92,7 +92,7 @@ export class WgrokRouterBot {
   /** Exposed for testing with injected cards */
   async onMessageWithCards(msg: IncomingMessage, cards: unknown[]): Promise<void> {
     const sender = msg.sender;
-    const text = msg.text;
+    const text = stripBotMention(msg.text, msg.html);
 
     if (!this.allowlist.isAllowed(sender)) {
       this.logger.warn(`Rejected message from ${sender}: not in allowlist`);

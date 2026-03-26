@@ -116,6 +116,7 @@ func (r *WgrokReceiver) FetchAction(actionID string) (map[string]interface{}, er
 func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 	sender := msg.Sender
 	text := msg.Text
+	text = StripBotMention(text, msg.HTML)
 	cards := msg.Cards
 
 	if !r.allowlist.IsAllowed(sender) {
@@ -218,6 +219,7 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []interface{}) {
 	sender := msg.PersonEmail
 	text := strings.TrimSpace(msg.Text)
+	text = StripBotMention(text, "")
 
 	if !r.allowlist.IsAllowed(sender) {
 		r.logger.Warn(fmt.Sprintf("Rejected message from %s: not in allowlist", sender))
@@ -315,6 +317,7 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 	sender := msg.PersonEmail
 	text := strings.TrimSpace(msg.Text)
+	text = StripBotMention(text, "")
 
 	if !r.allowlist.IsAllowed(sender) {
 		r.logger.Warn(fmt.Sprintf("Rejected message from %s: not in allowlist", sender))

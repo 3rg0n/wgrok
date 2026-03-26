@@ -11,6 +11,7 @@ import (
 type IncomingMessage struct {
 	Sender   string
 	Text     string
+	HTML     string
 	MsgID    string
 	Platform string
 	Cards    []interface{}

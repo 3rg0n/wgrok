@@ -16,6 +16,7 @@ from wgrok.protocol import (
     parse_echo,
     parse_flags,
     parse_response,
+    strip_bot_mention,
 )
 
 CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "protocol_cases.json").read_text())
@@ -121,3 +122,14 @@ class TestRoundtrips:
         assert from_slug == tc["from"]
         assert flags == tc["flags"]
         assert payload == tc["payload"]
+
+
+_strip_path = Path(__file__).resolve().parents[2] / "tests" / "strip_mention_cases.json"
+STRIP_MENTION_CASES = json.loads(_strip_path.read_text())
+
+
+class TestStripBotMention:
+    @pytest.mark.parametrize("tc", STRIP_MENTION_CASES["strip_bot_mention"], ids=lambda tc: tc["name"])
+    def test_cases(self, tc):
+        result = strip_bot_mention(tc["text"], tc["html"])
+        assert result == tc["expected"]

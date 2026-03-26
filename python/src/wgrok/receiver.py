@@ -12,7 +12,7 @@ from .allowlist import Allowlist
 from .config import ReceiverConfig
 from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
-from .protocol import is_pause, is_resume, parse_flags, parse_response
+from .protocol import is_pause, is_resume, parse_flags, parse_response, strip_bot_mention
 from .webex import extract_cards, get_attachment_action, get_message
 
 MessageHandler = Callable[[str, str, list[dict], str], Awaitable[None]]
@@ -80,7 +80,7 @@ class WgrokReceiver:
     async def _on_incoming(self, incoming: IncomingMessage) -> None:
         """Process a normalized incoming message from any platform."""
         sender = incoming.sender
-        text = incoming.text
+        text = strip_bot_mention(incoming.text, incoming.html)
         msg_id = incoming.msg_id
 
         if not self._allowlist.is_allowed(sender):

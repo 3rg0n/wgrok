@@ -20,7 +20,16 @@ from .config import BotConfig
 from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
 from .platform import platform_send_card, platform_send_message
-from .protocol import PAUSE_CMD, RESUME_CMD, format_response, is_echo, is_pause, is_resume, parse_echo
+from .protocol import (
+    PAUSE_CMD,
+    RESUME_CMD,
+    format_response,
+    is_echo,
+    is_pause,
+    is_resume,
+    parse_echo,
+    strip_bot_mention,
+)
 from .webex import extract_cards, get_message
 
 
@@ -118,7 +127,7 @@ class WgrokRouterBot:
 
         # Process through the same pipeline as WebSocket messages
         incoming = IncomingMessage(
-            sender=sender, text=text, msg_id="", platform="webhook", cards=[],
+            sender=sender, text=text, msg_id="", platform="webhook", cards=[], html="",
         )
         await self._on_incoming(incoming)
         return web.json_response({"status": "ok"})
@@ -145,7 +154,7 @@ class WgrokRouterBot:
     async def _on_incoming(self, incoming: IncomingMessage) -> None:
         """Process a normalized incoming message from any platform."""
         sender = incoming.sender
-        text = incoming.text
+        text = strip_bot_mention(incoming.text, incoming.html)
         msg_id = incoming.msg_id
 
         if not self._allowlist.is_allowed(sender):
@@ -231,8 +240,9 @@ class WgrokRouterBot:
         raw_text = message.text if hasattr(message, "text") else message.get("text", "")
         text = (raw_text or "").strip()
 
+        html = getattr(message, "html", "") or ""
         incoming = IncomingMessage(
-            sender=sender, text=text, msg_id=msg_id, platform="webex", cards=[],
+            sender=sender, text=text, msg_id=msg_id, platform="webex", cards=[], html=html,
         )
         await self._on_incoming(incoming)
 
