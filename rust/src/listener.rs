@@ -16,6 +16,8 @@ pub struct IncomingMessage {
     pub sender: String,
     pub text: String,
     pub html: String,
+    pub room_id: String,
+    pub room_type: String,
     pub msg_id: String,
     pub platform: String,
     pub cards: Vec<Value>,
@@ -153,6 +155,8 @@ impl PlatformListener for SlackListener {
                                             .trim()
                                             .to_string(),
                                         html: String::new(),
+                                        room_id: String::new(),
+                                        room_type: String::new(),
                                         msg_id: event
                                             .get("ts")
                                             .and_then(|v| v.as_str())
@@ -323,6 +327,8 @@ impl PlatformListener for DiscordListener {
                                                         .trim()
                                                         .to_string(),
                                                     html: String::new(),
+                                                    room_id: String::new(),
+                                                    room_type: String::new(),
                                                     msg_id: event
                                                         .get("id")
                                                         .and_then(|v| v.as_str())
@@ -537,6 +543,8 @@ impl IrcListener {
                                                 sender,
                                                 text: text.trim().to_string(),
                                                 html: String::new(),
+                                                room_id: String::new(),
+                                                room_type: String::new(),
                                                 msg_id: String::new(),
                                                 platform: "irc".to_string(),
                                                 cards: vec![],
@@ -675,6 +683,8 @@ mod tests {
             sender: "user@example.com".to_string(),
             text: "Hello".to_string(),
             html: String::new(),
+            room_id: String::new(),
+            room_type: String::new(),
             msg_id: "123".to_string(),
             platform: "webex".to_string(),
             cards: vec![],

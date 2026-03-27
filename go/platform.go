@@ -36,3 +36,19 @@ func PlatformSendCard(platform, token, target, text string, card interface{}, cl
 		return nil, fmt.Errorf("unsupported platform: %s", platform)
 	}
 }
+
+// PlatformSendMessageToRoom sends a text message to a room via the specified platform.
+func PlatformSendMessageToRoom(platform, token, roomID, text string, client *http.Client) (map[string]interface{}, error) {
+	if platform == "webex" {
+		return SendMessageToRoom(token, roomID, text, client)
+	}
+	return nil, fmt.Errorf("room-based send not supported for platform: %s", platform)
+}
+
+// PlatformSendCardToRoom sends a message with card/rich content to a room via the specified platform.
+func PlatformSendCardToRoom(platform, token, roomID, text string, card interface{}, client *http.Client) (map[string]interface{}, error) {
+	if platform == "webex" {
+		return SendCardToRoom(token, roomID, text, card, client)
+	}
+	return nil, fmt.Errorf("room-based send not supported for platform: %s", platform)
+}

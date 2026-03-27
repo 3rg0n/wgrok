@@ -17,7 +17,8 @@ interface CardAttachment {
 }
 
 interface SendMessagePayload {
-  toPersonEmail: string;
+  roomId?: string;
+  toPersonEmail?: string;
   text: string;
   attachments?: CardAttachment[];
 }
@@ -27,8 +28,11 @@ export async function sendMessage(
   toEmail: string,
   text: string,
   fetchFn: typeof fetch = globalThis.fetch,
+  roomId = '',
 ): Promise<Record<string, unknown>> {
-  const payload: SendMessagePayload = { toPersonEmail: toEmail, text };
+  const payload: SendMessagePayload = roomId
+    ? { roomId, text }
+    : { toPersonEmail: toEmail, text };
   return postMessage(token, payload, fetchFn);
 }
 
@@ -38,12 +42,19 @@ export async function sendCard(
   text: string,
   card: unknown,
   fetchFn: typeof fetch = globalThis.fetch,
+  roomId = '',
 ): Promise<Record<string, unknown>> {
-  const payload: SendMessagePayload = {
-    toPersonEmail: toEmail,
-    text,
-    attachments: [{ contentType: ADAPTIVE_CARD_CONTENT_TYPE, content: card }],
-  };
+  const payload: SendMessagePayload = roomId
+    ? {
+        roomId,
+        text,
+        attachments: [{ contentType: ADAPTIVE_CARD_CONTENT_TYPE, content: card }],
+      }
+    : {
+        toPersonEmail: toEmail,
+        text,
+        attachments: [{ contentType: ADAPTIVE_CARD_CONTENT_TYPE, content: card }],
+      };
   return postMessage(token, payload, fetchFn);
 }
 

@@ -140,10 +140,10 @@ def strip_bot_mention(text: str, html: str | None) -> str:
     """Strip bot display name prefix from text using spark-mention tags in HTML."""
     if not html:
         return text
-    match = _SPARK_MENTION_RE.search(html)
-    if not match:
-        return text
-    display_name = match.group(1)
-    if text.startswith(display_name):
-        return text[len(display_name) :].lstrip()
-    return text
+    result = text
+    for match in _SPARK_MENTION_RE.finditer(html):
+        display_name = match.group(1)
+        if result.startswith(display_name):
+            result = result[len(display_name) :]
+        result = result.strip()
+    return result

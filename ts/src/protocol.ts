@@ -2,21 +2,23 @@ export const ECHO_PREFIX = './echo:';
 export const PAUSE_CMD = './pause';
 export const RESUME_CMD = './resume';
 
-const SPARK_MENTION_RE = /<spark-mention[^>]*>([^<]+)<\/spark-mention>/;
+const SPARK_MENTION_RE = /<spark-mention[^>]*>([^<]+)<\/spark-mention>/g;
 
 export function stripBotMention(text: string, html: string | null): string {
   if (!html) {
     return text;
   }
-  const match = SPARK_MENTION_RE.exec(html);
-  if (!match) {
-    return text;
+  let result = text;
+  // Reset lastIndex since regex has 'g' flag
+  SPARK_MENTION_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = SPARK_MENTION_RE.exec(html)) !== null) {
+    if (result.startsWith(match[1])) {
+      result = result.slice(match[1].length);
+    }
+    result = result.trim();
   }
-  const displayName = match[1];
-  if (text.startsWith(displayName)) {
-    return text.slice(displayName.length).trimStart();
-  }
-  return text;
+  return result;
 }
 
 export function isPause(text: string): boolean {

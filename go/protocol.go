@@ -20,15 +20,12 @@ func StripBotMention(text, html string) string {
 	if html == "" {
 		return text
 	}
-	matches := sparkMentionRe.FindStringSubmatch(html)
-	if len(matches) < 2 {
-		return text
+	result := text
+	for _, m := range sparkMentionRe.FindAllStringSubmatch(html, -1) {
+		result = strings.TrimPrefix(result, m[1])
+		result = strings.TrimSpace(result)
 	}
-	displayName := matches[1]
-	if strings.HasPrefix(text, displayName) {
-		return strings.TrimLeft(text[len(displayName):], " ")
-	}
-	return text
+	return result
 }
 
 // FormatEcho formats an outgoing echo message: ./echo:{to}:{from}:{flags}:{payload}

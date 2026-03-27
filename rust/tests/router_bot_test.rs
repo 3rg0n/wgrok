@@ -26,6 +26,7 @@ struct RouterBotCase {
     text: String,
     cards: Vec<Value>,
     expect_send: bool,
+    #[allow(dead_code)]
     expected_reply_to: Option<String>,
     expected_reply_text: Option<String>,
     expected_reply_card: Option<Value>,
@@ -109,13 +110,18 @@ async fn test_router_bot_cases() {
             );
 
             let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
-            if let Some(ref expected_to) = tc.expected_reply_to {
-                assert_eq!(
-                    body["toPersonEmail"], *expected_to,
-                    "case {}: reply_to mismatch",
-                    tc.name
-                );
-            }
+            // fake_msg always has room_id="room-abc", so bot routes via roomId
+            assert_eq!(
+                body["roomId"], "room-abc",
+                "case {}: expected roomId routing",
+                tc.name
+            );
+            // Verify toPersonEmail is absent when roomId is used
+            assert!(
+                body.get("toPersonEmail").is_none(),
+                "case {}: toPersonEmail should not be set when roomId is present",
+                tc.name
+            );
             if let Some(ref expected_text) = tc.expected_reply_text {
                 assert_eq!(
                     body["text"], *expected_text,

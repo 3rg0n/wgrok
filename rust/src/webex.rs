@@ -50,6 +50,15 @@ struct SendMessagePayload {
 }
 
 #[derive(Serialize)]
+struct RoomMessagePayload {
+    #[serde(rename = "roomId")]
+    room_id: String,
+    text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    attachments: Option<Vec<CardAttachment>>,
+}
+
+#[derive(Serialize)]
 struct CardAttachment {
     #[serde(rename = "contentType")]
     content_type: String,
@@ -88,9 +97,41 @@ pub async fn send_card(
     post_message(token, &payload, client).await
 }
 
-async fn post_message(
+pub async fn send_message_to_room(
     token: &str,
-    payload: &SendMessagePayload,
+    room_id: &str,
+    text: &str,
+    client: &Client,
+) -> Result<Value, String> {
+    let payload = RoomMessagePayload {
+        room_id: room_id.to_string(),
+        text: text.to_string(),
+        attachments: None,
+    };
+    post_message(token, &payload, client).await
+}
+
+pub async fn send_card_to_room(
+    token: &str,
+    room_id: &str,
+    text: &str,
+    card: &Value,
+    client: &Client,
+) -> Result<Value, String> {
+    let payload = RoomMessagePayload {
+        room_id: room_id.to_string(),
+        text: text.to_string(),
+        attachments: Some(vec![CardAttachment {
+            content_type: ADAPTIVE_CARD_CONTENT_TYPE.to_string(),
+            content: card.clone(),
+        }]),
+    };
+    post_message(token, &payload, client).await
+}
+
+async fn post_message<T: Serialize>(
+    token: &str,
+    payload: &T,
     client: &Client,
 ) -> Result<Value, String> {
     let payload_json = serde_json::to_string(payload)

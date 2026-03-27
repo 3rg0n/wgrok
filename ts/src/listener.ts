@@ -21,6 +21,8 @@ export interface IncomingMessage {
   sender: string;
   text: string;
   html: string;
+  roomId: string;
+  roomType: string;
   msgId: string;
   platform: string;
   cards: unknown[];
@@ -71,6 +73,8 @@ export class WebexListener implements PlatformListener {
         sender: msg.personEmail as string,
         text: ((msg.text as string) || '').trim(),
         html: ((msg.html as string) || ''),
+        roomId: (msg.roomId as string) || '',
+        roomType: (msg.roomType as string) || '',
         msgId: msg.id as string,
         platform: 'webex',
         cards: [],
@@ -198,6 +202,8 @@ export class SlackListener implements PlatformListener {
         sender: (event.user as string) || '',
         text: (((event.text as string) || '').trim()),
         html: '',
+        roomId: '',
+        roomType: '',
         msgId: (event.ts as string) || '',
         platform: 'slack',
         cards: [],
@@ -366,6 +372,8 @@ export class DiscordListener implements PlatformListener {
         sender: (author.id as string) || '',
         text: (((event.content as string) || '').trim()),
         html: '',
+        roomId: '',
+        roomType: '',
         msgId: (event.id as string) || '',
         platform: 'discord',
         cards: embeds || [],
@@ -543,6 +551,8 @@ export class IrcListener implements PlatformListener {
             sender: nick,
             text: text.trim(),
             html: '',
+            roomId: '',
+            roomType: '',
             msgId: '',
             platform: 'irc',
             cards: [],

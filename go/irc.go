@@ -166,27 +166,27 @@ func (ic *IrcConnection) Connect() error {
 	// Send PASS if password is provided
 	if ic.params.Password != "" {
 		if err := ic.sendRaw(fmt.Sprintf("PASS %s", ic.params.Password)); err != nil {
-			ic.conn.Close()
+			_ = ic.conn.Close()
 			return err
 		}
 	}
 
 	// Send NICK
 	if err := ic.sendRaw(fmt.Sprintf("NICK %s", ic.params.Nick)); err != nil {
-		ic.conn.Close()
+		_ = ic.conn.Close()
 		return err
 	}
 
 	// Send USER
 	if err := ic.sendRaw(fmt.Sprintf("USER %s 0 * :%s", ic.params.Nick, ic.params.Nick)); err != nil {
-		ic.conn.Close()
+		_ = ic.conn.Close()
 		return err
 	}
 
 	// Join channel if specified
 	if ic.params.Channel != "" {
 		if err := ic.sendRaw(fmt.Sprintf("JOIN %s", ic.params.Channel)); err != nil {
-			ic.conn.Close()
+			_ = ic.conn.Close()
 			return err
 		}
 	}

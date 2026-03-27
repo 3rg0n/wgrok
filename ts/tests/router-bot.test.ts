@@ -36,15 +36,8 @@ interface RouterBotCases {
 
 const CASES = loadCases<RouterBotCases>('router_bot_cases.json');
 
-function fakeMsg(sender: string, text: string, html = ''): IncomingMessage {
-  return {
-    sender,
-    text,
-    html,
-    msgId: 'test-msg-id',
-    platform: 'webex',
-    cards: [],
-  };
+function fakeMsg(sender: string, text: string, html = '', roomId = '', roomType = ''): IncomingMessage {
+  return { sender, text, html, roomId, roomType, msgId: 'test-msg-id', platform: 'webex', cards: [] };
 }
 
 describe('WgrokRouterBot', () => {

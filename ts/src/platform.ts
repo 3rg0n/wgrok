@@ -13,9 +13,10 @@ export async function platformSendMessage(
   target: string,
   text: string,
   fetchFn?: typeof fetch,
+  roomId = '',
 ): Promise<Record<string, unknown>> {
   if (platform === 'webex') {
-    return sendWebexMessage(token, target, text, fetchFn);
+    return sendWebexMessage(token, target, text, fetchFn, roomId);
   }
   if (platform === 'slack') {
     return sendSlackMessage(token, target, text, fetchFn);
@@ -36,9 +37,10 @@ export async function platformSendCard(
   text: string,
   card: unknown,
   fetchFn?: typeof fetch,
+  roomId = '',
 ): Promise<Record<string, unknown>> {
   if (platform === 'webex') {
-    return sendWebexCard(token, target, text, card, fetchFn);
+    return sendWebexCard(token, target, text, card, fetchFn, roomId);
   }
   if (platform === 'slack') {
     return sendSlackCard(token, target, text, card, fetchFn);

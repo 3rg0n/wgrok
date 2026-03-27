@@ -79,14 +79,14 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 	_, data, err := ws.Read(ctx)
 	cancel()
 	if err != nil {
-		l.ws.Close(websocket.StatusNormalClosure, "")
+		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil
 		l.running = false
 		return fmt.Errorf("read hello: %w", err)
 	}
 
 	if err := json.Unmarshal(data, &helloMsg); err != nil {
-		l.ws.Close(websocket.StatusNormalClosure, "")
+		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil
 		l.running = false
 		return fmt.Errorf("parse hello: %w", err)
@@ -94,7 +94,7 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 
 	op, ok := helloMsg["op"].(float64)
 	if !ok || int(op) != opHello {
-		l.ws.Close(websocket.StatusNormalClosure, "")
+		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil
 		l.running = false
 		return fmt.Errorf("expected Hello (op 10), got op %v", op)
@@ -103,7 +103,7 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 	// Extract heartbeat interval
 	d, ok := helloMsg["d"].(map[string]interface{})
 	if !ok {
-		l.ws.Close(websocket.StatusNormalClosure, "")
+		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil
 		l.running = false
 		return fmt.Errorf("no data in hello message")
@@ -111,7 +111,7 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 
 	hbInterval, ok := d["heartbeat_interval"].(float64)
 	if !ok {
-		l.ws.Close(websocket.StatusNormalClosure, "")
+		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil
 		l.running = false
 		return fmt.Errorf("no heartbeat_interval in hello")
@@ -132,7 +132,7 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 	}
 	identifyData, err := marshalJSON(identify)
 	if err != nil {
-		l.ws.Close(websocket.StatusNormalClosure, "")
+		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil
 		l.running = false
 		return fmt.Errorf("marshal identify: %w", err)
@@ -141,7 +141,7 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 	err = ws.Write(ctx, websocket.MessageText, identifyData)
 	cancel()
 	if err != nil {
-		l.ws.Close(websocket.StatusNormalClosure, "")
+		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil
 		l.running = false
 		return fmt.Errorf("send identify: %w", err)

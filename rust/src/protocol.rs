@@ -132,28 +132,35 @@ pub fn is_resume(text: &str) -> bool {
 
 /// Strip bot display name prefix from text using spark-mention tags in HTML.
 /// Extracts the display name from <spark-mention>DisplayName</spark-mention>
-/// and removes it from the start of the text if present.
+/// and removes it from the start of the text if present. Loops over ALL spark-mention tags.
 pub fn strip_bot_mention(text: &str, html: &str) -> String {
     if html.is_empty() {
         return text.to_string();
     }
 
-    // Find <spark-mention ...>DisplayName</spark-mention>
     let start_tag = "<spark-mention";
     let end_tag = "</spark-mention>";
+    let mut result = text.to_string();
+    let mut search_from = 0;
 
-    if let Some(tag_start) = html.find(start_tag) {
-        // Find the closing > of the opening tag
-        if let Some(content_start_offset) = html[tag_start..].find('>') {
-            let content_start = tag_start + content_start_offset + 1;
+    while let Some(tag_start) = html[search_from..].find(start_tag) {
+        let abs_tag_start = search_from + tag_start;
+        if let Some(content_start_offset) = html[abs_tag_start..].find('>') {
+            let content_start = abs_tag_start + content_start_offset + 1;
             if let Some(end_pos) = html[content_start..].find(end_tag) {
                 let display_name = &html[content_start..content_start + end_pos];
-                if let Some(stripped) = text.strip_prefix(display_name) {
-                    return stripped.trim_start().to_string();
+                if let Some(stripped) = result.strip_prefix(display_name) {
+                    result = stripped.to_string();
                 }
+                result = result.trim().to_string();
+                search_from = content_start + end_pos + end_tag.len();
+            } else {
+                break;
             }
+        } else {
+            break;
         }
     }
 
-    text.to_string()
+    result
 }

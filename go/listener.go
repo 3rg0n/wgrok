@@ -12,6 +12,8 @@ type IncomingMessage struct {
 	Sender   string
 	Text     string
 	HTML     string
+	RoomID   string
+	RoomType string
 	MsgID    string
 	Platform string
 	Cards    []interface{}

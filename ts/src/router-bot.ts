@@ -132,6 +132,8 @@ export class WgrokRouterBot {
     const target = this.resolveTarget(to, sender);
     const response = formatResponse(to, from, flags, payload);
     const [platform, token] = this.getSendPlatformToken();
+    // Always use roomId when available — works for both 1:1 and group rooms
+    const replyRoomId = msg.roomId;
 
     // Check if target is paused — if so, buffer instead of sending
     if (this.pausedTargets.has(target)) {
@@ -150,10 +152,10 @@ export class WgrokRouterBot {
 
     if (cards.length > 0) {
       this.logger.info(`Relaying to ${target}: ${response} (with ${cards.length} card(s))`);
-      await platformSendCard(platform, token, target, response, cards[0]);
+      await platformSendCard(platform, token, target, response, cards[0], undefined, replyRoomId);
     } else {
       this.logger.info(`Relaying to ${target}: ${response}`);
-      await platformSendMessage(platform, token, target, response);
+      await platformSendMessage(platform, token, target, response, undefined, replyRoomId);
     }
   }
 

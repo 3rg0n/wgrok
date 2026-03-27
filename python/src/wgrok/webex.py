@@ -55,9 +55,10 @@ async def send_message(
     to_email: str,
     text: str,
     session: aiohttp.ClientSession | None = None,
+    room_id: str = "",
 ) -> dict:
-    """Send a text-only Webex message to a person by email."""
-    payload = {"toPersonEmail": to_email, "text": text}
+    """Send a text-only Webex message to a person by email or room by ID."""
+    payload = {"roomId": room_id, "text": text} if room_id else {"toPersonEmail": to_email, "text": text}
 
     async def _do(s):
         return await _request_with_retry(s, "POST", WEBEX_MESSAGES_URL, _headers(token), json=payload)
@@ -71,18 +72,27 @@ async def send_card(
     text: str,
     card: dict,
     session: aiohttp.ClientSession | None = None,
+    room_id: str = "",
 ) -> dict:
     """Send a Webex message with an adaptive card attachment.
 
     Args:
         text: Fallback text for clients that can't render cards.
         card: Adaptive Card JSON body (the content inside the attachment).
+        room_id: Optional room ID to send to room instead of person email.
     """
-    payload = {
-        "toPersonEmail": to_email,
-        "text": text,
-        "attachments": [{"contentType": ADAPTIVE_CARD_CONTENT_TYPE, "content": card}],
-    }
+    if room_id:
+        payload = {
+            "roomId": room_id,
+            "text": text,
+            "attachments": [{"contentType": ADAPTIVE_CARD_CONTENT_TYPE, "content": card}],
+        }
+    else:
+        payload = {
+            "toPersonEmail": to_email,
+            "text": text,
+            "attachments": [{"contentType": ADAPTIVE_CARD_CONTENT_TYPE, "content": card}],
+        }
 
     async def _do(s):
         return await _request_with_retry(s, "POST", WEBEX_MESSAGES_URL, _headers(token), json=payload)

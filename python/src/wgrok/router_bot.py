@@ -128,6 +128,7 @@ class WgrokRouterBot:
         # Process through the same pipeline as WebSocket messages
         incoming = IncomingMessage(
             sender=sender, text=text, msg_id="", platform="webhook", cards=[], html="",
+            room_id="", room_type="",
         )
         await self._on_incoming(incoming)
         return web.json_response({"status": "ok"})
@@ -195,16 +196,23 @@ class WgrokRouterBot:
             if len(buf) >= 1000:
                 self._logger.warning(f"Pause buffer full for {target}, dropping oldest message")
                 buf.pop(0)
-            buf.append({"response": response, "target": target, "cards": cards})
+            buf.append({"response": response, "target": target, "cards": cards, "room_id": incoming.room_id})
             self._logger.info(f"Buffered message for paused target {target}")
             return
 
+        # Always use roomId when available — works for both 1:1 and group rooms
+        room_id = incoming.room_id
+
         if cards:
             self._logger.info(f"Relaying to {target} via {platform}: {response} (with {len(cards)} card(s))")
-            await platform_send_card(platform, token, target, response, cards[0], self._session)
+            await platform_send_card(
+                platform, token, target, response, cards[0], self._session, room_id=room_id,
+            )
         else:
             self._logger.info(f"Relaying to {target} via {platform}: {response}")
-            await platform_send_message(platform, token, target, response, self._session)
+            await platform_send_message(
+                platform, token, target, response, self._session, room_id=room_id,
+            )
 
     async def _flush_buffer(self, target: str) -> None:
         """Flush buffered messages for a target and resume delivery."""
@@ -212,11 +220,16 @@ class WgrokRouterBot:
         buffered = self._pause_buffer.pop(target, [])
         platform, token = self._get_send_platform_token()
         for msg in buffered:
+            room_id = msg.get("room_id", "")
             if msg["cards"]:
                 card = msg["cards"][0]
-                await platform_send_card(platform, token, msg["target"], msg["response"], card, self._session)
+                await platform_send_card(
+                    platform, token, msg["target"], msg["response"], card, self._session, room_id=room_id,
+                )
             else:
-                await platform_send_message(platform, token, msg["target"], msg["response"], self._session)
+                await platform_send_message(
+                    platform, token, msg["target"], msg["response"], self._session, room_id=room_id,
+                )
         self._logger.info(f"Resumed delivery to {target}, flushed {len(buffered)} message(s)")
 
     async def pause(self) -> None:
@@ -241,8 +254,11 @@ class WgrokRouterBot:
         text = (raw_text or "").strip()
 
         html = getattr(message, "html", "") or ""
+        room_id = getattr(message, "room_id", "") or ""
+        room_type = getattr(message, "room_type", "") or ""
         incoming = IncomingMessage(
             sender=sender, text=text, msg_id=msg_id, platform="webex", cards=[], html=html,
+            room_id=room_id, room_type=room_type,
         )
         await self._on_incoming(incoming)
 

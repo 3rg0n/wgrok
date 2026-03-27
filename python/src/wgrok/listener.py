@@ -31,6 +31,8 @@ class IncomingMessage:
     platform: str
     cards: list[dict]
     html: str = ""
+    room_id: str = ""
+    room_type: str = ""
 
 
 MessageCallback = Any  # Callable[[IncomingMessage], Awaitable[None]]
@@ -75,6 +77,8 @@ class WebexListener(PlatformListener):
                     platform="webex",
                     cards=[],
                     html=getattr(msg, "html", "") or "",
+                    room_id=getattr(msg, "room_id", "") or "",
+                    room_type=getattr(msg, "room_type", "") or "",
                 )
                 await self._callback(incoming)
 

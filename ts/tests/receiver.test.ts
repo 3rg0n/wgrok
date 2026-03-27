@@ -19,15 +19,8 @@ interface ReceiverCases {
 
 const CASES = loadCases<ReceiverCases>('receiver_cases.json');
 
-function fakeMsg(sender: string, text: string, html = ''): IncomingMessage {
-  return {
-    sender,
-    text,
-    html,
-    msgId: 'test-msg-id',
-    platform: 'webex',
-    cards: [],
-  };
+function fakeMsg(sender: string, text: string, html = '', roomId = '', roomType = ''): IncomingMessage {
+  return { sender, text, html, roomId, roomType, msgId: 'test-msg-id', platform: 'webex', cards: [] };
 }
 
 describe('WgrokReceiver', () => {

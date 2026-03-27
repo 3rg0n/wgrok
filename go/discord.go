@@ -69,8 +69,8 @@ func postDiscordMessage(token, channelID string, payload discordMessagePayload, 
 
 		// Check for 429 Too Many Requests
 		if resp.StatusCode == http.StatusTooManyRequests {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 			if attempt < MaxRetries {
 				retryAfter := 1
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {

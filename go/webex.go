@@ -29,7 +29,8 @@ type CardAttachment struct {
 }
 
 type sendMessagePayload struct {
-	ToPersonEmail string           `json:"toPersonEmail"`
+	ToPersonEmail string           `json:"toPersonEmail,omitempty"`
+	RoomID        string           `json:"roomId,omitempty"`
 	Text          string           `json:"text"`
 	Attachments   []CardAttachment `json:"attachments,omitempty"`
 }
@@ -45,6 +46,24 @@ func SendCard(token, toEmail, text string, card interface{}, client *http.Client
 	payload := sendMessagePayload{
 		ToPersonEmail: toEmail,
 		Text:          text,
+		Attachments: []CardAttachment{
+			{ContentType: AdaptiveCardContentType, Content: card},
+		},
+	}
+	return postMessage(token, payload, client)
+}
+
+// SendMessageToRoom sends a text-only Webex message to a room by room ID.
+func SendMessageToRoom(token, roomID, text string, client *http.Client) (map[string]interface{}, error) {
+	payload := sendMessagePayload{RoomID: roomID, Text: text}
+	return postMessage(token, payload, client)
+}
+
+// SendCardToRoom sends a Webex message with an adaptive card attachment to a room by room ID.
+func SendCardToRoom(token, roomID, text string, card interface{}, client *http.Client) (map[string]interface{}, error) {
+	payload := sendMessagePayload{
+		RoomID: roomID,
+		Text:   text,
 		Attachments: []CardAttachment{
 			{ContentType: AdaptiveCardContentType, Content: card},
 		},
@@ -76,8 +95,8 @@ func postMessage(token string, payload sendMessagePayload, client *http.Client) 
 
 		// Check for 429 Too Many Requests
 		if resp.StatusCode == http.StatusTooManyRequests {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 			if attempt < MaxRetries {
 				retryAfter := 1
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {
@@ -132,8 +151,8 @@ func getJSON(token, url string, client *http.Client) (map[string]interface{}, er
 
 		// Check for 429 Too Many Requests
 		if resp.StatusCode == http.StatusTooManyRequests {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 			if attempt < MaxRetries {
 				retryAfter := 1
 				if retryAfterStr := resp.Header.Get("Retry-After"); retryAfterStr != "" {

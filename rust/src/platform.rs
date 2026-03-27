@@ -38,3 +38,30 @@ pub async fn platform_send_card(
         _ => Err(format!("Unsupported platform: {}", platform)),
     }
 }
+
+pub async fn platform_send_message_to_room(
+    platform: &str,
+    token: &str,
+    room_id: &str,
+    text: &str,
+    client: &Client,
+) -> Result<Value, String> {
+    match platform {
+        "webex" => webex::send_message_to_room(token, room_id, text, client).await,
+        _ => Err(format!("room-based send not supported for platform: {}", platform)),
+    }
+}
+
+pub async fn platform_send_card_to_room(
+    platform: &str,
+    token: &str,
+    room_id: &str,
+    text: &str,
+    card: &Value,
+    client: &Client,
+) -> Result<Value, String> {
+    match platform {
+        "webex" => webex::send_card_to_room(token, room_id, text, card, client).await,
+        _ => Err(format!("room-based send not supported for platform: {}", platform)),
+    }
+}

@@ -105,6 +105,7 @@ impl WgrokRouterBot {
         let sender = &msg.person_email;
         let html = msg.html.as_deref().unwrap_or("");
         let text = strip_bot_mention(msg.text.trim(), html);
+        let room_id = &msg.room_id;
 
         if !self.allowlist.is_allowed(sender) {
             self.logger
@@ -138,19 +139,43 @@ impl WgrokRouterBot {
                 response,
                 cards.len()
             ));
-            platform::platform_send_card(
-                &platform,
-                &token,
-                &target,
-                &response,
-                &cards[0],
-                &self.client,
-            )
-            .await
+            // Always use roomId when available — works for both 1:1 and group rooms
+            if !room_id.is_empty() {
+                platform::platform_send_card_to_room(
+                    &platform,
+                    &token,
+                    room_id,
+                    &response,
+                    &cards[0],
+                    &self.client,
+                )
+                .await
+            } else {
+                platform::platform_send_card(
+                    &platform,
+                    &token,
+                    &target,
+                    &response,
+                    &cards[0],
+                    &self.client,
+                )
+                .await
+            }
         } else {
             self.logger
                 .info(&format!("Relaying to {}: {}", target, response));
-            platform::platform_send_message(&platform, &token, &target, &response, &self.client).await
+            if !room_id.is_empty() {
+                platform::platform_send_message_to_room(
+                    &platform,
+                    &token,
+                    room_id,
+                    &response,
+                    &self.client,
+                )
+                .await
+            } else {
+                platform::platform_send_message(&platform, &token, &target, &response, &self.client).await
+            }
         };
 
         if let Err(e) = result {

@@ -216,12 +216,23 @@ func (b *WgrokRouterBot) onMessageFromListener(msg IncomingMessage) {
 	}
 	b.pauseMu.Unlock()
 
-	if len(cards) > 0 {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
-		_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
+	// Always use roomID when available — works for both 1:1 and group rooms
+	if msg.RoomID != "" {
+		if len(cards) > 0 {
+			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s (with %d card(s))", msg.RoomID, response, len(cards)))
+			_, err = PlatformSendCardToRoom(platform, token, msg.RoomID, response, cards[0], b.client)
+		} else {
+			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s", msg.RoomID, response))
+			_, err = PlatformSendMessageToRoom(platform, token, msg.RoomID, response, b.client)
+		}
 	} else {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
-		_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
+		if len(cards) > 0 {
+			b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+			_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
+		} else {
+			b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+			_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
+		}
 	}
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to relay message: %v", err))
@@ -283,6 +294,8 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 		return
 	}
 
+	roomID := msg.RoomID
+
 	// Check if target is paused
 	b.pauseMu.Lock()
 	if b.pausedTargets[replyTo] {
@@ -301,12 +314,23 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 	}
 	b.pauseMu.Unlock()
 
-	if len(cards) > 0 {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
-		_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
+	// Always use roomID when available — works for both 1:1 and group rooms
+	if roomID != "" {
+		if len(cards) > 0 {
+			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s (with %d card(s))", roomID, response, len(cards)))
+			_, err = PlatformSendCardToRoom(platform, token, roomID, response, cards[0], b.client)
+		} else {
+			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s", roomID, response))
+			_, err = PlatformSendMessageToRoom(platform, token, roomID, response, b.client)
+		}
 	} else {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
-		_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
+		if len(cards) > 0 {
+			b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+			_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
+		} else {
+			b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+			_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
+		}
 	}
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to relay message: %v", err))
@@ -367,6 +391,8 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 		return
 	}
 
+	roomID := msg.RoomID
+
 	// Check if target is paused
 	b.pauseMu.Lock()
 	if b.pausedTargets[replyTo] {
@@ -389,12 +415,23 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 	// Check for card attachments on the original message (only for webex)
 	cards := b.fetchCards(msg.ID, "webex")
 
-	if len(cards) > 0 {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
-		_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
+	// Always use roomID when available — works for both 1:1 and group rooms
+	if roomID != "" {
+		if len(cards) > 0 {
+			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s (with %d card(s))", roomID, response, len(cards)))
+			_, err = PlatformSendCardToRoom(platform, token, roomID, response, cards[0], b.client)
+		} else {
+			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s", roomID, response))
+			_, err = PlatformSendMessageToRoom(platform, token, roomID, response, b.client)
+		}
 	} else {
-		b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
-		_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
+		if len(cards) > 0 {
+			b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+			_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
+		} else {
+			b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+			_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
+		}
 	}
 	if err != nil {
 		b.logger.Error(fmt.Sprintf("Failed to relay message: %v", err))
