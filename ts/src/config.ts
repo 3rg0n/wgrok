@@ -97,7 +97,7 @@ function parseEncryptKey(raw: string | undefined): Buffer | undefined {
     return buf;
   } catch (err) {
     if (err instanceof Error && err.message.includes('32 bytes')) throw err;
-    throw new Error('WGROK_ENCRYPT_KEY must be valid base64');
+    throw new Error('WGROK_ENCRYPT_KEY must be valid base64', { cause: err });
   }
 }
 

@@ -24,6 +24,8 @@ type SlackListener struct {
 	ws         *websocket.Conn
 	running    bool
 	httpClient SimpleHTTPClient
+	ctx        context.Context
+	cancelCtx  context.CancelFunc
 }
 
 // SimpleHTTPClient interface for dependency injection.
@@ -103,6 +105,9 @@ func (l *SlackListener) Connect(ctx context.Context) error {
 
 	l.logger.Info("Slack Socket Mode connected")
 
+	// Create a lifecycle context for background goroutines
+	l.ctx, l.cancelCtx = context.WithCancel(context.Background())
+
 	// Start reading messages in background
 	go l.readLoop()
 
@@ -135,7 +140,7 @@ func (l *SlackListener) readLoop() {
 	defer l.close()
 
 	for l.running && l.ws != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(l.ctx, 5*time.Minute)
 		messageType, data, err := l.ws.Read(ctx)
 		cancel()
 
@@ -162,7 +167,7 @@ func (l *SlackListener) handleEvent(raw string) {
 		ack := map[string]interface{}{"envelope_id": envelopeID}
 		ackData, err := json.Marshal(ack)
 		if err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(l.ctx, 5*time.Second)
 			_ = l.ws.Write(ctx, websocket.MessageText, ackData)
 			cancel()
 		}
@@ -215,6 +220,9 @@ func (l *SlackListener) handleEvent(raw string) {
 // close closes the WebSocket connection.
 func (l *SlackListener) close() {
 	l.running = false
+	if l.cancelCtx != nil {
+		l.cancelCtx()
+	}
 	if l.ws != nil {
 		_ = l.ws.Close(websocket.StatusNormalClosure, "")
 		l.ws = nil

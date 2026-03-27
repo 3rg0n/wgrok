@@ -40,6 +40,8 @@ type DiscordListener struct {
 	sequence       int
 	hasSequence    bool
 	seqMu          sync.Mutex
+	ctx            context.Context
+	cancelCtx      context.CancelFunc
 }
 
 // NewDiscordListener creates a new Discord listener.
@@ -149,6 +151,9 @@ func (l *DiscordListener) Connect(ctx context.Context) error {
 
 	l.logger.Info("Discord Gateway connected")
 
+	// Create a lifecycle context for background goroutines
+	l.ctx, l.cancelCtx = context.WithCancel(context.Background())
+
 	// Start heartbeat and read loops in background
 	go l.heartbeatLoop(time.Duration(hbInterval) * time.Millisecond)
 	go l.readLoop()
@@ -217,7 +222,7 @@ func (l *DiscordListener) heartbeatLoop(interval time.Duration) {
 				l.logger.Debug(fmt.Sprintf("marshal heartbeat: %v", err))
 				continue
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(l.ctx, 5*time.Second)
 			_ = l.ws.Write(ctx, websocket.MessageText, hbData)
 			cancel()
 		}
@@ -229,7 +234,7 @@ func (l *DiscordListener) readLoop() {
 	defer l.close()
 
 	for l.running && l.ws != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(l.ctx, 5*time.Minute)
 		_, data, err := l.ws.Read(ctx)
 		cancel()
 
@@ -314,6 +319,9 @@ func (l *DiscordListener) handleMessageCreate(event map[string]interface{}) {
 // close closes the WebSocket connection.
 func (l *DiscordListener) close() {
 	l.running = false
+	if l.cancelCtx != nil {
+		l.cancelCtx()
+	}
 	// Signal heartbeat to stop
 	select {
 	case l.stopHeartbeat <- struct{}{}:
