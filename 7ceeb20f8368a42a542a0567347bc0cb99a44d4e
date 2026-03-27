@@ -1,0 +1,27 @@
+ts/src/config.ts
+  8a6984cc758c8292 100
+go/discord_listener.go
+  8a6984cc758c8292 43-44,154-156,225,237,322-324
+go/slack_listener.go
+  8a6984cc758c8292 27-28,108-110,143,170,223-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "7ceeb20f8368a42a542a0567347bc0cb99a44d4e",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 5,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}
