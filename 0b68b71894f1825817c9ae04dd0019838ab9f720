@@ -1,0 +1,43 @@
+python/src/wgrok/router_bot.py
+  8a6984cc758c8292 131,199,203-205,208-210,213-215,223,226-228,230-232,257-258,261
+ts/src/router-bot.ts
+  8a6984cc758c8292 135-136
+python/src/wgrok/platform.py
+  8a6984cc758c8292 8-9,23-24,28
+go/webex.go
+  8a6984cc758c8292 98-99,154-155
+rust/tests/router_bot_test.rs
+  8a6984cc758c8292 29,113-124
+go/discord.go
+  8a6984cc758c8292 72-73
+go/slack.go
+  8a6984cc758c8292 70-71
+go/router_bot.go
+  8a6984cc758c8292 219-220,317-318,418-419
+go/irc.go
+  8a6984cc758c8292 169,176,182,189
+go/discord_listener.go
+  8a6984cc758c8292 82,89,97,106,114,135,144
+rust/src/router_bot.rs
+  8a6984cc758c8292 142-143,167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "0b68b71894f1825817c9ae04dd0019838ab9f720",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 331,
+      "total_deletions": 306,
+      "accepted_lines": 322,
+      "overriden_lines": 0
+    }
+  }
+}
