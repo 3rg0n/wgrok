@@ -1,0 +1,23 @@
+.github/workflows/publish.yml
+  8a6984cc758c8292 1-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "9d5311c566b5b53017d7a390bf7e69c8e658b415",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 91,
+      "total_deletions": 1,
+      "accepted_lines": 91,
+      "overriden_lines": 0
+    }
+  }
+}
