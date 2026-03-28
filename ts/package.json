@@ -1,5 +1,5 @@
 {
-  "name": "@3rg0n/wgrok",
+  "name": "wgrok-message-bus",
   "version": "1.2.0",
   "description": "Message bus protocol over social messaging platforms",
   "license": "MIT",
