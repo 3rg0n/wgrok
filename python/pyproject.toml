@@ -4,14 +4,27 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wgrok"
-version = "0.1.0"
-description = "ngrok clone using Webex API as a message bus"
+version = "1.2.0"
+description = "Message bus protocol over social messaging platforms"
 requires-python = ">=3.10"
+license = "MIT"
+authors = [{name = "3rg0n"}]
+readme = "README.md"
+keywords = ["webex", "slack", "discord", "message-bus", "ngrok"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Communications :: Chat",
+]
 dependencies = [
     "aiohttp>=3.13",
     "python-dotenv>=1.2",
-    "webex-message-handler @ git+https://github.com/3rg0n/webex-message-handler#subdirectory=python",
+    "webex-message-handler",
 ]
+
+[project.urls]
+Repository = "https://github.com/3rg0n/wgrok"
 
 [project.optional-dependencies]
 crypto = ["cryptography>=41.0"]

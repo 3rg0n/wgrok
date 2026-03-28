@@ -1,12 +1,17 @@
 [package]
 name = "wgrok"
-version = "0.1.0"
+version = "1.2.0"
 edition = "2024"
-description = "ngrok clone using Webex API as a message bus"
+description = "Message bus protocol over social messaging platforms"
 rust-version = "1.85"
+license = "MIT"
+authors = ["3rg0n"]
+repository = "https://github.com/3rg0n/wgrok"
+keywords = ["webex", "slack", "discord", "message-bus"]
+categories = ["network-programming"]
 
 [dependencies]
-webex-message-handler = { git = "https://github.com/3rg0n/webex-message-handler" }
+webex-message-handler = "*"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.24"
 futures-util = "0.3"

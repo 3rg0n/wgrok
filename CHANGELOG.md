@@ -4,12 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-28
+
 ### Added
 - Optional AES-256-GCM encryption across all four languages
   - On/off mode: set `WGROK_ENCRYPT_KEY` to enable, omit to disable
   - `e` flag in protocol wire format indicates encrypted payload
   - Pipeline: compress → encrypt → chunk (send), reassemble → decrypt → decompress (receive)
   - 32-byte base64-encoded symmetric key via environment variable
+- Pause/resume flow control with per-target message buffering (1000 msg cap)
+- Bot mention stripping for Webex group rooms (`strip_bot_mention`)
+- Room-based routing — always use `roomId` for replies (works for 1:1 and group)
+- Published to npm, PyPI, crates.io, and Go modules
+
+### Changed
+- Switch Python and Rust `webex-message-handler` from git dep to published registry version
+- MIT license
+
+### Fixed
+- Go listener context propagation (gosec G118) — lifecycle context for background goroutines
+- TS config error cause chain preservation
+- Go unhandled Close/io.Copy errors (gosec G104)
+- Retry-After header capped to 300s across all platforms
+- Chunk validation: seq >= 1, seq <= total, total <= 999
+- Fail-closed decrypt/decompress in all receivers
 
 ## [0.3.0] - 2026-03-17
 

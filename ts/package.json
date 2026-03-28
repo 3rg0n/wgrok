@@ -1,7 +1,15 @@
 {
   "name": "wgrok",
-  "version": "0.1.0",
-  "description": "ngrok clone using Webex API as a message bus",
+  "version": "1.2.0",
+  "description": "Message bus protocol over social messaging platforms",
+  "license": "MIT",
+  "author": "3rg0n",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/3rg0n/wgrok.git",
+    "directory": "ts"
+  },
+  "keywords": ["webex", "slack", "discord", "message-bus", "ngrok"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,6 +19,7 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": ["dist", "LICENSE"],
   "scripts": {
     "build": "tsc",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.cjs",
@@ -18,7 +27,7 @@
   },
   "dependencies": {
     "dotenv": "^17.3.1",
-    "webex-message-handler": "^0.5.0"
+    "webex-message-handler": "*"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
