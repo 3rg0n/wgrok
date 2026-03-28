@@ -1,0 +1,23 @@
+ts/package.json
+  8a6984cc758c8292 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.21",
+  "base_commit_sha": "c4414710492923ca3f30ce6414307ab1bce17d5b",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland <3rg0n@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
