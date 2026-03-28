@@ -11,7 +11,7 @@ keywords = ["webex", "slack", "discord", "message-bus"]
 categories = ["network-programming"]
 
 [dependencies]
-webex-message-handler = "*"
+webex-message-handler = "0.6.1"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.24"
 futures-util = "0.3"
