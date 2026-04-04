@@ -1,0 +1,23 @@
+.github/workflows/codeql.yml
+  8a6984cc758c8292 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "1728283ae40ec2f7b4c899bb6ea867c583cd7372",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
