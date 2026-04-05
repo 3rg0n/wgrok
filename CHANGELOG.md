@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-04-05
+
+### Fixed
+- Add README to npm, PyPI, and crates.io packages
+
 ## [1.2.1] - 2026-04-05
 
 ### Fixed

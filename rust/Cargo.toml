@@ -1,6 +1,6 @@
 [package]
 name = "wgrok"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2024"
 description = "Message bus protocol over social messaging platforms"
 rust-version = "1.85"
@@ -9,6 +9,7 @@ authors = ["3rg0n"]
 repository = "https://github.com/3rg0n/wgrok"
 keywords = ["webex", "slack", "discord", "message-bus"]
 categories = ["network-programming"]
+readme = "README.md"
 
 [dependencies]
 webex-message-handler = "0.6.1"

@@ -1,6 +1,6 @@
 {
   "name": "wgrok-message-bus",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Message bus protocol over social messaging platforms",
   "license": "MIT",
   "author": "3rg0n",
@@ -19,7 +19,7 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "LICENSE"],
+  "files": ["dist", "LICENSE", "README.md"],
   "scripts": {
     "build": "tsc",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.cjs",
