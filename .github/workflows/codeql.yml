@@ -15,8 +15,15 @@ jobs:
     permissions:
       security-events: write
     strategy:
+      fail-fast: false
       matrix:
-        language: [python, go, javascript-typescript]
+        include:
+          - language: python
+            build-mode: none
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +31,7 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
       - if: matrix.language == 'go'
         uses: actions/setup-go@v5
@@ -31,6 +39,8 @@ jobs:
           go-version: '1.24'
       - if: matrix.language == 'go'
         run: cd go && go build ./...
+        env:
+          GOWORK: 'off'
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
