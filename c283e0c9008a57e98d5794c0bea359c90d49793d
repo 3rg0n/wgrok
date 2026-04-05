@@ -1,0 +1,29 @@
+ts/package.json
+  8a6984cc758c8292 3
+rust/Cargo.toml
+  8a6984cc758c8292 3
+CHANGELOG.md
+  8a6984cc758c8292 7-17
+python/pyproject.toml
+  8a6984cc758c8292 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "c283e0c9008a57e98d5794c0bea359c90d49793d",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 3,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}
