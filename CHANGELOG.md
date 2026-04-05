@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-04-05
+
+### Fixed
+- Bump `webex-message-handler` to 0.6.2 across all four languages
+- Bump `go-jose/v4` to v4.1.4 — fixes JWE decryption panic (HIGH)
+- Bump `lodash` — fixes code injection and prototype pollution (HIGH, MODERATE)
+
+### Added
+- GitHub Advanced Security: CodeQL, dependency review, Dependabot
+- Secret scanning and push protection enabled
+
 ## [1.2.0] - 2026-03-28
 
 ### Added
