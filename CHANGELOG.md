@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.2.4] - 2026-04-06
 
 ### Changed
 - Bump `webex-message-handler` to 0.6.3 (all 4 languages)

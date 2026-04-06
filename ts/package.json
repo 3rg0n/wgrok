@@ -1,6 +1,6 @@
 {
   "name": "wgrok-message-bus",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Message bus protocol over social messaging platforms",
   "license": "MIT",
   "author": "3rg0n",
