@@ -1,0 +1,25 @@
+python/pyproject.toml
+  8a6984cc758c8292 22
+CHANGELOG.md
+  8a6984cc758c8292 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9241558077b1b045c2a9ad6ef812b0630f2d1ea6",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 257,
+      "overriden_lines": 0
+    }
+  }
+}
