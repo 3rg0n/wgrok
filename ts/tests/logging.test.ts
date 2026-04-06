@@ -1,4 +1,4 @@
-import { NdjsonLogger, noopLogger, getLogger } from '../src/logging';
+import { NdjsonLogger, MinLevelLogger, noopLogger, getLogger } from '../src/logging';
 
 describe('NdjsonLogger', () => {
   it('writes INFO JSON to stderr', () => {
@@ -106,9 +106,29 @@ describe('getLogger', () => {
     expect(logger).toBeInstanceOf(NdjsonLogger);
   });
 
-  it('returns noopLogger when debug=false', () => {
+  it('returns MinLevelLogger when debug=false', () => {
     const logger = getLogger(false);
-    expect(logger).toBe(noopLogger);
+    expect(logger).toBeInstanceOf(MinLevelLogger);
+  });
+
+  it('MinLevelLogger suppresses debug/info but emits warn/error', () => {
+    const chunks: string[] = [];
+    const origWrite = process.stderr.write;
+    process.stderr.write = ((data: string) => {
+      chunks.push(data);
+      return true;
+    }) as typeof process.stderr.write;
+
+    const logger = getLogger(false, 'test.minlevel');
+    logger.debug('should not appear');
+    logger.info('should not appear');
+    logger.warn('should appear');
+    logger.error('should appear');
+
+    process.stderr.write = origWrite;
+    expect(chunks.length).toBe(2);
+    expect(JSON.parse(chunks[0].trim()).level).toBe('WARNING');
+    expect(JSON.parse(chunks[1].trim()).level).toBe('ERROR');
   });
 
   it('accepts custom module name', () => {

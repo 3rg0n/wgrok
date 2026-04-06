@@ -1,18 +1,39 @@
+#[derive(Debug, Clone)]
+enum PatternType {
+    Exact(String),
+    WildcardPrefix(String),
+    BareDomain(String),
+}
+
 pub struct Allowlist {
-    patterns: Vec<String>,
+    patterns: Vec<PatternType>,
 }
 
 impl Allowlist {
     pub fn new(patterns: &[String]) -> Self {
-        let normalized = patterns
+        let normalized: Vec<PatternType> = patterns
             .iter()
             .map(|p| p.trim().to_string())
             .filter(|p| !p.is_empty())
-            .map(|p| {
-                if p.contains('@') {
-                    p
+            .filter_map(|p| {
+                let lower = p.to_lowercase();
+                // Reject patterns with dangerous characters
+                if lower.contains('[') || lower.contains(']') || lower.contains('?') {
+                    eprintln!("Rejecting dangerous allowlist pattern: {}", p);
+                    return None;
+                }
+                Some((p, lower))
+            })
+            .map(|(_, lower)| {
+                if let Some(domain) = lower.strip_prefix("*@") {
+                    // Wildcard prefix: *@domain.tld
+                    PatternType::WildcardPrefix(domain.to_string())
+                } else if lower.contains('@') {
+                    // Exact match: user@domain.tld
+                    PatternType::Exact(lower)
                 } else {
-                    format!("*@{}", p)
+                    // Bare domain: domain.tld
+                    PatternType::BareDomain(lower)
                 }
             })
             .collect();
@@ -23,37 +44,14 @@ impl Allowlist {
         let email_lower = email.to_lowercase();
         self.patterns
             .iter()
-            .any(|pattern| glob_match(&pattern.to_lowercase(), &email_lower))
+            .any(|pattern| self.matches_pattern(pattern, &email_lower))
     }
-}
 
-fn glob_match(pattern: &str, value: &str) -> bool {
-    let pi: Vec<char> = pattern.chars().collect();
-    let vi: Vec<char> = value.chars().collect();
-    glob_match_inner(&pi, &vi, 0, 0)
-}
-
-fn glob_match_inner(pattern: &[char], value: &[char], pi: usize, vi: usize) -> bool {
-    if pi == pattern.len() && vi == value.len() {
-        return true;
-    }
-    if pi == pattern.len() {
-        return false;
-    }
-    if pattern[pi] == '*' {
-        // Match zero or more characters
-        for i in vi..=value.len() {
-            if glob_match_inner(pattern, value, pi + 1, i) {
-                return true;
-            }
+    fn matches_pattern(&self, pattern: &PatternType, email: &str) -> bool {
+        match pattern {
+            PatternType::Exact(p) => email == p,
+            PatternType::WildcardPrefix(domain) => email.ends_with(&format!("@{}", domain)),
+            PatternType::BareDomain(domain) => email.ends_with(&format!("@{}", domain)),
         }
-        return false;
     }
-    if vi == value.len() {
-        return false;
-    }
-    if pattern[pi] == '?' || pattern[pi] == value[vi] {
-        return glob_match_inner(pattern, value, pi + 1, vi + 1);
-    }
-    false
 }

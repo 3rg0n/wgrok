@@ -27,6 +27,24 @@ export class NdjsonLogger implements Logger {
   }
 }
 
+export class MinLevelLogger implements Logger {
+  private ndjson: NdjsonLogger;
+
+  constructor(module?: string) {
+    this.ndjson = new NdjsonLogger(module);
+  }
+
+  debug(): void {}
+  info(): void {}
+  warn(message: string): void {
+    this.ndjson.warn(message);
+  }
+  error(message: string): void {
+    this.ndjson.error(message);
+  }
+}
+
+/** Fully silent logger for use in tests only. */
 export const noopLogger: Logger = {
   debug() {},
   info() {},
@@ -35,5 +53,5 @@ export const noopLogger: Logger = {
 };
 
 export function getLogger(debug: boolean, module?: string): Logger {
-  return debug ? new NdjsonLogger(module) : noopLogger;
+  return debug ? new NdjsonLogger(module) : new MinLevelLogger(module);
 }

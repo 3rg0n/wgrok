@@ -75,6 +75,13 @@ impl WgrokRouterBot {
             .await
             .map_err(|e| format!("connect: {}", e))?;
 
+        if !self.routes.is_empty() {
+            for (slug, target) in &self.routes {
+                self.logger.info(&format!("Route configured: \"{}\" -> {}", slug, target));
+            }
+        } else {
+            self.logger.info("No routes configured (Mode B: echo-back only)");
+        }
         self.logger.info("Router bot connected");
 
         loop {
@@ -134,9 +141,10 @@ impl WgrokRouterBot {
 
         let result = if !cards.is_empty() {
             self.logger.info(&format!(
-                "Relaying to {}: {} (with {} card(s))",
+                "Relaying to {} [slug={}, from={}] (with {} card(s))",
                 target,
-                response,
+                to,
+                from_slug,
                 cards.len()
             ));
             // Always use roomId when available — works for both 1:1 and group rooms
@@ -163,7 +171,7 @@ impl WgrokRouterBot {
             }
         } else {
             self.logger
-                .info(&format!("Relaying to {}: {}", target, response));
+                .info(&format!("Relaying to {} [slug={}, from={}]", target, to, from_slug));
             if !room_id.is_empty() {
                 platform::platform_send_message_to_room(
                     &platform,

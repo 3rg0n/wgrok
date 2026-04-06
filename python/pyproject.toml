@@ -17,9 +17,9 @@ classifiers = [
     "Topic :: Communications :: Chat",
 ]
 dependencies = [
-    "aiohttp>=3.13",
-    "python-dotenv>=1.2",
-    "webex-message-handler",
+    "aiohttp>=3.13.4,<4.0",
+    "python-dotenv>=1.2,<2.0",
+    "webex-message-handler>=0.6.1,<1.0",
 ]
 
 [project.urls]

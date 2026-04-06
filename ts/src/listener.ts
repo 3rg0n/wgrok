@@ -426,7 +426,6 @@ export class IrcListener implements PlatformListener {
       {
         host: params.server,
         port: params.port,
-        rejectUnauthorized: false,
       },
       () => {
         void this.sendRaw(`NICK ${params.nick}`);

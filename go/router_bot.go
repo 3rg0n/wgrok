@@ -87,6 +87,13 @@ func (b *WgrokRouterBot) Run(ctx context.Context) error {
 	}
 
 	b.logger.Info("Router bot starting")
+	if len(b.routes) > 0 {
+		for slug, target := range b.routes {
+			b.logger.Info(fmt.Sprintf("Route configured: %q -> %s", slug, target))
+		}
+	} else {
+		b.logger.Info("No routes configured (Mode B: echo-back only)")
+	}
 	b.logger.Info(fmt.Sprintf("Router bot connected to %d platform(s)", len(b.listeners)))
 
 	<-ctx.Done()
@@ -219,18 +226,18 @@ func (b *WgrokRouterBot) onMessageFromListener(msg IncomingMessage) {
 	// Always use roomID when available — works for both 1:1 and group rooms
 	if msg.RoomID != "" {
 		if len(cards) > 0 {
-			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s (with %d card(s))", msg.RoomID, response, len(cards)))
+			b.logger.Info(fmt.Sprintf("Relaying to room %s [slug=%s, from=%s] (with %d card(s))", msg.RoomID, to, from, len(cards)))
 			_, err = PlatformSendCardToRoom(platform, token, msg.RoomID, response, cards[0], b.client)
 		} else {
-			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s", msg.RoomID, response))
+			b.logger.Info(fmt.Sprintf("Relaying to room %s [slug=%s, from=%s]", msg.RoomID, to, from))
 			_, err = PlatformSendMessageToRoom(platform, token, msg.RoomID, response, b.client)
 		}
 	} else {
 		if len(cards) > 0 {
-			b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+			b.logger.Info(fmt.Sprintf("Relaying to %s [slug=%s, from=%s] (with %d card(s))", replyTo, to, from, len(cards)))
 			_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
 		} else {
-			b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+			b.logger.Info(fmt.Sprintf("Relaying to %s [slug=%s, from=%s]", replyTo, to, from))
 			_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
 		}
 	}
@@ -317,18 +324,18 @@ func (b *WgrokRouterBot) onMessageWithCards(msg wmh.DecryptedMessage, cards []in
 	// Always use roomID when available — works for both 1:1 and group rooms
 	if roomID != "" {
 		if len(cards) > 0 {
-			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s (with %d card(s))", roomID, response, len(cards)))
+			b.logger.Info(fmt.Sprintf("Relaying to room %s [slug=%s, from=%s] (with %d card(s))", roomID, to, from, len(cards)))
 			_, err = PlatformSendCardToRoom(platform, token, roomID, response, cards[0], b.client)
 		} else {
-			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s", roomID, response))
+			b.logger.Info(fmt.Sprintf("Relaying to room %s [slug=%s, from=%s]", roomID, to, from))
 			_, err = PlatformSendMessageToRoom(platform, token, roomID, response, b.client)
 		}
 	} else {
 		if len(cards) > 0 {
-			b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+			b.logger.Info(fmt.Sprintf("Relaying to %s [slug=%s, from=%s] (with %d card(s))", replyTo, to, from, len(cards)))
 			_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
 		} else {
-			b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+			b.logger.Info(fmt.Sprintf("Relaying to %s [slug=%s, from=%s]", replyTo, to, from))
 			_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
 		}
 	}
@@ -418,18 +425,18 @@ func (b *WgrokRouterBot) onMessage(msg wmh.DecryptedMessage) {
 	// Always use roomID when available — works for both 1:1 and group rooms
 	if roomID != "" {
 		if len(cards) > 0 {
-			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s (with %d card(s))", roomID, response, len(cards)))
+			b.logger.Info(fmt.Sprintf("Relaying to room %s [slug=%s, from=%s] (with %d card(s))", roomID, to, from, len(cards)))
 			_, err = PlatformSendCardToRoom(platform, token, roomID, response, cards[0], b.client)
 		} else {
-			b.logger.Info(fmt.Sprintf("Relaying to room %s: %s", roomID, response))
+			b.logger.Info(fmt.Sprintf("Relaying to room %s [slug=%s, from=%s]", roomID, to, from))
 			_, err = PlatformSendMessageToRoom(platform, token, roomID, response, b.client)
 		}
 	} else {
 		if len(cards) > 0 {
-			b.logger.Info(fmt.Sprintf("Relaying to %s: %s (with %d card(s))", replyTo, response, len(cards)))
+			b.logger.Info(fmt.Sprintf("Relaying to %s [slug=%s, from=%s] (with %d card(s))", replyTo, to, from, len(cards)))
 			_, err = PlatformSendCard(platform, token, replyTo, response, cards[0], b.client)
 		} else {
-			b.logger.Info(fmt.Sprintf("Relaying to %s: %s", replyTo, response))
+			b.logger.Info(fmt.Sprintf("Relaying to %s [slug=%s, from=%s]", replyTo, to, from))
 			_, err = PlatformSendMessage(platform, token, replyTo, response, b.client)
 		}
 	}

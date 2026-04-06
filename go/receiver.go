@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
@@ -26,16 +27,17 @@ type chunkKey struct {
 
 // WgrokReceiver listens for response messages, matches slug, invokes handler callback.
 type WgrokReceiver struct {
-	config      *ReceiverConfig
-	allowlist   *Allowlist
-	handler     MessageHandler
-	OnControl   ControlHandler
-	logger      wmh.Logger
-	listener    PlatformListener
-	client      *http.Client
-	cancel      context.CancelFunc
-	chunkBuffer map[chunkKey]map[int]string
-	chunkMu     sync.Mutex
+	config          *ReceiverConfig
+	allowlist       *Allowlist
+	handler         MessageHandler
+	OnControl       ControlHandler
+	logger          wmh.Logger
+	listener        PlatformListener
+	client          *http.Client
+	cancel          context.CancelFunc
+	chunkBuffer     map[chunkKey]map[int]string
+	chunkTimestamps map[chunkKey]time.Time
+	chunkMu         sync.Mutex
 	// Deprecated: wsHandler is kept for backward compatibility with existing tests
 	wsHandler *wmh.WebexMessageHandler
 }
@@ -43,12 +45,13 @@ type WgrokReceiver struct {
 // NewReceiver creates a new WgrokReceiver.
 func NewReceiver(config *ReceiverConfig, handler MessageHandler) *WgrokReceiver {
 	return &WgrokReceiver{
-		config:      config,
-		allowlist:   NewAllowlist(config.Domains),
-		handler:     handler,
-		logger:      GetLogger(config.Debug, "wgrok.receiver"),
-		client:      &http.Client{},
-		chunkBuffer: make(map[chunkKey]map[int]string),
+		config:          config,
+		allowlist:       NewAllowlist(config.Domains),
+		handler:         handler,
+		logger:          GetLogger(config.Debug, "wgrok.receiver"),
+		client:          &http.Client{},
+		chunkBuffer:     make(map[chunkKey]map[int]string),
+		chunkTimestamps: make(map[chunkKey]time.Time),
 	}
 }
 
@@ -157,12 +160,28 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 
 	// Handle chunking
 	if chunkSeq > 0 {
-		if chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1 {
+		if chunkTotal > 100 || chunkSeq > chunkTotal || chunkSeq < 1 {
 			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender))
 			return
 		}
 		key := chunkKey{sender: sender, slug: to}
 		r.chunkMu.Lock()
+
+		// Check for chunk timeout (5 minutes = 300 seconds)
+		now := time.Now()
+		if ts, exists := r.chunkTimestamps[key]; exists {
+			if now.Sub(ts) > 5*time.Minute {
+				r.logger.Warn(fmt.Sprintf("Discarding incomplete chunk set for %v (timeout after 5 minutes)", key))
+				delete(r.chunkBuffer, key)
+				delete(r.chunkTimestamps, key)
+				r.chunkMu.Unlock()
+				return
+			}
+		} else {
+			// First chunk for this key â record timestamp
+			r.chunkTimestamps[key] = now
+		}
+
 		if r.chunkBuffer[key] == nil {
 			r.chunkBuffer[key] = make(map[int]string)
 		}
@@ -172,12 +191,30 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 			r.logger.Debug(fmt.Sprintf("Buffered chunk %d/%d for slug %q from %s", chunkSeq, chunkTotal, to, sender))
 			return
 		}
-		// All chunks received — reassemble
+
+		// Verify all indices 1..chunkTotal are present before reassembly
+		allPresent := true
+		for i := 1; i <= chunkTotal; i++ {
+			if _, exists := r.chunkBuffer[key][i]; !exists {
+				allPresent = false
+				break
+			}
+		}
+		if !allPresent {
+			r.logger.Warn(fmt.Sprintf("Incomplete chunk set for %v: missing indices, discarding", key))
+			delete(r.chunkBuffer, key)
+			delete(r.chunkTimestamps, key)
+			r.chunkMu.Unlock()
+			return
+		}
+
+		// All chunks received and verified â reassemble
 		var assembled strings.Builder
 		for i := 1; i <= chunkTotal; i++ {
 			assembled.WriteString(r.chunkBuffer[key][i])
 		}
 		delete(r.chunkBuffer, key)
+		delete(r.chunkTimestamps, key)
 		r.chunkMu.Unlock()
 		payload = assembled.String()
 		r.logger.Debug(fmt.Sprintf("Reassembled %d chunks for slug %q from %s", chunkTotal, to, sender))
@@ -259,11 +296,28 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 
 	// Handle chunking
 	if chunkSeq > 0 {
-		if chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1 {
+		if chunkTotal > 100 || chunkSeq > chunkTotal || chunkSeq < 1 {
 			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender))
 			return
 		}
 		key := chunkKey{sender: sender, slug: to}
+		r.chunkMu.Lock()
+
+		// Check for chunk timeout (5 minutes = 300 seconds)
+		now := time.Now()
+		if ts, exists := r.chunkTimestamps[key]; exists {
+			if now.Sub(ts) > 5*time.Minute {
+				r.logger.Warn(fmt.Sprintf("Discarding incomplete chunk set for %v (timeout after 5 minutes)", key))
+				delete(r.chunkBuffer, key)
+				delete(r.chunkTimestamps, key)
+				r.chunkMu.Unlock()
+				return
+			}
+		} else {
+			// First chunk for this key  record timestamp
+			r.chunkTimestamps[key] = now
+		}
+
 		r.chunkMu.Lock()
 		if r.chunkBuffer[key] == nil {
 			r.chunkBuffer[key] = make(map[int]string)
@@ -273,6 +327,24 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 			r.chunkMu.Unlock()
 			return
 		}
+
+  // Verify all indices 1..chunkTotal are present before reassembly
+  allPresent := true
+  for i := 1; i <= chunkTotal; i++ {
+  	if _, exists := r.chunkBuffer[key][i]; !exists {
+  		allPresent = false
+  		break
+  	}
+  }
+  if !allPresent {
+  	r.logger.Warn(fmt.Sprintf("Incomplete chunk set for %v: missing indices, discarding", key))
+  	delete(r.chunkBuffer, key)
+  	delete(r.chunkTimestamps, key)
+  	r.chunkMu.Unlock()
+  	return
+  }
+
+  // All chunks received and verified  reassemble
 		var assembled strings.Builder
 		for i := 1; i <= chunkTotal; i++ {
 			assembled.WriteString(r.chunkBuffer[key][i])
@@ -357,7 +429,7 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 
 	// Handle chunking
 	if chunkSeq > 0 {
-		if chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1 {
+		if chunkTotal > 100 || chunkSeq > chunkTotal || chunkSeq < 1 {
 			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender))
 			return
 		}
@@ -371,6 +443,24 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 			r.chunkMu.Unlock()
 			return
 		}
+
+  // Verify all indices 1..chunkTotal are present before reassembly
+  allPresent := true
+  for i := 1; i <= chunkTotal; i++ {
+  	if _, exists := r.chunkBuffer[key][i]; !exists {
+  		allPresent = false
+  		break
+  	}
+  }
+  if !allPresent {
+  	r.logger.Warn(fmt.Sprintf("Incomplete chunk set for %v: missing indices, discarding", key))
+  	delete(r.chunkBuffer, key)
+  	delete(r.chunkTimestamps, key)
+  	r.chunkMu.Unlock()
+  	return
+  }
+
+  // All chunks received and verified  reassemble
 		var assembled strings.Builder
 		for i := 1; i <= chunkTotal; i++ {
 			assembled.WriteString(r.chunkBuffer[key][i])

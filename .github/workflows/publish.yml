@@ -12,9 +12,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - run: |
@@ -23,7 +23,7 @@ jobs:
           ruff check src/ tests/
           pytest tests/ -v
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: "1.24"
       - run: |
@@ -31,7 +31,7 @@ jobs:
           go vet ./...
           go test ./... -v
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - run: |
@@ -40,7 +40,7 @@ jobs:
           npx tsc --noEmit
           NODE_OPTIONS='--experimental-vm-modules' npx jest
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - run: |
           cd rust
           cargo clippy -- -D warnings
@@ -52,13 +52,13 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - run: pip install build
       - run: cd python && python -m build
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@106e0b0b7c337fa67ed433972f777c6357f78598 # v1.13.0
         with:
           packages-dir: python/dist/
 

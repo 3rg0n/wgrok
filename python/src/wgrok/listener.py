@@ -16,9 +16,9 @@ from typing import Any
 import aiohttp
 from webex_message_handler import WebexMessageHandler, WebexMessageHandlerConfig
 
-from .logging import NdjsonLogger, NoopLogger
+from .logging import MinLevelLogger, NdjsonLogger
 
-Logger = NdjsonLogger | NoopLogger
+Logger = NdjsonLogger | MinLevelLogger
 
 
 @dataclass

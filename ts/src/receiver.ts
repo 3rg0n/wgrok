@@ -19,6 +19,7 @@ export class WgrokReceiver {
   private listener?: PlatformListener;
   private abortController?: AbortController;
   private chunkBuffer: Map<string, Map<number, string>> = new Map();
+  private chunkTimestamps: Map<string, number> = new Map();
 
   constructor(config: ReceiverConfig, handler: MessageHandler, controlHandler?: ControlHandler) {
     this.config = config;
@@ -114,11 +115,27 @@ export class WgrokReceiver {
 
     // Handle chunked payload
     if (chunkSeq !== null && chunkTotal !== null) {
-      if (chunkTotal > 999 || chunkSeq > chunkTotal || chunkSeq < 1) {
+      if (chunkTotal > 100 || chunkSeq > chunkTotal || chunkSeq < 1) {
         this.logger.warn(`Invalid chunk ${chunkSeq}/${chunkTotal} from ${sender}`);
         return;
       }
       const key = `${sender}:${to}`;
+
+      // Check for chunk timeout (5 minutes = 300000 milliseconds)
+      const now = Date.now();
+      if (this.chunkTimestamps.has(key)) {
+        const elapsed = now - this.chunkTimestamps.get(key)!;
+        if (elapsed > 300000) {
+          this.logger.warn(`Discarding incomplete chunk set for ${key} (timeout after 5 minutes)`);
+          this.chunkBuffer.delete(key);
+          this.chunkTimestamps.delete(key);
+          return;
+        }
+      } else {
+        // First chunk for this key — record timestamp
+        this.chunkTimestamps.set(key, now);
+      }
+
       if (!this.chunkBuffer.has(key)) {
         this.chunkBuffer.set(key, new Map());
       }
@@ -127,13 +144,26 @@ export class WgrokReceiver {
         this.logger.debug(`Buffered chunk ${chunkSeq}/${chunkTotal} for to "${to}" from ${sender}`);
         return;
       }
-      // All chunks received — reassemble
+
+      // Verify all indices 1..chunkTotal are present before reassembly
+      const allPresent = Array.from({ length: chunkTotal }, (_, i) => i + 1).every((i) =>
+        this.chunkBuffer.get(key)!.has(i),
+      );
+      if (!allPresent) {
+        this.logger.warn(`Incomplete chunk set for ${key}: missing indices, discarding`);
+        this.chunkBuffer.delete(key);
+        this.chunkTimestamps.delete(key);
+        return;
+      }
+
+      // All chunks received and verified — reassemble
       const parts: string[] = [];
       for (let i = 1; i <= chunkTotal; i++) {
         parts.push(this.chunkBuffer.get(key)!.get(i)!);
       }
       payload = parts.join('');
       this.chunkBuffer.delete(key);
+      this.chunkTimestamps.delete(key);
       this.logger.debug(`Reassembled ${chunkTotal} chunks for to "${to}" from ${sender}`);
     }
 

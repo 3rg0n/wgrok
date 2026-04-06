@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::Instant;
 
 use reqwest::Client;
 use serde_json::Value;
@@ -26,6 +27,7 @@ pub struct WgrokReceiver {
     logger: WgrokLogger,
     client: Client,
     chunk_buffer: Mutex<HashMap<ChunkKey, HashMap<usize, String>>>,
+    chunk_timestamps: Mutex<HashMap<ChunkKey, Instant>>,
 }
 
 impl WgrokReceiver {
@@ -40,6 +42,7 @@ impl WgrokReceiver {
             logger,
             client: Client::new(),
             chunk_buffer: Mutex::new(HashMap::new()),
+            chunk_timestamps: Mutex::new(HashMap::new()),
         }
     }
 
@@ -143,11 +146,30 @@ impl WgrokReceiver {
 
         // Handle chunking
         if let (Some(seq), Some(total)) = (chunk_seq, chunk_total) {
-            if total > 999 || seq > total || seq < 1 {
+            if total > 100 || seq > total || seq < 1 {
                 self.logger.warn(&format!("Invalid chunk {}/{} from {}", seq, total, sender));
                 return;
             }
             let key = (sender.clone(), to.clone());
+
+            // Check for chunk timeout (5 minutes)
+            {
+                let mut timestamps = self.chunk_timestamps.lock().unwrap();
+                if let Some(ts) = timestamps.get(&key) {
+                    if ts.elapsed() > std::time::Duration::from_secs(300) {
+                        self.logger.warn(&format!(
+                            "Discarding incomplete chunk set for {:?} (timeout after 5 minutes)", key
+                        ));
+                        let mut buffer = self.chunk_buffer.lock().unwrap();
+                        buffer.remove(&key);
+                        timestamps.remove(&key);
+                        return;
+                    }
+                } else {
+                    timestamps.insert(key.clone(), Instant::now());
+                }
+            }
+
             let mut buffer = self.chunk_buffer.lock().unwrap();
             buffer.entry(key.clone()).or_default().insert(seq, payload);
             if buffer[&key].len() < total {
@@ -157,8 +179,21 @@ impl WgrokReceiver {
                 ));
                 return;
             }
-            // All chunks received — reassemble
+
+            // Verify all indices 1..total are present before reassembly
+            let all_present = (1..=total).all(|i| buffer[&key].contains_key(&i));
+            if !all_present {
+                self.logger.warn(&format!("Incomplete chunk set for {:?}: missing indices, discarding", key));
+                buffer.remove(&key);
+                drop(buffer);
+                self.chunk_timestamps.lock().unwrap().remove(&key);
+                return;
+            }
+
+            // All chunks received and verified — reassemble
             let chunks = buffer.remove(&key).unwrap();
+            drop(buffer);
+            self.chunk_timestamps.lock().unwrap().remove(&key);
             let mut assembled = String::new();
             for i in 1..=total {
                 if let Some(part) = chunks.get(&i) {

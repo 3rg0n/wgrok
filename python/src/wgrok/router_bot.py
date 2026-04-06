@@ -64,8 +64,18 @@ class WgrokRouterBot:
             self._listeners.append(listener)
 
         self._logger.info("Router bot starting")
+        if self._routes:
+            for slug, target in self._routes.items():
+                self._logger.info(f"Route configured: {slug!r} -> {target}")
+        else:
+            self._logger.info("No routes configured (Mode B: echo-back only)")
 
         if self._config.webhook_port is not None:
+            if not self._config.webhook_secret:
+                raise ValueError(
+                    "WGROK_WEBHOOK_SECRET is required when WGROK_WEBHOOK_PORT is set. "
+                    "Refusing to start unauthenticated webhook endpoint."
+                )
             await self._start_webhook()
 
         # Connect all listeners
@@ -93,7 +103,7 @@ class WgrokRouterBot:
         """Start the HTTP webhook endpoint."""
         from aiohttp import web
 
-        app = web.Application()
+        app = web.Application(client_max_size=1024 * 1024)  # 1MB request size limit
         app.router.add_post("/wgrok", self._handle_webhook)
         runner = web.AppRunner(app)
         await runner.setup()
@@ -204,12 +214,14 @@ class WgrokRouterBot:
         room_id = incoming.room_id
 
         if cards:
-            self._logger.info(f"Relaying to {target} via {platform}: {response} (with {len(cards)} card(s))")
+            self._logger.info(
+                f"Relaying to {target} via {platform} [slug={to}, from={from_slug}] ({len(cards)} card(s))"
+            )
             await platform_send_card(
                 platform, token, target, response, cards[0], self._session, room_id=room_id,
             )
         else:
-            self._logger.info(f"Relaying to {target} via {platform}: {response}")
+            self._logger.info(f"Relaying to {target} via {platform} [slug={to}, from={from_slug}]")
             await platform_send_message(
                 platform, token, target, response, self._session, room_id=room_id,
             )

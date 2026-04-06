@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Awaitable, Callable
 
 import aiohttp
@@ -36,6 +37,7 @@ class WgrokReceiver:
         self._session: aiohttp.ClientSession | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
         self._chunk_buffer: dict[tuple[str, str], dict[int, str]] = {}
+        self._chunk_timestamps: dict[tuple[str, str], float] = {}
 
     async def listen(self) -> None:
         """Connect to the configured platform and listen for response messages matching our slug."""
@@ -109,17 +111,39 @@ class WgrokReceiver:
 
         # Check if this is a chunked payload
         if chunk_seq is not None and chunk_total is not None:
-            if chunk_total > 999 or chunk_seq > chunk_total or chunk_seq < 1:
+            if chunk_total > 100 or chunk_seq > chunk_total or chunk_seq < 1:
                 self._logger.warning(f"Invalid chunk {chunk_seq}/{chunk_total} from {sender}")
                 return
             key = (sender, to)
+
+            # Check for chunk timeout (5 minutes = 300 seconds)
+            now = time.time()
+            if key in self._chunk_timestamps:
+                if now - self._chunk_timestamps[key] > 300:
+                    self._logger.warning(f"Discarding incomplete chunk set for {key} (timeout after 5 minutes)")
+                    del self._chunk_buffer[key]
+                    del self._chunk_timestamps[key]
+                    return
+            else:
+                # First chunk for this key — record timestamp
+                self._chunk_timestamps[key] = now
+
             self._chunk_buffer.setdefault(key, {})[chunk_seq] = payload
             if len(self._chunk_buffer[key]) < chunk_total:
                 self._logger.debug(f"Buffered chunk {chunk_seq}/{chunk_total} for slug {to!r} from {sender}")
                 return
-            # All chunks received — reassemble
+
+            # Verify all indices 1..chunk_total are present
+            if not all(i in self._chunk_buffer[key] for i in range(1, chunk_total + 1)):
+                self._logger.warning(f"Incomplete chunk set for {key}: missing indices, discarding")
+                del self._chunk_buffer[key]
+                del self._chunk_timestamps[key]
+                return
+
+            # All chunks received and verified — reassemble
             payload = "".join(self._chunk_buffer[key][i] for i in range(1, chunk_total + 1))
             del self._chunk_buffer[key]
+            del self._chunk_timestamps[key]
             self._logger.debug(f"Reassembled {chunk_total} chunks for slug {to!r} from {sender}")
 
         # Decrypt if marked as encrypted

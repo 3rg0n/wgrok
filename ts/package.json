@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "dotenv": "^17.3.1",
-    "webex-message-handler": "*"
+    "webex-message-handler": "^0.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

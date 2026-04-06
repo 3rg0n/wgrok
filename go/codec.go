@@ -26,23 +26,20 @@ func Compress(data string) (string, error) {
 }
 
 // Decompress attempts to base64-decode and gzip-decompress data.
-// If decompression fails, returns the data unchanged (passthrough).
+// If decompression fails, returns an error (fail-closed).
 func Decompress(data string) (string, error) {
 	compressed, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
-		// Not valid base64, passthrough
-		return data, nil
+		return "", fmt.Errorf("base64 decode: %w", err)
 	}
 	r, err := gzip.NewReader(bytes.NewReader(compressed))
 	if err != nil {
-		// Not valid gzip, passthrough
-		return data, nil
+		return "", fmt.Errorf("gzip reader: %w", err)
 	}
 	defer r.Close()
 	out, err := io.ReadAll(r)
 	if err != nil {
-		// Gzip read failed, passthrough
-		return data, nil
+		return "", fmt.Errorf("gzip read: %w", err)
 	}
 	return string(out), nil
 }

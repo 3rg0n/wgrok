@@ -2407,7 +2407,7 @@ dependencies = [
 
 [[package]]
 name = "wgrok"
-version = "1.2.0"
+version = "1.2.2"
 dependencies = [
  "aes-gcm",
  "async-trait",

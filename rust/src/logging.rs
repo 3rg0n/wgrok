@@ -48,44 +48,56 @@ impl NdjsonLogger {
 }
 
 #[derive(Clone)]
-pub struct NoopLogger;
+pub struct MinLevelLogger {
+    ndjson: NdjsonLogger,
+}
 
-impl NoopLogger {
+impl MinLevelLogger {
+    pub fn new(module: &str) -> Self {
+        Self {
+            ndjson: NdjsonLogger::new(module),
+        }
+    }
+
     pub fn debug(&self, _msg: &str) {}
     pub fn info(&self, _msg: &str) {}
-    pub fn warn(&self, _msg: &str) {}
-    pub fn error(&self, _msg: &str) {}
+    pub fn warn(&self, msg: &str) {
+        self.ndjson.warn(msg);
+    }
+    pub fn error(&self, msg: &str) {
+        self.ndjson.error(msg);
+    }
 }
 
 #[derive(Clone)]
 pub enum WgrokLogger {
     Ndjson(NdjsonLogger),
-    Noop(NoopLogger),
+    MinLevel(MinLevelLogger),
 }
 
 impl WgrokLogger {
     pub fn debug(&self, msg: &str) {
         match self {
             Self::Ndjson(l) => l.debug(msg),
-            Self::Noop(l) => l.debug(msg),
+            Self::MinLevel(l) => l.debug(msg),
         }
     }
     pub fn info(&self, msg: &str) {
         match self {
             Self::Ndjson(l) => l.info(msg),
-            Self::Noop(l) => l.info(msg),
+            Self::MinLevel(l) => l.info(msg),
         }
     }
     pub fn warn(&self, msg: &str) {
         match self {
             Self::Ndjson(l) => l.warn(msg),
-            Self::Noop(l) => l.warn(msg),
+            Self::MinLevel(l) => l.warn(msg),
         }
     }
     pub fn error(&self, msg: &str) {
         match self {
             Self::Ndjson(l) => l.error(msg),
-            Self::Noop(l) => l.error(msg),
+            Self::MinLevel(l) => l.error(msg),
         }
     }
 }
@@ -94,7 +106,7 @@ pub fn get_logger(debug: bool, module: &str) -> WgrokLogger {
     if debug {
         WgrokLogger::Ndjson(NdjsonLogger::new(module))
     } else {
-        WgrokLogger::Noop(NoopLogger)
+        WgrokLogger::MinLevel(MinLevelLogger::new(module))
     }
 }
 

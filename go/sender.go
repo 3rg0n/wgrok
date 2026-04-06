@@ -119,7 +119,7 @@ func (s *WgrokSender) SendWithOptions(payload string, card interface{}, compress
 		}
 		return lastResult, nil
 	}
-	s.logger.Info(fmt.Sprintf("Sending to %s: %s", s.config.Target, text))
+	s.logger.Info(fmt.Sprintf("Sending to %s [slug=%s, len=%d]", s.config.Target, s.config.Slug, len(payload)))
 	if card != nil {
 		s.logger.Info("Including adaptive card attachment")
 		return PlatformSendCard(s.config.Platform, s.config.WebexToken, s.config.Target, text, card, s.client)

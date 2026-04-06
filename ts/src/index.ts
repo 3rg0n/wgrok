@@ -9,7 +9,7 @@ export {
 export { WgrokRouterBot } from './router-bot.js';
 export { WgrokReceiver, type MessageHandler, type ControlHandler } from './receiver.js';
 export { WgrokSender } from './sender.js';
-export { NdjsonLogger, noopLogger, getLogger } from './logging.js';
+export { NdjsonLogger, MinLevelLogger, noopLogger, getLogger } from './logging.js';
 export {
   type SenderConfig,
   type BotConfig,

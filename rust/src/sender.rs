@@ -103,7 +103,7 @@ impl WgrokSender {
             return Ok(last_result);
         }
         self.logger
-            .info(&format!("Sending to {}: {}", self.config.target, text));
+            .info(&format!("Sending to {} [slug={}, len={}]", self.config.target, self.config.slug, payload_to_send.len()));
         match card {
             Some(c) => {
                 self.logger.info("Including adaptive card attachment");

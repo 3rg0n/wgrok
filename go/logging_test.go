@@ -64,16 +64,14 @@ func TestNdjsonLoggerOutput(t *testing.T) {
 	}
 }
 
-func TestNoopLoggerSilent(t *testing.T) {
+func TestMinLevelLoggerSuppressesDebugInfo(t *testing.T) {
 	r, w, _ := os.Pipe()
 	origStderr := os.Stderr
 	os.Stderr = w
 
-	logger := noopWgrokLogger{}
+	logger := &minLevelWgrokLogger{ndjson: &NdjsonLogger{Module: "test"}}
 	logger.Debug("x")
 	logger.Info("x")
-	logger.Warn("x")
-	logger.Error("x")
 
 	w.Close()
 	os.Stderr = origStderr
@@ -83,7 +81,39 @@ func TestNoopLoggerSilent(t *testing.T) {
 	r.Close()
 
 	if buf.Len() != 0 {
-		t.Errorf("noop logger produced output: %s", buf.String())
+		t.Errorf("minLevelLogger produced output for debug/info: %s", buf.String())
+	}
+}
+
+func TestMinLevelLoggerEmitsWarnError(t *testing.T) {
+	r, w, _ := os.Pipe()
+	origStderr := os.Stderr
+	os.Stderr = w
+
+	logger := &minLevelWgrokLogger{ndjson: &NdjsonLogger{Module: "test"}}
+	logger.Warn("warn msg")
+	logger.Error("error msg")
+
+	w.Close()
+	os.Stderr = origStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	r.Close()
+
+	lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %s", len(lines), buf.String())
+	}
+
+	var line1, line2 map[string]string
+	json.Unmarshal(lines[0], &line1)
+	json.Unmarshal(lines[1], &line2)
+	if line1["level"] != "WARNING" {
+		t.Errorf("line1 level = %q, want WARNING", line1["level"])
+	}
+	if line2["level"] != "ERROR" {
+		t.Errorf("line2 level = %q, want ERROR", line2["level"])
 	}
 }
 
@@ -96,7 +126,7 @@ func TestGetLoggerDebugTrue(t *testing.T) {
 
 func TestGetLoggerDebugFalse(t *testing.T) {
 	logger := GetLogger(false, "test")
-	if _, ok := logger.(noopWgrokLogger); !ok {
-		t.Errorf("expected noopWgrokLogger, got %T", logger)
+	if _, ok := logger.(*minLevelWgrokLogger); !ok {
+		t.Errorf("expected *minLevelWgrokLogger, got %T", logger)
 	}
 }

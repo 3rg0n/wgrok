@@ -88,7 +88,7 @@ class WgrokSender:
                 results.append(await platform_send_message(platform, token, target, chunk_text, session))
             return results
 
-        self._logger.info(f"Sending to {target} via {platform}: {text}")
+        self._logger.info(f"Sending to {target} via {platform} [slug={self._config.slug}, len={len(payload)}]")
         if card is not None:
             self._logger.info("Including card/rich content attachment")
             return await platform_send_card(platform, token, target, text, card, session)

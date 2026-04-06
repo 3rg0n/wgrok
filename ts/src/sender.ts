@@ -69,7 +69,7 @@ export class WgrokSender {
       return results;
     }
 
-    this.logger.info(`Sending to ${this.config.target}: ${text}`);
+    this.logger.info(`Sending to ${this.config.target} [slug=${this.config.slug}, len=${processedPayload.length}]`);
     if (card) {
       this.logger.info('Including card attachment');
       return platformSendCard(this.config.platform, this.config.webexToken, this.config.target, text, card);

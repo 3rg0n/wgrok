@@ -12,7 +12,7 @@ import (
 // Ensure our loggers satisfy the webex-message-handler Logger interface.
 var (
 	_ wmh.Logger = (*NdjsonLogger)(nil)
-	_ wmh.Logger = (*noopWgrokLogger)(nil)
+	_ wmh.Logger = (*minLevelWgrokLogger)(nil)
 )
 
 // NdjsonLogger emits NDJSON log lines to stderr.
@@ -43,18 +43,24 @@ func (l *NdjsonLogger) Info(msg string, _ ...any)  { l.write("INFO", msg) }
 func (l *NdjsonLogger) Warn(msg string, _ ...any)  { l.write("WARNING", msg) }
 func (l *NdjsonLogger) Error(msg string, _ ...any) { l.write("ERROR", msg) }
 
-// noopWgrokLogger is a silent logger.
-type noopWgrokLogger struct{}
+// minLevelWgrokLogger logs only WARN and ERROR, suppressing DEBUG and INFO.
+type minLevelWgrokLogger struct {
+	ndjson *NdjsonLogger
+}
 
-func (noopWgrokLogger) Debug(string, ...any) {}
-func (noopWgrokLogger) Info(string, ...any)  {}
-func (noopWgrokLogger) Warn(string, ...any)  {}
-func (noopWgrokLogger) Error(string, ...any) {}
+func (m *minLevelWgrokLogger) Debug(string, ...any) {}
+func (m *minLevelWgrokLogger) Info(string, ...any)  {}
+func (m *minLevelWgrokLogger) Warn(msg string, args ...any) {
+	m.ndjson.write("WARNING", msg)
+}
+func (m *minLevelWgrokLogger) Error(msg string, args ...any) {
+	m.ndjson.write("ERROR", msg)
+}
 
-// GetLogger returns an NdjsonLogger if debug is true, otherwise a silent logger.
+// GetLogger returns an NdjsonLogger if debug is true, otherwise a minLevelWgrokLogger that only outputs WARN/ERROR.
 func GetLogger(debug bool, module string) wmh.Logger {
 	if debug {
 		return &NdjsonLogger{Module: module}
 	}
-	return noopWgrokLogger{}
+	return &minLevelWgrokLogger{ndjson: &NdjsonLogger{Module: module}}
 }

@@ -35,8 +35,12 @@ class NdjsonLogger:
         self._write("ERROR", msg)
 
 
-class NoopLogger:
-    """Silent logger that discards all messages."""
+class MinLevelLogger:
+    """Logger that only outputs WARN and ERROR, suppressing DEBUG and INFO."""
+
+    def __init__(self, module: str = "wgrok") -> None:
+        self._module = module
+        self._ndjson = NdjsonLogger(module)
 
     def debug(self, msg: str) -> None:
         pass
@@ -45,14 +49,14 @@ class NoopLogger:
         pass
 
     def warning(self, msg: str) -> None:
-        pass
+        self._ndjson.warning(msg)
 
     def error(self, msg: str) -> None:
-        pass
+        self._ndjson.error(msg)
 
 
-def get_logger(debug: bool, module: str = "wgrok") -> NdjsonLogger | NoopLogger:
-    """Return an NdjsonLogger if debug is True, otherwise a NoopLogger."""
+def get_logger(debug: bool, module: str = "wgrok") -> NdjsonLogger | MinLevelLogger:
+    """Return an NdjsonLogger if debug is True, otherwise a MinLevelLogger that only outputs WARN/ERROR."""
     if debug:
         return NdjsonLogger(module)
-    return NoopLogger()
+    return MinLevelLogger(module)

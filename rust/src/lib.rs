@@ -17,7 +17,7 @@ pub use protocol::{ECHO_PREFIX, PAUSE_CMD, RESUME_CMD, format_echo, parse_echo, 
 pub use codec::{compress, decompress, encrypt, decrypt};
 pub use allowlist::Allowlist;
 pub use config::{SenderConfig, BotConfig, ReceiverConfig};
-pub use logging::{get_logger, NdjsonLogger, NoopLogger, WgrokLogger};
+pub use logging::{get_logger, NdjsonLogger, MinLevelLogger, WgrokLogger};
 pub use webex::{send_message, send_card, get_message, get_attachment_action, extract_cards, ADAPTIVE_CARD_CONTENT_TYPE, _set_messages_url, _set_attachment_actions_url};
 pub use slack::{send_message as slack_send_message, send_card as slack_send_card, _set_slack_url};
 pub use discord::{send_message as discord_send_message, send_card as discord_send_card, _set_discord_api_base};

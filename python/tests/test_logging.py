@@ -1,8 +1,8 @@
-"""Tests for wgrok.logging - NDJSON logger and noop logger."""
+"""Tests for wgrok.logging - NDJSON logger and min-level logger."""
 
 import json
 
-from wgrok.logging import NdjsonLogger, NoopLogger, get_logger
+from wgrok.logging import MinLevelLogger, NdjsonLogger, get_logger
 
 
 class TestNdjsonLogger:
@@ -41,16 +41,28 @@ class TestNdjsonLogger:
         assert line["module"] == "wgrok"
 
 
-class TestNoopLogger:
-    def test_silent(self, capsys):
-        logger = NoopLogger()
+class TestMinLevelLogger:
+    def test_suppresses_debug_and_info(self, capsys):
+        logger = MinLevelLogger()
         logger.debug("x")
         logger.info("x")
-        logger.warning("x")
-        logger.error("x")
         captured = capsys.readouterr()
         assert captured.out == ""
         assert captured.err == ""
+
+    def test_emits_warning(self, capsys):
+        logger = MinLevelLogger("test")
+        logger.warning("warn msg")
+        line = json.loads(capsys.readouterr().err.strip())
+        assert line["level"] == "WARNING"
+        assert line["msg"] == "warn msg"
+
+    def test_emits_error(self, capsys):
+        logger = MinLevelLogger("test")
+        logger.error("error msg")
+        line = json.loads(capsys.readouterr().err.strip())
+        assert line["level"] == "ERROR"
+        assert line["msg"] == "error msg"
 
 
 class TestGetLogger:
@@ -58,9 +70,9 @@ class TestGetLogger:
         logger = get_logger(True)
         assert isinstance(logger, NdjsonLogger)
 
-    def test_debug_false_returns_noop(self):
+    def test_debug_false_returns_min_level(self):
         logger = get_logger(False)
-        assert isinstance(logger, NoopLogger)
+        assert isinstance(logger, MinLevelLogger)
 
     def test_custom_module(self):
         logger = get_logger(True, "custom.mod")
