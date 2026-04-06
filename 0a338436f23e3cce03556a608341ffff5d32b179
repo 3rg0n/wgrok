@@ -1,0 +1,89 @@
+python/src/wgrok/router_bot.py
+  8a6984cc758c8292 67-71,74-78,106,217-219,224
+python/pyproject.toml
+  8a6984cc758c8292 20-22
+ts/src/receiver.ts
+  8a6984cc758c8292 22,118,124-137,148-155,159,166
+rust/src/allowlist.rs
+  8a6984cc758c8292 1-7,9,14,18-33,35-36,47,50-54
+go/logging.go
+  8a6984cc758c8292 15
+go/receiver.go
+  8a6984cc758c8292 9,39,54,163,170-180,195-209,217,299,304,306-316,331-345,432,447-461
+go/allowlist.go
+  8a6984cc758c8292 4,8-22,26-30,32,37,43-45,48-55,57-58,67-82
+.github/workflows/dependency-review.yml
+  8a6984cc758c8292 14-15
+go/router_bot.go
+  8a6984cc758c8292 90-96,229,232,237,240,327,330,335,338,428,431,436,439
+rust/src/lib.rs
+  8a6984cc758c8292 20
+python/src/wgrok/logging.py
+  8a6984cc758c8292 38-39,41-43,52,55,58-59,62
+rust/tests/logging_test.rs
+  8a6984cc758c8292 1,10,12,28-29
+python/src/wgrok/listener.py
+  8a6984cc758c8292 19,21
+python/tests/test_logging.py
+  8a6984cc758c8292 1,5,44-46,53-66,73,75
+ts/tests/logging.test.ts
+  8a6984cc758c8292 1,109,111-131
+python/src/wgrok/sender.py
+  8a6984cc758c8292 91
+go/logging_test.go
+  8a6984cc758c8292 67,72,84,88-116,129-130
+ts/package.json
+  8a6984cc758c8292 30
+.github/workflows/codeql.yml
+  8a6984cc758c8292 28,31,37,46
+THREAT_MODEL.md
+  8a6984cc758c8292 1-316
+python/src/wgrok/receiver.py
+  8a6984cc758c8292 6,40,114,119-129,136-141,143,146
+go/codec.go
+  8a6984cc758c8292 29,33,37,42
+.github/workflows/publish.yml
+  8a6984cc758c8292 15,17,26,34,43,55-56,61
+ts/src/logging.ts
+  8a6984cc758c8292 30-31,33-47,56
+go/sender.go
+  8a6984cc758c8292 122
+ts/src/sender.ts
+  8a6984cc758c8292 72
+CHANGELOG.md
+  8a6984cc758c8292 7-19
+rust/src/receiver.rs
+  8a6984cc758c8292 3,154-172,189,195-196
+rust/src/router_bot.rs
+  8a6984cc758c8292 78-84,144,146-147,174
+python/src/wgrok/allowlist.py
+  8a6984cc758c8292 3,5,12-16,20,25-27,29-36,38-39,44-49
+rust/src/sender.rs
+  8a6984cc758c8292 106
+ts/src/index.ts
+  8a6984cc758c8292 12
+ts/src/allowlist.ts
+  8a6984cc758c8292 1-5,7,10-41,46,49-58
+rust/src/logging.rs
+  8a6984cc758c8292 51-60,64-69,75,82,88,94,100,109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "0a338436f23e3cce03556a608341ffff5d32b179",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland",
+      "messages": [],
+      "total_additions": 3778,
+      "total_deletions": 2863,
+      "accepted_lines": 2469,
+      "overriden_lines": 65
+    }
+  }
+}
