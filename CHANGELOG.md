@@ -2,20 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.2.3] - 2026-04-06
 
 ### Fixed
-- **F6**: Security events (WARN/ERROR) now always logged regardless of debug mode (TS, Rust)
+- Security events (WARN/ERROR) now always logged regardless of debug mode (TS, Rust)
   - Replaced NoopLogger with MinLevelLogger that suppresses DEBUG/INFO but emits WARN/ERROR
-- **F7**: Payload content redacted from sender/router_bot log messages (all 4 languages)
+- Payload content redacted from sender/router_bot log messages (all 4 languages)
   - Logs now show metadata only: slug, from, target, length
-- **F5**: Webhook authentication now mandatory when WGROK_WEBHOOK_PORT is set (Python)
+- Webhook authentication now mandatory when WGROK_WEBHOOK_PORT is set (Python)
   - Raises ValueError if WGROK_WEBHOOK_SECRET is missing
-- **F13**: Webhook endpoint request size limited to 1MB (Python)
-- **F10**: Configured routes logged at startup in all router_bot implementations
-- **F11**: Dependencies pinned: pyproject.toml, package.json, all GitHub Actions to commit SHAs
+- Webhook endpoint request size limited to 1 MB (Python)
+- Configured routes logged at startup in all router_bot implementations
+- Dependencies pinned: pyproject.toml, package.json, all GitHub Actions to commit SHAs
 - Rust chunk timeout (5-minute eviction) implemented for parity with Python/Go/TS
 - Rust allowlist clippy warning resolved (manual_strip → strip_prefix)
+- Allowlist patterns restricted to exact email, `*@domain`, and bare domain only
+  - Patterns containing `[`, `]`, or `?` are rejected
+
+### Changed
+- README updated: version badge, install instructions, security section, corrected allowlist docs
 
 ## [1.2.2] - 2026-04-05
 

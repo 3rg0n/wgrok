@@ -1,8 +1,19 @@
 # wgrok
 
+**v1.2.3** | [PyPI](https://pypi.org/project/wgrok/) | [npm](https://www.npmjs.com/package/wgrok-message-bus) | [crates.io](https://crates.io/crates/wgrok) | [Go](https://pkg.go.dev/github.com/3rg0n/wgrok/go)
+
 A message bus protocol over social messaging platforms. Uses platform APIs (Webex, Slack, Discord) as transport to allow agents, services, and orchestrators to communicate across network boundaries without inbound webhooks.
 
-## Protocol (v2)
+## Install
+
+```bash
+pip install wgrok                          # Python
+npm install wgrok-message-bus              # TypeScript
+cargo add wgrok                            # Rust
+go get github.com/3rg0n/wgrok/go@v1.2.3   # Go
+```
+
+## Protocol
 
 All wgrok messages use a four-field colon-delimited format:
 
@@ -316,8 +327,10 @@ The routing bot can optionally expose an HTTP webhook endpoint for environments 
 
 ```env
 WGROK_WEBHOOK_PORT=8080
-WGROK_WEBHOOK_SECRET=shared-secret
+WGROK_WEBHOOK_SECRET=shared-secret   # required when WGROK_WEBHOOK_PORT is set
 ```
+
+`WGROK_WEBHOOK_SECRET` is mandatory when the webhook port is configured — the router bot refuses to start without it. Request bodies are limited to 1 MB.
 
 When enabled, the routing bot starts an HTTP server that accepts `POST` requests. This is useful for:
 
@@ -344,11 +357,11 @@ The `WGROK_DOMAINS` environment variable controls who can send messages through 
 
 | Pattern | Matches |
 |---------|---------|
-| `example.com` | `*@example.com` |
-| `*@example.com` | Any user at example.com |
-| `user@example.com` | Exact match only |
-| `*.com` | Any `*@*.com` (TLD match) |
-| `*@*.domain.com` | Any user at any subdomain of domain.com |
+| `example.com` | Any `*@example.com` (bare domain) |
+| `*@example.com` | Any `*@example.com` (wildcard prefix) |
+| `user@example.com` | Exact match only (case-insensitive) |
+
+Patterns containing `[`, `]`, or `?` are rejected. All matching is case-insensitive.
 
 All modes enforce the allowlist. The minimum configuration is a `.env` file. Developers can wrap the library with their own ACL solution (OpenBao, Postgres, LDAP, etc.) if needed.
 
@@ -484,6 +497,20 @@ wgrok/
 ├── .plan/            # Design docs
 └── README.md
 ```
+
+## Security
+
+- **Allowlist enforcement** on all message paths (WebSocket and webhook)
+- **AES-256-GCM encryption** (optional, end-to-end, router-transparent)
+- **Webhook authentication** mandatory when webhook endpoint is enabled
+- **Payload redaction** in logs — metadata only (slug, from, target, length), never payload content
+- **Security event logging** always emitted (WARN/ERROR) regardless of debug mode
+- **Chunk validation** — sequence indices verified before reassembly, 5-minute timeout eviction
+- **Fail-closed crypto** — decrypt/decompress errors reject the message, never pass through broken data
+- **1 MB request size limit** on webhook endpoint
+- **Dependencies pinned** with version ranges; GitHub Actions pinned to commit SHAs
+
+See [THREAT_MODEL.md](THREAT_MODEL.md) for the full MAESTRO threat model.
 
 ## License
 
