@@ -1,0 +1,39 @@
+go/README.md
+  8a6984cc758c8292 3,13
+rust/README.md
+  8a6984cc758c8292 3,13
+rust/Cargo.toml
+  8a6984cc758c8292 3
+CHANGELOG.md
+  8a6984cc758c8292 5
+README.md
+  8a6984cc758c8292 3,13
+python/README.md
+  8a6984cc758c8292 3,13
+python/pyproject.toml
+  8a6984cc758c8292 7
+ts/package.json
+  8a6984cc758c8292 3
+ts/README.md
+  8a6984cc758c8292 3,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "843b7be3f7bd4d3494a2b2babb5ad0b21b8f5c68",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland",
+      "messages": [],
+      "total_additions": 14,
+      "total_deletions": 14,
+      "accepted_lines": 269,
+      "overriden_lines": 0
+    }
+  }
+}
