@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Replace Dependabot with Renovate Bot for dependency management
+  - Grouped PRs by ecosystem (Python, Go, TypeScript, Rust, GitHub Actions)
+  - Auto-merge for patch/digest updates
+  - Vulnerability alerts fast-tracked (no schedule delay)
+  - webex-message-handler grouped across all ecosystems
+
 ## [1.2.4] - 2026-04-06
 
 ### Changed
