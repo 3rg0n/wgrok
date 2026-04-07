@@ -1,0 +1,25 @@
+CHANGELOG.md
+  8a6984cc758c8292 5-13
+renovate.json
+  8a6984cc758c8292 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "eeb44897a36245c1713ef6b3666d169029fdeb2a",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland",
+      "messages": [],
+      "total_additions": 85,
+      "total_deletions": 0,
+      "accepted_lines": 340,
+      "overriden_lines": 0
+    }
+  }
+}
