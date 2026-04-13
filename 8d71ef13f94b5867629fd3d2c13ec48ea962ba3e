@@ -1,0 +1,49 @@
+go/go.mod
+  8a6984cc758c8292 3
+rust/tests/receiver_test.rs
+  8a6984cc758c8292 41-43,51,60
+.github/workflows/publish.yml
+  8a6984cc758c8292 28
+rust/Cargo.toml
+  8a6984cc758c8292 3,15
+go/README.md
+  8a6984cc758c8292 3,13
+python/pyproject.toml
+  8a6984cc758c8292 22
+rust/tests/router_bot_test.rs
+  8a6984cc758c8292 45-47,55,64
+python/README.md
+  8a6984cc758c8292 3,13
+ts/README.md
+  8a6984cc758c8292 3,13
+ts/package.json
+  8a6984cc758c8292 3,30
+CHANGELOG.md
+  8a6984cc758c8292 14-20
+README.md
+  8a6984cc758c8292 3,13
+rust/README.md
+  8a6984cc758c8292 3
+.github/workflows/codeql.yml
+  8a6984cc758c8292 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "8d71ef13f94b5867629fd3d2c13ec48ea962ba3e",
+  "prompts": {
+    "8a6984cc758c8292": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "179199d7-6fa2-4e87-8990-f7bed5f13450",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Ergon Copeland",
+      "messages": [],
+      "total_additions": 14481,
+      "total_deletions": 11740,
+      "accepted_lines": 3023,
+      "overriden_lines": 1
+    }
+  }
+}
