@@ -38,6 +38,9 @@ fn load_cases() -> ReceiverCases {
 fn fake_msg(sender: &str, text: &str) -> DecryptedMessage {
     DecryptedMessage {
         id: "test-msg-id".to_string(),
+        parent_id: None,
+        mentioned_people: Vec::new(),
+        mentioned_groups: Vec::new(),
         room_id: "room-abc".to_string(),
         person_id: "person-123".to_string(),
         person_email: sender.to_string(),
@@ -45,6 +48,7 @@ fn fake_msg(sender: &str, text: &str) -> DecryptedMessage {
         html: None,
         created: "2024-01-01T00:00:00Z".to_string(),
         room_type: None,
+        files: Vec::new(),
         raw: MercuryActivity {
             id: String::new(),
             verb: String::new(),
@@ -53,6 +57,7 @@ fn fake_msg(sender: &str, text: &str) -> DecryptedMessage {
             target: Default::default(),
             published: String::new(),
             encryption_key_url: None,
+            parent: None,
         },
     }
 }

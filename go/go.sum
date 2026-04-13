@@ -2,6 +2,8 @@ github.com/3rg0n/webex-message-handler/go v0.6.1 h1:A62/SEPcIzHSiWS958SypnI88NhX
 github.com/3rg0n/webex-message-handler/go v0.6.1/go.mod h1:7RmIaTIGz/GAECYwdijNbsTvBVbXMyPk5FEoiNE0MYI=
 github.com/3rg0n/webex-message-handler/go v0.6.3 h1:lBJ3O/x0NlLXp9WV6CAaioo1zETW1n6jeCLeIz9UrtE=
 github.com/3rg0n/webex-message-handler/go v0.6.3/go.mod h1:hg34XBGyeIXSW2ovlRDiU/FlnwjcSewBx+s48JWVMtg=
+github.com/3rg0n/webex-message-handler/go v0.6.8 h1:LH2i1OTfd6OpIqqi4n1cAh4XQLVsfdNU1qzDYuYVLfY=
+github.com/3rg0n/webex-message-handler/go v0.6.8/go.mod h1:hg34XBGyeIXSW2ovlRDiU/FlnwjcSewBx+s48JWVMtg=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/go-jose/go-jose/v4 v4.1.4 h1:moDMcTHmvE6Groj34emNPLs/qtYXRVcd6S7NHbHz3kA=

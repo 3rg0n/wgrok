@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file.
   - Vulnerability alerts fast-tracked (no schedule delay)
   - webex-message-handler grouped across all ecosystems
 
+## [1.2.5] - 2026-04-13
+
+### Changed
+- Bump `webex-message-handler` to 0.6.8 (all 4 languages)
+- Upgrade Go to 1.26.2 (go.mod + CI workflows)
+- Rust tests updated for new DecryptedMessage/MercuryActivity fields (parent_id, mentioned_people, mentioned_groups, files, parent)
+
 ## [1.2.4] - 2026-04-06
 
 ### Changed

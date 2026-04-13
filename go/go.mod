@@ -1,9 +1,9 @@
 module github.com/3rg0n/wgrok/go
 
-go 1.26
+go 1.26.2
 
 require (
-	github.com/3rg0n/webex-message-handler/go v0.6.3
+	github.com/3rg0n/webex-message-handler/go v0.6.8
 	github.com/joho/godotenv v1.5.1
 	nhooyr.io/websocket v1.8.17
 )

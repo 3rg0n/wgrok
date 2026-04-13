@@ -1,6 +1,6 @@
 # wgrok
 
-**v1.2.4** | [PyPI](https://pypi.org/project/wgrok/) | [npm](https://www.npmjs.com/package/wgrok-message-bus) | [crates.io](https://crates.io/crates/wgrok) | [Go](https://pkg.go.dev/github.com/3rg0n/wgrok/go)
+**v1.2.5** | [PyPI](https://pypi.org/project/wgrok/) | [npm](https://www.npmjs.com/package/wgrok-message-bus) | [crates.io](https://crates.io/crates/wgrok) | [Go](https://pkg.go.dev/github.com/3rg0n/wgrok/go)
 
 A message bus protocol over social messaging platforms. Uses platform APIs (Webex, Slack, Discord) as transport to allow agents, services, and orchestrators to communicate across network boundaries without inbound webhooks.
 
@@ -10,7 +10,7 @@ A message bus protocol over social messaging platforms. Uses platform APIs (Webe
 pip install wgrok                          # Python
 npm install wgrok-message-bus              # TypeScript
 cargo add wgrok                            # Rust
-go get github.com/3rg0n/wgrok/go@v1.2.4   # Go
+go get github.com/3rg0n/wgrok/go@v1.2.5   # Go
 ```
 
 ## Protocol
