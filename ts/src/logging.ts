@@ -3,25 +3,26 @@ import type { Logger } from 'webex-message-handler';
 export class NdjsonLogger implements Logger {
   constructor(private module: string = 'wgrok') {}
 
-  debug(message: string): void {
-    this.write('DEBUG', message);
+  debug(message: string, fields?: Record<string, string>): void {
+    this.write('DEBUG', message, fields);
   }
-  info(message: string): void {
-    this.write('INFO', message);
+  info(message: string, fields?: Record<string, string>): void {
+    this.write('INFO', message, fields);
   }
-  warn(message: string): void {
-    this.write('WARNING', message);
+  warn(message: string, fields?: Record<string, string>): void {
+    this.write('WARNING', message, fields);
   }
-  error(message: string): void {
-    this.write('ERROR', message);
+  error(message: string, fields?: Record<string, string>): void {
+    this.write('ERROR', message, fields);
   }
 
-  private write(level: string, msg: string): void {
+  private write(level: string, msg: string, fields?: Record<string, string>): void {
     const line = JSON.stringify({
       ts: new Date().toISOString(),
       level,
       msg,
       module: this.module,
+      ...fields,
     });
     process.stderr.write(line + '\n');
   }
@@ -36,11 +37,11 @@ export class MinLevelLogger implements Logger {
 
   debug(): void {}
   info(): void {}
-  warn(message: string): void {
-    this.ndjson.warn(message);
+  warn(message: string, fields?: Record<string, string>): void {
+    this.ndjson.warn(message, fields);
   }
-  error(message: string): void {
-    this.ndjson.error(message);
+  error(message: string, fields?: Record<string, string>): void {
+    this.ndjson.error(message, fields);
   }
 }
 

@@ -11,12 +11,19 @@ import (
 	wmh "github.com/3rg0n/webex-message-handler/go"
 )
 
+// MessageContext carries platform metadata about the received message.
+type MessageContext struct {
+	MsgID    string
+	Sender   string
+	Platform string
+	RoomID   string
+	RoomType string
+}
+
 // MessageHandler is the callback type for received messages.
-// It receives the slug, payload, cards, and fromSlug (sender identifier).
-type MessageHandler func(slug, payload string, cards []interface{}, fromSlug string)
+type MessageHandler func(slug, payload string, cards []interface{}, fromSlug string, ctx MessageContext)
 
 // ControlHandler is the callback type for control messages (pause/resume).
-// It receives the control command name.
 type ControlHandler func(cmd string)
 
 // chunkKey identifies a chunk stream by sender + slug.
@@ -121,15 +128,15 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 	text := msg.Text
 	text = StripBotMention(text, msg.HTML)
 	cards := msg.Cards
+	msgID := msg.MsgID
 
 	if !r.allowlist.IsAllowed(sender) {
-		r.logger.Warn(fmt.Sprintf("Rejected message from %s: not in allowlist", sender))
+		r.logger.Warn(fmt.Sprintf("Rejected message from %s: not in allowlist", sender), "sender", sender)
 		return
 	}
 
-	// Check for control messages
 	if IsPause(text) {
-		r.logger.Info(fmt.Sprintf("Received pause from %s", sender))
+		r.logger.Info(fmt.Sprintf("Received pause from %s", sender), "sender", sender)
 		if r.OnControl != nil {
 			r.OnControl("pause")
 		}
@@ -137,7 +144,7 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 	}
 
 	if IsResume(text) {
-		r.logger.Info(fmt.Sprintf("Received resume from %s", sender))
+		r.logger.Info(fmt.Sprintf("Received resume from %s", sender), "sender", sender)
 		if r.OnControl != nil {
 			r.OnControl("resume")
 		}
@@ -146,22 +153,21 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 
 	to, from, flags, payload, err := ParseResponse(text)
 	if err != nil {
-		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender))
+		r.logger.Debug(fmt.Sprintf("Ignoring unparseable message from %s", sender), "sender", sender)
 		return
 	}
 
 	if to != r.config.Slug {
-		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", to, r.config.Slug))
+		r.logger.Debug(fmt.Sprintf("Ignoring message with slug %q (expected %q)", to, r.config.Slug), "sender", sender)
 		return
 	}
 
-	// Parse flags to extract compression, encryption, and chunking info
 	compressed, encrypted, chunkSeq, chunkTotal, _ := ParseFlags(flags)
 
-	// Handle chunking
 	if chunkSeq > 0 {
 		if chunkTotal > 100 || chunkSeq > chunkTotal || chunkSeq < 1 {
-			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender))
+			r.logger.Warn(fmt.Sprintf("Invalid chunk %d/%d from %s", chunkSeq, chunkTotal, sender),
+				"slug", to, "sender", sender, "chunk_seq", chunkSeq, "chunk_total", chunkTotal)
 			return
 		}
 		key := chunkKey{sender: sender, slug: to}
@@ -171,7 +177,8 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 		now := time.Now()
 		if ts, exists := r.chunkTimestamps[key]; exists {
 			if now.Sub(ts) > 5*time.Minute {
-				r.logger.Warn(fmt.Sprintf("Discarding incomplete chunk set for %v (timeout after 5 minutes)", key))
+				r.logger.Warn(fmt.Sprintf("Discarding incomplete chunk set for %v (timeout after 5 minutes)", key),
+					"slug", to, "sender", sender)
 				delete(r.chunkBuffer, key)
 				delete(r.chunkTimestamps, key)
 				r.chunkMu.Unlock()
@@ -223,7 +230,8 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 	// Decrypt if needed
 	if encrypted {
 		if r.config.EncryptKey == nil {
-			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
+			r.logger.Warn("Received encrypted message but no key configured, skipping decryption",
+				"slug", to, "sender", sender)
 			return
 		}
 		decoded, err := Decrypt(payload, r.config.EncryptKey)
@@ -245,11 +253,20 @@ func (r *WgrokReceiver) onMessageFromListener(msg IncomingMessage) {
 	}
 
 	if len(cards) > 0 {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", to, sender, len(cards)))
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s (with %d card(s))", to, sender, len(cards)),
+			"slug", to, "sender", sender, "msg_id", msgID)
 	} else {
-		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", to, sender))
+		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", to, sender),
+			"slug", to, "sender", sender, "msg_id", msgID)
 	}
-	r.handler(to, payload, cards, from)
+	ctx := MessageContext{
+		MsgID:    msgID,
+		Sender:   sender,
+		Platform: msg.Platform,
+		RoomID:   msg.RoomID,
+		RoomType: msg.RoomType,
+	}
+	r.handler(to, payload, cards, from, ctx)
 }
 
 // onMessageWithCards is used by tests to inject card data without HTTP fetches.
@@ -307,7 +324,8 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 		now := time.Now()
 		if ts, exists := r.chunkTimestamps[key]; exists {
 			if now.Sub(ts) > 5*time.Minute {
-				r.logger.Warn(fmt.Sprintf("Discarding incomplete chunk set for %v (timeout after 5 minutes)", key))
+				r.logger.Warn(fmt.Sprintf("Discarding incomplete chunk set for %v (timeout after 5 minutes)", key),
+					"slug", to, "sender", sender)
 				delete(r.chunkBuffer, key)
 				delete(r.chunkTimestamps, key)
 				r.chunkMu.Unlock()
@@ -357,7 +375,8 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 	// Decrypt if needed
 	if encrypted {
 		if r.config.EncryptKey == nil {
-			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
+			r.logger.Warn("Received encrypted message but no key configured, skipping decryption",
+				"slug", to, "sender", sender)
 			return
 		}
 		decoded, err := Decrypt(payload, r.config.EncryptKey)
@@ -383,7 +402,15 @@ func (r *WgrokReceiver) onMessageWithCards(msg wmh.DecryptedMessage, cards []int
 	} else {
 		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", to, sender))
 	}
-	r.handler(to, payload, cards, from)
+	ctx := MessageContext{
+		MsgID:    msg.ID,
+		Sender:   sender,
+		Platform: "webex",
+		RoomID:   msg.RoomID,
+		RoomType: "",
+	}
+	ctx.RoomType = msg.RoomType
+	r.handler(to, payload, cards, from, ctx)
 }
 
 func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
@@ -473,7 +500,8 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 	// Decrypt if needed
 	if encrypted {
 		if r.config.EncryptKey == nil {
-			r.logger.Warn("Received encrypted message but no key configured, skipping decryption")
+			r.logger.Warn("Received encrypted message but no key configured, skipping decryption",
+				"slug", to, "sender", sender)
 			return
 		}
 		decoded, err := Decrypt(payload, r.config.EncryptKey)
@@ -502,7 +530,15 @@ func (r *WgrokReceiver) onMessage(msg wmh.DecryptedMessage) {
 	} else {
 		r.logger.Info(fmt.Sprintf("Received payload for slug %q from %s", to, sender))
 	}
-	r.handler(to, payload, cards, from)
+	ctx := MessageContext{
+		MsgID:    msg.ID,
+		Sender:   sender,
+		Platform: "webex",
+		RoomID:   msg.RoomID,
+		RoomType: "",
+	}
+	ctx.RoomType = msg.RoomType
+	r.handler(to, payload, cards, from, ctx)
 }
 
 func (r *WgrokReceiver) fetchCards(messageID string) []interface{} {

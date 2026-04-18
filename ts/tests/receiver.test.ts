@@ -1,5 +1,5 @@
 import { loadCases } from './helpers';
-import { WgrokReceiver } from '../src/receiver';
+import { WgrokReceiver, type MessageContext } from '../src/receiver';
 import type { IncomingMessage } from '../src/listener';
 
 interface ReceiverCases {
@@ -30,13 +30,15 @@ describe('WgrokReceiver', () => {
     let gotPayload = '';
     let gotCards: unknown[] = [];
     let gotFrom = '';
+    let gotCtx: MessageContext | undefined;
 
-    const handler = (slug: string, payload: string, cards: unknown[], from: string) => {
+    const handler = (slug: string, payload: string, cards: unknown[], from: string, ctx: MessageContext) => {
       handlerCalled = true;
       gotSlug = slug;
       gotPayload = payload;
       gotCards = cards;
       gotFrom = from;
+      gotCtx = ctx;
     };
 
     const receiver = new WgrokReceiver(
@@ -59,6 +61,10 @@ describe('WgrokReceiver', () => {
       expect(gotPayload).toBe(tc.expected_payload);
       expect(gotFrom).toBe(tc.expected_from);
       expect(gotCards).toEqual(tc.expected_cards);
+      expect(gotCtx).toBeDefined();
+      expect(gotCtx!.msgId).toBe('test-msg-id');
+      expect(gotCtx!.sender).toBe(tc.sender);
+      expect(gotCtx!.platform).toBe('webex');
     } else {
       expect(handlerCalled).toBe(false);
     }

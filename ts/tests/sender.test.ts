@@ -44,7 +44,11 @@ describe('WgrokSender', () => {
       platform: 'webex',
     });
 
-    await sender.send(tc.payload, tc.card ?? undefined, tc.compress);
+    const result = await sender.send(tc.payload, tc.card ?? undefined, tc.compress);
+
+    expect(result.messageId).toBe('msg-1');
+    expect(result.buffered).toBe(false);
+    expect(result.platformResponse).toBeDefined();
 
     if (tc.expected_uses_card) {
       expect(mockPlatformSendCard).toHaveBeenCalledTimes(1);
@@ -75,7 +79,9 @@ describe('WgrokSender', () => {
       await sender.pause(false);
       const result = await sender.send('test payload');
 
-      expect(result).toEqual({ buffered: true });
+      expect(result.buffered).toBe(true);
+      expect(result.messageId).toBeNull();
+      expect(result.messageIds).toEqual([]);
       expect(mockPlatformSendMessage).not.toHaveBeenCalled();
     });
 

@@ -20,28 +20,26 @@ type NdjsonLogger struct {
 	Module string
 }
 
-type logLine struct {
-	Ts     string `json:"ts"`
-	Level  string `json:"level"`
-	Msg    string `json:"msg"`
-	Module string `json:"module"`
-}
-
-func (l *NdjsonLogger) write(level, msg string) {
-	line := logLine{
-		Ts:     time.Now().UTC().Format(time.RFC3339Nano),
-		Level:  level,
-		Msg:    msg,
-		Module: l.Module,
+func (l *NdjsonLogger) write(level, msg string, args ...any) {
+	line := map[string]string{
+		"ts":     time.Now().UTC().Format(time.RFC3339Nano),
+		"level":  level,
+		"msg":    msg,
+		"module": l.Module,
+	}
+	for i := 0; i+1 < len(args); i += 2 {
+		if k, ok := args[i].(string); ok {
+			line[k] = fmt.Sprint(args[i+1])
+		}
 	}
 	data, _ := json.Marshal(line)
 	fmt.Fprintln(os.Stderr, string(data))
 }
 
-func (l *NdjsonLogger) Debug(msg string, _ ...any) { l.write("DEBUG", msg) }
-func (l *NdjsonLogger) Info(msg string, _ ...any)  { l.write("INFO", msg) }
-func (l *NdjsonLogger) Warn(msg string, _ ...any)  { l.write("WARNING", msg) }
-func (l *NdjsonLogger) Error(msg string, _ ...any) { l.write("ERROR", msg) }
+func (l *NdjsonLogger) Debug(msg string, args ...any) { l.write("DEBUG", msg, args...) }
+func (l *NdjsonLogger) Info(msg string, args ...any)  { l.write("INFO", msg, args...) }
+func (l *NdjsonLogger) Warn(msg string, args ...any)  { l.write("WARNING", msg, args...) }
+func (l *NdjsonLogger) Error(msg string, args ...any) { l.write("ERROR", msg, args...) }
 
 // minLevelWgrokLogger logs only WARN and ERROR, suppressing DEBUG and INFO.
 type minLevelWgrokLogger struct {
@@ -51,10 +49,10 @@ type minLevelWgrokLogger struct {
 func (m *minLevelWgrokLogger) Debug(string, ...any) {}
 func (m *minLevelWgrokLogger) Info(string, ...any)  {}
 func (m *minLevelWgrokLogger) Warn(msg string, args ...any) {
-	m.ndjson.write("WARNING", msg)
+	m.ndjson.write("WARNING", msg, args...)
 }
 func (m *minLevelWgrokLogger) Error(msg string, args ...any) {
-	m.ndjson.write("ERROR", msg)
+	m.ndjson.write("ERROR", msg, args...)
 }
 
 // GetLogger returns an NdjsonLogger if debug is true, otherwise a minLevelWgrokLogger that only outputs WARN/ERROR.

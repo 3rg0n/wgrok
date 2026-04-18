@@ -7,7 +7,15 @@ import { parseResponse, parseFlags, isPause, isResume, stripBotMention } from '.
 import { getMessage, getAttachmentAction, extractCards } from './webex.js';
 import { createListener, type IncomingMessage, type PlatformListener } from './listener.js';
 
-export type MessageHandler = (slug: string, payload: string, cards: unknown[], fromSlug: string) => void | Promise<void>;
+export interface MessageContext {
+  msgId: string;
+  sender: string;
+  platform: string;
+  roomId: string;
+  roomType: string;
+}
+
+export type MessageHandler = (slug: string, payload: string, cards: unknown[], fromSlug: string, ctx: MessageContext) => void | Promise<void>;
 export type ControlHandler = (cmd: string) => void | Promise<void>;
 
 export class WgrokReceiver {
@@ -196,7 +204,14 @@ export class WgrokReceiver {
     } else {
       this.logger.info(`Received payload for to "${to}" from ${sender}`);
     }
-    await this.messageHandler(to, payload, cards, from);
+    const ctx: MessageContext = {
+      msgId: msg.msgId,
+      sender: msg.sender,
+      platform: msg.platform,
+      roomId: msg.roomId,
+      roomType: msg.roomType,
+    };
+    await this.messageHandler(to, payload, cards, from, ctx);
   }
 
   private async onMessage(msg: IncomingMessage): Promise<void> {

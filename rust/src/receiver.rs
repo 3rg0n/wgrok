@@ -14,7 +14,16 @@ use crate::logging::{get_logger, WgrokLogger};
 use crate::protocol::{parse_flags, parse_response, is_pause, is_resume, strip_bot_mention};
 use crate::webex;
 
-pub type MessageHandler = Box<dyn Fn(&str, &str, &[Value], &str) + Send + Sync>;
+#[derive(Debug, Clone)]
+pub struct MessageContext {
+    pub msg_id: String,
+    pub sender: String,
+    pub platform: String,
+    pub room_id: String,
+    pub room_type: String,
+}
+
+pub type MessageHandler = Box<dyn Fn(&str, &str, &[Value], &str, &MessageContext) + Send + Sync>;
 pub type ControlHandler = Box<dyn Fn(&str) + Send + Sync>;
 
 type ChunkKey = (String, String); // (sender, slug)
@@ -247,7 +256,14 @@ impl WgrokReceiver {
                 to, sender
             ));
         }
-        (self.handler)(&to, &payload, cards, &from_slug);
+        let ctx = MessageContext {
+            msg_id: msg.id.clone(),
+            sender: sender.to_string(),
+            platform: "webex".to_string(),
+            room_id: msg.room_id.clone(),
+            room_type: msg.room_type.clone().unwrap_or_default(),
+        };
+        (self.handler)(&to, &payload, cards, &from_slug, &ctx);
     }
 
     async fn fetch_cards(&self, message_id: &str) -> Vec<Value> {

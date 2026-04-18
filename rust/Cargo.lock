@@ -2362,9 +2362,9 @@ dependencies = [
 
 [[package]]
 name = "webex-message-handler"
-version = "0.6.8"
+version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "127831d2fa1151b78b54450017ae64134e13f9574902f66114358d2fb28017a8"
+checksum = "b917683e757bc0f26c745078bbdfe572615d869a1d6cb2e31e1c3dce4cc77453"
 dependencies = [
  "aes-gcm",
  "aes-kw",
@@ -2409,7 +2409,7 @@ dependencies = [
 
 [[package]]
 name = "wgrok"
-version = "1.2.5"
+version = "1.3.0"
 dependencies = [
  "aes-gcm",
  "async-trait",

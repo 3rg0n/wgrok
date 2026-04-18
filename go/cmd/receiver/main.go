@@ -21,7 +21,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+	handler := func(slug, payload string, cards []interface{}, fromSlug string, ctx wgrok.MessageContext) {
 		fmt.Printf("[RECEIVED] slug=%s from=%s payload=%s\n", slug, fromSlug, payload)
 		if len(cards) > 0 {
 			for i, card := range cards {

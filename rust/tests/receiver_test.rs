@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::fs;
 use std::sync::{Arc, Mutex};
 use webex_message_handler::{DecryptedMessage, MercuryActivity};
-use wgrok::{ReceiverConfig, WgrokReceiver};
+use wgrok::{MessageContext, ReceiverConfig, WgrokReceiver};
 
 #[derive(Deserialize)]
 struct ReceiverCases {
@@ -72,12 +72,14 @@ fn test_receiver_cases() {
         let captured_payload = Arc::new(Mutex::new(String::new()));
         let captured_cards = Arc::new(Mutex::new(Vec::<Value>::new()));
         let captured_from = Arc::new(Mutex::new(String::new()));
+        let captured_ctx = Arc::new(Mutex::new(None::<MessageContext>));
 
         let called_c = called.clone();
         let slug_c = captured_slug.clone();
         let payload_c = captured_payload.clone();
         let cards_c = captured_cards.clone();
         let from_c = captured_from.clone();
+        let ctx_c = captured_ctx.clone();
 
         let receiver = WgrokReceiver::new(
             ReceiverConfig {
@@ -88,12 +90,13 @@ fn test_receiver_cases() {
                 platform: "webex".to_string(),
                 encrypt_key: None,
             },
-            Box::new(move |slug: &str, payload: &str, cards: &[Value], from_slug: &str| {
+            Box::new(move |slug: &str, payload: &str, cards: &[Value], from_slug: &str, ctx: &MessageContext| {
                 *called_c.lock().unwrap() = true;
                 *slug_c.lock().unwrap() = slug.to_string();
                 *payload_c.lock().unwrap() = payload.to_string();
                 *cards_c.lock().unwrap() = cards.to_vec();
                 *from_c.lock().unwrap() = from_slug.to_string();
+                *ctx_c.lock().unwrap() = Some(ctx.clone());
             }),
         );
 
@@ -140,6 +143,12 @@ fn test_receiver_cases() {
                     tc.name
                 );
             }
+            let ctx = captured_ctx.lock().unwrap();
+            let ctx = ctx.as_ref().expect("context should be set");
+            assert_eq!(ctx.msg_id, "test-msg-id", "case {}: ctx.msg_id", tc.name);
+            assert_eq!(ctx.sender, tc.sender, "case {}: ctx.sender", tc.name);
+            assert_eq!(ctx.platform, "webex", "case {}: ctx.platform", tc.name);
+            assert_eq!(ctx.room_id, "room-abc", "case {}: ctx.room_id", tc.name);
         }
     }
 }

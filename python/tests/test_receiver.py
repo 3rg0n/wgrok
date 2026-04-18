@@ -8,7 +8,7 @@ import pytest
 
 from wgrok.config import ReceiverConfig
 from wgrok.listener import IncomingMessage
-from wgrok.receiver import WgrokReceiver
+from wgrok.receiver import MessageContext, WgrokReceiver
 
 CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "receiver_cases.json").read_text())
 
@@ -38,11 +38,16 @@ class TestWgrokReceiver:
         await receiver.on_message_with_cards(incoming)
 
         if tc["expect_handler"]:
-            handler.assert_called_once_with(
-                tc["expected_slug"],
-                tc["expected_payload"],
-                tc["expected_cards"],
-                tc["expected_from"],
-            )
+            handler.assert_called_once()
+            args = handler.call_args[0]
+            assert args[0] == tc["expected_slug"]
+            assert args[1] == tc["expected_payload"]
+            assert args[2] == tc["expected_cards"]
+            assert args[3] == tc["expected_from"]
+            ctx = args[4]
+            assert isinstance(ctx, MessageContext)
+            assert ctx.msg_id == "msg-123"
+            assert ctx.sender == tc["sender"]
+            assert ctx.platform == "webex"
         else:
             handler.assert_not_called()

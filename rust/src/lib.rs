@@ -23,7 +23,7 @@ pub use slack::{send_message as slack_send_message, send_card as slack_send_card
 pub use discord::{send_message as discord_send_message, send_card as discord_send_card, _set_discord_api_base};
 pub use irc::{IrcParams, parse_connection_string, send_message as irc_send_message, send_card as irc_send_card};
 pub use platform::{platform_send_message, platform_send_card};
-pub use sender::WgrokSender;
+pub use sender::{SendResult, WgrokSender};
 pub use router_bot::WgrokRouterBot;
-pub use receiver::{WgrokReceiver, ControlHandler};
+pub use receiver::{MessageContext, WgrokReceiver, ControlHandler};
 pub use listener::{IncomingMessage, MessageCallback, PlatformListener, create_listener};

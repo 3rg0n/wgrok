@@ -13,6 +13,22 @@ fn platform_limits() -> HashMap<&'static str, usize> {
     HashMap::from([("webex", 7439), ("slack", 4000), ("discord", 2000), ("irc", 400)])
 }
 
+#[derive(Debug, Clone)]
+pub struct SendResult {
+    pub message_id: Option<String>,
+    pub message_ids: Vec<String>,
+    pub platform_response: Value,
+    pub buffered: bool,
+}
+
+fn extract_message_id(platform: &str, response: &Value) -> Option<String> {
+    match platform {
+        "webex" | "discord" => response.get("id").and_then(|v| v.as_str()).map(String::from),
+        "slack" => response.get("ts").and_then(|v| v.as_str()).map(String::from),
+        _ => None,
+    }
+}
+
 pub struct WgrokSender {
     config: SenderConfig,
     client: Client,
@@ -33,7 +49,7 @@ impl WgrokSender {
         }
     }
 
-    pub async fn send(&mut self, payload: &str, card: Option<&Value>) -> Result<Value, String> {
+    pub async fn send(&mut self, payload: &str, card: Option<&Value>) -> Result<SendResult, String> {
         self.send_with_options(payload, card, false).await
     }
 
@@ -42,8 +58,7 @@ impl WgrokSender {
         payload: &str,
         card: Option<&Value>,
         compress: bool,
-    ) -> Result<Value, String> {
-        // If paused, buffer the message and return immediately
+    ) -> Result<SendResult, String> {
         if self.paused {
             if self.buffer.len() >= 1000 {
                 self.logger.warn("Pause buffer full (1000), dropping oldest message");
@@ -51,7 +66,12 @@ impl WgrokSender {
             }
             self.buffer.push((payload.to_string(), card.cloned(), compress));
             self.logger.debug(&format!("Message buffered (paused). Buffer size: {}", self.buffer.len()));
-            return Ok(Value::Null);
+            return Ok(SendResult {
+                message_id: None,
+                message_ids: Vec::new(),
+                platform_response: Value::Null,
+                buffered: true,
+            });
         }
 
         let to = &self.config.slug;
@@ -62,12 +82,10 @@ impl WgrokSender {
 
         let mut payload_to_send = payload.to_string();
 
-        // Compress if requested
         if compress {
             payload_to_send = codec::compress(&payload_to_send)?;
         }
 
-        // Encrypt if key is configured
         if let Some(key) = &self.config.encrypt_key {
             payload_to_send = codec::encrypt(&payload_to_send, key)?;
         }
@@ -76,7 +94,6 @@ impl WgrokSender {
         let limits = platform_limits();
         let limit = limits.get(self.config.platform.as_str()).copied().unwrap_or(7439);
         if text.len() > limit && card.is_none() {
-            // Compute overhead: ./echo:{to}:{from}:{flags}:
             let overhead = ECHO_PREFIX.len() + to.len() + 1 + from.len() + 1 + flags.len() + 1;
             let max_payload = limit - overhead;
             let chunks = codec::chunk(&payload_to_send, max_payload)?;
@@ -86,12 +103,13 @@ impl WgrokSender {
                 chunks.len(),
                 self.config.target
             ));
-            let mut last_result = Value::Null;
+            let mut msg_ids: Vec<String> = Vec::new();
+            let mut last_resp = Value::Null;
             for (i, ch) in chunks.iter().enumerate() {
                 let chunk_flags =
                     format_flags(compress, encrypted, Some(i + 1), Some(chunks.len()));
                 let chunk_text = format_echo(to, from, &chunk_flags, ch);
-                last_result = platform::platform_send_message(
+                let resp = platform::platform_send_message(
                     &self.config.platform,
                     &self.config.webex_token,
                     &self.config.target,
@@ -99,12 +117,21 @@ impl WgrokSender {
                     &self.client,
                 )
                 .await?;
+                if let Some(mid) = extract_message_id(&self.config.platform, &resp) {
+                    msg_ids.push(mid);
+                }
+                last_resp = resp;
             }
-            return Ok(last_result);
+            return Ok(SendResult {
+                message_id: msg_ids.first().cloned(),
+                message_ids: msg_ids,
+                platform_response: last_resp,
+                buffered: false,
+            });
         }
         self.logger
             .info(&format!("Sending to {} [slug={}, len={}]", self.config.target, self.config.slug, payload_to_send.len()));
-        match card {
+        let resp = match card {
             Some(c) => {
                 self.logger.info("Including adaptive card attachment");
                 platform::platform_send_card(
@@ -115,7 +142,7 @@ impl WgrokSender {
                     c,
                     &self.client,
                 )
-                .await
+                .await?
             }
             None => {
                 platform::platform_send_message(
@@ -125,9 +152,16 @@ impl WgrokSender {
                     &text,
                     &self.client,
                 )
-                .await
+                .await?
             }
-        }
+        };
+        let mid = extract_message_id(&self.config.platform, &resp);
+        Ok(SendResult {
+            message_id: mid.clone(),
+            message_ids: mid.into_iter().collect(),
+            platform_response: resp,
+            buffered: false,
+        })
     }
 
     pub async fn pause(&mut self, notify: bool) -> Result<(), String> {

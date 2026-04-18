@@ -7,16 +7,18 @@ from .listener import IncomingMessage, PlatformListener, create_listener
 from .logging import get_logger
 from .platform import platform_send_card, platform_send_message
 from .protocol import format_flags, parse_flags
-from .receiver import WgrokReceiver
+from .receiver import MessageContext, WgrokReceiver
 from .router_bot import WgrokRouterBot
-from .sender import WgrokSender
+from .sender import SendResult, WgrokSender
 
 __all__ = [
     "Allowlist",
     "BotConfig",
     "IncomingMessage",
+    "MessageContext",
     "PlatformListener",
     "ReceiverConfig",
+    "SendResult",
     "SenderConfig",
     "WgrokRouterBot",
     "WgrokReceiver",

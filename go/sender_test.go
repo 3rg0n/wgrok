@@ -73,8 +73,11 @@ func TestWgrokSender(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if result["id"] != "msg-1" {
-				t.Errorf("result id = %v, want msg-1", result["id"])
+			if result.MessageID != "msg-1" {
+				t.Errorf("result MessageID = %v, want msg-1", result.MessageID)
+			}
+			if result.Buffered {
+				t.Error("result should not be buffered")
 			}
 			if capturedBody["text"] != c.ExpectedText {
 				t.Errorf("text = %v, want %v", capturedBody["text"], c.ExpectedText)
@@ -128,9 +131,11 @@ func TestSenderPause(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Check that result indicates buffered
-	if buffered, ok := result["buffered"].(bool); !ok || !buffered {
-		t.Error("expected result to indicate buffered:true")
+	if !result.Buffered {
+		t.Error("expected result to indicate Buffered=true")
+	}
+	if result.MessageID != "" {
+		t.Errorf("expected empty MessageID for buffered send, got %s", result.MessageID)
 	}
 
 	// No sends should have happened

@@ -13,26 +13,28 @@ class NdjsonLogger:
     def __init__(self, module: str = "wgrok") -> None:
         self._module = module
 
-    def _write(self, level: str, msg: str) -> None:
-        line = json.dumps({
+    def _write(self, level: str, msg: str, **kwargs: str) -> None:
+        line: dict[str, str] = {
             "ts": datetime.now(timezone.utc).isoformat(),
             "level": level,
             "msg": msg,
             "module": self._module,
-        })
-        print(line, file=sys.stderr, flush=True)
+        }
+        if kwargs:
+            line.update(kwargs)
+        print(json.dumps(line), file=sys.stderr, flush=True)
 
-    def debug(self, msg: str) -> None:
-        self._write("DEBUG", msg)
+    def debug(self, msg: str, **kwargs: str) -> None:
+        self._write("DEBUG", msg, **kwargs)
 
-    def info(self, msg: str) -> None:
-        self._write("INFO", msg)
+    def info(self, msg: str, **kwargs: str) -> None:
+        self._write("INFO", msg, **kwargs)
 
-    def warning(self, msg: str) -> None:
-        self._write("WARNING", msg)
+    def warning(self, msg: str, **kwargs: str) -> None:
+        self._write("WARNING", msg, **kwargs)
 
-    def error(self, msg: str) -> None:
-        self._write("ERROR", msg)
+    def error(self, msg: str, **kwargs: str) -> None:
+        self._write("ERROR", msg, **kwargs)
 
 
 class MinLevelLogger:
@@ -42,17 +44,17 @@ class MinLevelLogger:
         self._module = module
         self._ndjson = NdjsonLogger(module)
 
-    def debug(self, msg: str) -> None:
+    def debug(self, msg: str, **kwargs: str) -> None:
         pass
 
-    def info(self, msg: str) -> None:
+    def info(self, msg: str, **kwargs: str) -> None:
         pass
 
-    def warning(self, msg: str) -> None:
-        self._ndjson.warning(msg)
+    def warning(self, msg: str, **kwargs: str) -> None:
+        self._ndjson.warning(msg, **kwargs)
 
-    def error(self, msg: str) -> None:
-        self._ndjson.error(msg)
+    def error(self, msg: str, **kwargs: str) -> None:
+        self._ndjson.error(msg, **kwargs)
 
 
 def get_logger(debug: bool, module: str = "wgrok") -> NdjsonLogger | MinLevelLogger:

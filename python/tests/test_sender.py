@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from wgrok.config import SenderConfig
-from wgrok.sender import WgrokSender
+from wgrok.sender import SendResult, WgrokSender
 
 CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "sender_cases.json").read_text())
 
@@ -29,17 +29,21 @@ class TestWgrokSender:
                 if tc["expected_uses_card"]:
                     with patch("wgrok.sender.platform_send_card", new_callable=AsyncMock) as mock_card:
                         mock_card.return_value = {"id": "msg-1"}
-                        await sender.send(tc["payload"], card=tc["card"])
+                        result = await sender.send(tc["payload"], card=tc["card"])
+                        assert isinstance(result, SendResult), f'{tc["name"]}: expected SendResult'
+                        assert result.message_id == "msg-1", f'{tc["name"]}: message_id mismatch'
+                        assert not result.buffered, f'{tc["name"]}: should not be buffered'
                         args = mock_card.call_args
-                        # platform_send_card(platform, token, target, text, card, session)
                         assert args[0][3] == tc["expected_text"], f'{tc["name"]}: text mismatch'
                         assert args[0][2] == tc["expected_target"], f'{tc["name"]}: target mismatch'
                 else:
                     with patch("wgrok.sender.platform_send_message", new_callable=AsyncMock) as mock_send:
                         mock_send.return_value = {"id": "msg-1"}
-                        await sender.send(tc["payload"], card=tc.get("card"))
+                        result = await sender.send(tc["payload"], card=tc.get("card"))
+                        assert isinstance(result, SendResult), f'{tc["name"]}: expected SendResult'
+                        assert result.message_id == "msg-1", f'{tc["name"]}: message_id mismatch'
+                        assert not result.buffered, f'{tc["name"]}: should not be buffered'
                         args = mock_send.call_args
-                        # platform_send_message(platform, token, target, text, session)
                         assert args[0][3] == tc["expected_text"], f'{tc["name"]}: text mismatch'
                         assert args[0][2] == tc["expected_target"], f'{tc["name"]}: target mismatch'
             finally:
@@ -60,7 +64,9 @@ class TestSenderPauseResume:
             await sender.pause()
             assert mock_send.call_count == 1  # ./pause sent to router
             result = await sender.send("hello")
-            assert result == {"buffered": True}
+            assert isinstance(result, SendResult)
+            assert result.buffered is True
+            assert result.message_id is None
             assert mock_send.call_count == 1  # no additional send
         await sender.close()
 
@@ -90,7 +96,8 @@ class TestSenderPauseResume:
             mock_send.return_value = {"id": "x"}
             await sender.pause(notify=False)
             result = await sender.send("hello")
-            assert result == {"buffered": True}
+            assert isinstance(result, SendResult)
+            assert result.buffered is True
             mock_send.assert_not_called()
         await sender.close()
 

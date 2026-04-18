@@ -1,13 +1,4 @@
-use serde::Serialize;
 use std::io::Write;
-
-#[derive(Serialize)]
-struct LogLine<'a> {
-    ts: String,
-    level: &'a str,
-    msg: &'a str,
-    module: &'a str,
-}
 
 #[derive(Clone)]
 pub struct NdjsonLogger {
@@ -21,29 +12,44 @@ impl NdjsonLogger {
         }
     }
 
-    fn write(&self, level: &str, msg: &str) {
-        let line = LogLine {
-            ts: chrono_now(),
-            level,
-            msg,
-            module: &self.module,
-        };
-        if let Ok(json) = serde_json::to_string(&line) {
+    fn write(&self, level: &str, msg: &str, fields: &[(&str, &str)]) {
+        let mut map = serde_json::Map::new();
+        map.insert("ts".into(), serde_json::Value::String(chrono_now()));
+        map.insert("level".into(), serde_json::Value::String(level.to_string()));
+        map.insert("msg".into(), serde_json::Value::String(msg.to_string()));
+        map.insert("module".into(), serde_json::Value::String(self.module.clone()));
+        for (k, v) in fields {
+            map.insert((*k).to_string(), serde_json::Value::String((*v).to_string()));
+        }
+        if let Ok(json) = serde_json::to_string(&serde_json::Value::Object(map)) {
             let _ = writeln!(std::io::stderr(), "{}", json);
         }
     }
 
     pub fn debug(&self, msg: &str) {
-        self.write("DEBUG", msg);
+        self.write("DEBUG", msg, &[]);
     }
     pub fn info(&self, msg: &str) {
-        self.write("INFO", msg);
+        self.write("INFO", msg, &[]);
     }
     pub fn warn(&self, msg: &str) {
-        self.write("WARNING", msg);
+        self.write("WARNING", msg, &[]);
     }
     pub fn error(&self, msg: &str) {
-        self.write("ERROR", msg);
+        self.write("ERROR", msg, &[]);
+    }
+
+    pub fn debug_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        self.write("DEBUG", msg, fields);
+    }
+    pub fn info_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        self.write("INFO", msg, fields);
+    }
+    pub fn warn_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        self.write("WARNING", msg, fields);
+    }
+    pub fn error_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        self.write("ERROR", msg, fields);
     }
 }
 
@@ -66,6 +72,15 @@ impl MinLevelLogger {
     }
     pub fn error(&self, msg: &str) {
         self.ndjson.error(msg);
+    }
+
+    pub fn debug_with(&self, _msg: &str, _fields: &[(&str, &str)]) {}
+    pub fn info_with(&self, _msg: &str, _fields: &[(&str, &str)]) {}
+    pub fn warn_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        self.ndjson.warn_with(msg, fields);
+    }
+    pub fn error_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        self.ndjson.error_with(msg, fields);
     }
 }
 
@@ -98,6 +113,31 @@ impl WgrokLogger {
         match self {
             Self::Ndjson(l) => l.error(msg),
             Self::MinLevel(l) => l.error(msg),
+        }
+    }
+
+    pub fn debug_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        match self {
+            Self::Ndjson(l) => l.debug_with(msg, fields),
+            Self::MinLevel(l) => l.debug_with(msg, fields),
+        }
+    }
+    pub fn info_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        match self {
+            Self::Ndjson(l) => l.info_with(msg, fields),
+            Self::MinLevel(l) => l.info_with(msg, fields),
+        }
+    }
+    pub fn warn_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        match self {
+            Self::Ndjson(l) => l.warn_with(msg, fields),
+            Self::MinLevel(l) => l.warn_with(msg, fields),
+        }
+    }
+    pub fn error_with(&self, msg: &str, fields: &[(&str, &str)]) {
+        match self {
+            Self::Ndjson(l) => l.error_with(msg, fields),
+            Self::MinLevel(l) => l.error_with(msg, fields),
         }
     }
 }

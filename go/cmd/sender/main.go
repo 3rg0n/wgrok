@@ -50,6 +50,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	out, _ := json.MarshalIndent(result, "", "  ")
+	if result.MessageID != "" {
+		fmt.Fprintf(os.Stderr, "Message ID: %s\n", result.MessageID)
+	}
+	out, _ := json.MarshalIndent(result.PlatformResponse, "", "  ")
 	fmt.Println(string(out))
 }

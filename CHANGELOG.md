@@ -11,6 +11,23 @@ All notable changes to this project will be documented in this file.
   - Vulnerability alerts fast-tracked (no schedule delay)
   - webex-message-handler grouped across all ecosystems
 
+## [1.3.0] - 2026-04-17
+
+### Added
+- `SendResult` structured return type for `send()` across all 4 languages
+  - Normalized `message_id`, `message_ids`, `platform_response`, `buffered` fields
+  - Extracts platform-specific IDs: Webex/Discord `id`, Slack `ts`, IRC `None`
+  - Consistent buffered return (`SendResult.buffered = true`) replaces ad-hoc dicts
+- `MessageContext` on receiver handler callback (all 4 languages)
+  - 5th argument with `msg_id`, `sender`, `platform`, `room_id`, `room_type`
+  - **Breaking**: handler signature changes from 4 args to 5 args
+- Logger correlation fields for structured observability (all 4 languages)
+  - `write()` accepts optional key-value context fields merged into NDJSON output
+  - Receiver log lines now include `slug`, `sender`, `msg_id`, `chunk_seq`, `chunk_total`
+
+### Changed
+- Bump `webex-message-handler` to 0.6.9 (all 4 languages)
+
 ## [1.2.5] - 2026-04-13
 
 ### Changed

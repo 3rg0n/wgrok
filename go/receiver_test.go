@@ -58,12 +58,14 @@ func TestWgrokReceiver(t *testing.T) {
 			defer srv.Close()
 			overrideMessagesURL(t, srv.URL)
 
-			handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+			var gotCtx MessageContext
+			handler := func(slug, payload string, cards []interface{}, fromSlug string, ctx MessageContext) {
 				handlerCalled = true
 				gotSlug = slug
 				gotPayload = payload
 				gotCards = cards
 				gotFrom = fromSlug
+				gotCtx = ctx
 			}
 
 			receiver := NewReceiver(&ReceiverConfig{
@@ -104,6 +106,12 @@ func TestWgrokReceiver(t *testing.T) {
 				if string(gotCardsJSON) != string(expCardsJSON) {
 					t.Errorf("cards = %s, want %s", gotCardsJSON, expCardsJSON)
 				}
+				if gotCtx.MsgID != "test-msg-id" {
+					t.Errorf("ctx.MsgID = %q, want test-msg-id", gotCtx.MsgID)
+				}
+				if gotCtx.Sender != c.Sender {
+					t.Errorf("ctx.Sender = %q, want %q", gotCtx.Sender, c.Sender)
+				}
 			}
 		})
 	}
@@ -120,7 +128,7 @@ func TestReceiverPauseControl(t *testing.T) {
 	defer srv.Close()
 	overrideMessagesURL(t, srv.URL)
 
-	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+	handler := func(slug, payload string, cards []interface{}, fromSlug string, ctx MessageContext) {
 		t.Error("handler should not be called for control messages")
 	}
 
@@ -164,7 +172,7 @@ func TestReceiverResumeControl(t *testing.T) {
 	defer srv.Close()
 	overrideMessagesURL(t, srv.URL)
 
-	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+	handler := func(slug, payload string, cards []interface{}, fromSlug string, ctx MessageContext) {
 		t.Error("handler should not be called for control messages")
 	}
 
@@ -207,7 +215,7 @@ func TestReceiverControlNoCallback(t *testing.T) {
 	defer srv.Close()
 	overrideMessagesURL(t, srv.URL)
 
-	handler := func(slug, payload string, cards []interface{}, fromSlug string) {
+	handler := func(slug, payload string, cards []interface{}, fromSlug string, ctx MessageContext) {
 		t.Error("handler should not be called for control messages")
 	}
 

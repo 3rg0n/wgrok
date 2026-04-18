@@ -1,6 +1,6 @@
 # wgrok
 
-**v1.2.5** | [PyPI](https://pypi.org/project/wgrok/) | [npm](https://www.npmjs.com/package/wgrok-message-bus) | [crates.io](https://crates.io/crates/wgrok) | [Go](https://pkg.go.dev/github.com/3rg0n/wgrok/go)
+**v1.3.0** | [PyPI](https://pypi.org/project/wgrok/) | [npm](https://www.npmjs.com/package/wgrok-message-bus) | [crates.io](https://crates.io/crates/wgrok) | [Go](https://pkg.go.dev/github.com/3rg0n/wgrok/go)
 
 A message bus protocol over social messaging platforms. Uses platform APIs (Webex, Slack, Discord) as transport to allow agents, services, and orchestrators to communicate across network boundaries without inbound webhooks.
 
@@ -10,7 +10,7 @@ A message bus protocol over social messaging platforms. Uses platform APIs (Webe
 pip install wgrok                          # Python
 npm install wgrok-message-bus              # TypeScript
 cargo add wgrok                            # Rust
-go get github.com/3rg0n/wgrok/go@v1.2.5   # Go
+go get github.com/3rg0n/wgrok/go@v1.3.0   # Go
 ```
 
 ## Protocol
@@ -211,15 +211,15 @@ WGROK_PROXY=http://proxy.corp.com:8080
 ```python
 from wgrok import WgrokSender, WgrokReceiver, SenderConfig, ReceiverConfig
 
-# Send
+# Send — returns SendResult(message_id, message_ids, platform_response, buffered)
 sender = WgrokSender(SenderConfig.from_env())
-await sender.send("hello world")
-await sender.send("large payload", compress=True)  # gzip+base64, auto-chunks
+result = await sender.send("hello world")
+print(result.message_id)
 await sender.close()
 
-# Receive
-async def handler(slug, payload, cards, from_slug):
-    print(f"Got from {from_slug}: {payload}")
+# Receive — handler receives a MessageContext as its 5th argument
+async def handler(slug, payload, cards, from_slug, ctx):
+    print(f"[{ctx.platform}] {ctx.sender} in {ctx.room_id}: {payload}")
 
 receiver = WgrokReceiver(ReceiverConfig.from_env(), handler)
 await receiver.listen()
@@ -230,15 +230,16 @@ await receiver.listen()
 ```go
 import wgrok "github.com/3rg0n/wgrok/go"
 
-// Send
+// Send — returns *SendResult
 cfg, _ := wgrok.SenderConfigFromEnv()
 sender := wgrok.NewSender(cfg)
-sender.Send("hello world", nil)
+result, _ := sender.Send("hello world", nil)
+fmt.Println(result.MessageID)
 
-// Receive
+// Receive — handler takes a MessageContext as its 5th argument
 rcfg, _ := wgrok.ReceiverConfigFromEnv()
-receiver := wgrok.NewReceiver(rcfg, func(slug, payload string, cards []interface{}, fromSlug string) {
-    fmt.Printf("Got from %s: %s\n", fromSlug, payload)
+receiver := wgrok.NewReceiver(rcfg, func(slug, payload string, cards []interface{}, fromSlug string, ctx wgrok.MessageContext) {
+    fmt.Printf("[%s] %s in %s: %s\n", ctx.Platform, ctx.Sender, ctx.RoomID, payload)
 })
 receiver.Listen(ctx)
 ```
@@ -246,15 +247,16 @@ receiver.Listen(ctx)
 **TypeScript:**
 
 ```typescript
-import { WgrokSender, WgrokReceiver, senderConfigFromEnv, receiverConfigFromEnv } from 'wgrok';
+import { WgrokSender, WgrokReceiver, senderConfigFromEnv, receiverConfigFromEnv } from 'wgrok-message-bus';
 
-// Send
+// Send — returns SendResult { messageId, messageIds, platformResponse, buffered }
 const sender = new WgrokSender(senderConfigFromEnv());
-await sender.send('hello world');
+const result = await sender.send('hello world');
+console.log(result.messageId);
 
-// Receive
-const receiver = new WgrokReceiver(receiverConfigFromEnv(), (slug, payload, cards, fromSlug) => {
-  console.log(`Got from ${fromSlug}: ${payload}`);
+// Receive — handler takes a MessageContext as its 5th argument
+const receiver = new WgrokReceiver(receiverConfigFromEnv(), (slug, payload, cards, fromSlug, ctx) => {
+  console.log(`[${ctx.platform}] ${ctx.sender} in ${ctx.roomId}: ${payload}`);
 });
 await receiver.listen();
 ```
@@ -262,20 +264,44 @@ await receiver.listen();
 **Rust:**
 
 ```rust
-use wgrok::{WgrokSender, WgrokReceiver, SenderConfig, ReceiverConfig};
+use wgrok::{WgrokSender, WgrokReceiver, SenderConfig, ReceiverConfig, MessageContext};
 
-// Send
+// Send — returns SendResult { message_id, message_ids, platform_response, buffered }
 let cfg = SenderConfig::from_env()?;
 let sender = WgrokSender::new(cfg);
-sender.send("hello world", None).await?;
+let result = sender.send("hello world", None).await?;
+println!("{:?}", result.message_id);
 
-// Receive
+// Receive — handler takes a &MessageContext as its 5th argument
 let cfg = ReceiverConfig::from_env()?;
-let receiver = WgrokReceiver::new(cfg, Box::new(|slug, payload, cards, from_slug| {
-    println!("Got from {from_slug}: {payload}");
+let receiver = WgrokReceiver::new(cfg, Box::new(|slug, payload, cards, from_slug, ctx: &MessageContext| {
+    println!("[{}] {} in {}: {}", ctx.platform, ctx.sender, ctx.room_id, payload);
 }));
 receiver.listen(shutdown_rx).await?;
 ```
+
+### SendResult
+
+`send()` returns a `SendResult` with normalized fields across platforms:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message_id` | string \| null | First platform message ID (Webex `id`, Slack `ts`, Discord `id`, IRC `None`) |
+| `message_ids` | string[] | All IDs when chunking (one per chunk) |
+| `platform_response` | object | Raw platform response for callers that need it |
+| `buffered` | bool | `true` when the send was buffered due to pause state |
+
+### MessageContext
+
+The receiver handler's 5th argument carries platform metadata for replies, log correlation, and routing:
+
+| Field | Description |
+|-------|-------------|
+| `msg_id` | Platform message ID |
+| `sender` | Sender email / user ID |
+| `platform` | `"webex"`, `"slack"`, `"discord"`, or `"irc"` |
+| `room_id` | Room / channel ID |
+| `room_type` | `"direct"`, `"group"`, or `""` when unknown |
 
 ## Transport bindings
 
@@ -504,6 +530,7 @@ wgrok/
 - **AES-256-GCM encryption** (optional, end-to-end, router-transparent)
 - **Webhook authentication** mandatory when webhook endpoint is enabled
 - **Payload redaction** in logs — metadata only (slug, from, target, length), never payload content
+- **Structured log correlation** — NDJSON log lines carry `slug`, `sender`, `msg_id`, and chunk fields for traceable audit without payload exposure
 - **Security event logging** always emitted (WARN/ERROR) regardless of debug mode
 - **Chunk validation** — sequence indices verified before reassembly, 5-minute timeout eviction
 - **Fail-closed crypto** — decrypt/decompress errors reject the message, never pass through broken data

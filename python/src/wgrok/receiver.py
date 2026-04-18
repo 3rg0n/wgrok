@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 import aiohttp
 
@@ -16,7 +17,19 @@ from .logging import get_logger
 from .protocol import is_pause, is_resume, parse_flags, parse_response, strip_bot_mention
 from .webex import extract_cards, get_attachment_action, get_message
 
-MessageHandler = Callable[[str, str, list[dict], str], Awaitable[None]]
+
+@dataclass
+class MessageContext:
+    """Platform metadata passed to the receiver handler."""
+
+    msg_id: str
+    sender: str
+    platform: str
+    room_id: str
+    room_type: str
+
+
+MessageHandler = Callable[[str, str, list[dict], str, MessageContext], Awaitable[None]]
 ControlHandler = Callable[[str], None] | None
 
 
@@ -86,12 +99,12 @@ class WgrokReceiver:
         msg_id = incoming.msg_id
 
         if not self._allowlist.is_allowed(sender):
-            self._logger.warning(f"Rejected message from {sender}: not in allowlist")
+            self._logger.warning(f"Rejected message from {sender}: not in allowlist", sender=sender)
             return
 
         if is_pause(text) or is_resume(text):
             cmd = "pause" if is_pause(text) else "resume"
-            self._logger.info(f"Received {cmd} control from {sender}")
+            self._logger.info(f"Received {cmd} control from {sender}", sender=sender)
             if self._on_control:
                 self._on_control(cmd)
             return
@@ -99,78 +112,98 @@ class WgrokReceiver:
         try:
             to, from_slug, flags_str, payload = parse_response(text)
         except ValueError:
-            self._logger.debug(f"Ignoring unparseable message from {sender}")
+            self._logger.debug(f"Ignoring unparseable message from {sender}", sender=sender)
             return
 
         if to != self._config.slug:
-            self._logger.debug(f"Ignoring message with slug {to!r} (expected {self._config.slug!r})")
+            self._logger.debug(f"Ignoring message with slug {to!r} (expected {self._config.slug!r})", sender=sender)
             return
 
-        # Parse flags to get compression, encryption, and chunking info
         compressed, encrypted, chunk_seq, chunk_total = parse_flags(flags_str)
 
-        # Check if this is a chunked payload
         if chunk_seq is not None and chunk_total is not None:
             if chunk_total > 100 or chunk_seq > chunk_total or chunk_seq < 1:
-                self._logger.warning(f"Invalid chunk {chunk_seq}/{chunk_total} from {sender}")
+                self._logger.warning(
+                    f"Invalid chunk {chunk_seq}/{chunk_total} from {sender}",
+                    slug=to, sender=sender, chunk_seq=str(chunk_seq), chunk_total=str(chunk_total),
+                )
                 return
             key = (sender, to)
 
-            # Check for chunk timeout (5 minutes = 300 seconds)
             now = time.time()
             if key in self._chunk_timestamps:
                 if now - self._chunk_timestamps[key] > 300:
-                    self._logger.warning(f"Discarding incomplete chunk set for {key} (timeout after 5 minutes)")
+                    self._logger.warning(
+                        f"Discarding incomplete chunk set for {key} (timeout after 5 minutes)",
+                        slug=to, sender=sender,
+                    )
                     del self._chunk_buffer[key]
                     del self._chunk_timestamps[key]
                     return
             else:
-                # First chunk for this key — record timestamp
                 self._chunk_timestamps[key] = now
 
             self._chunk_buffer.setdefault(key, {})[chunk_seq] = payload
             if len(self._chunk_buffer[key]) < chunk_total:
-                self._logger.debug(f"Buffered chunk {chunk_seq}/{chunk_total} for slug {to!r} from {sender}")
+                self._logger.debug(
+                    f"Buffered chunk {chunk_seq}/{chunk_total} for slug {to!r} from {sender}",
+                    slug=to, sender=sender, chunk_seq=str(chunk_seq), chunk_total=str(chunk_total),
+                )
                 return
 
-            # Verify all indices 1..chunk_total are present
             if not all(i in self._chunk_buffer[key] for i in range(1, chunk_total + 1)):
-                self._logger.warning(f"Incomplete chunk set for {key}: missing indices, discarding")
+                self._logger.warning(
+                    f"Incomplete chunk set for {key}: missing indices, discarding",
+                    slug=to, sender=sender,
+                )
                 del self._chunk_buffer[key]
                 del self._chunk_timestamps[key]
                 return
 
-            # All chunks received and verified — reassemble
             payload = "".join(self._chunk_buffer[key][i] for i in range(1, chunk_total + 1))
             del self._chunk_buffer[key]
             del self._chunk_timestamps[key]
-            self._logger.debug(f"Reassembled {chunk_total} chunks for slug {to!r} from {sender}")
+            self._logger.debug(
+                f"Reassembled {chunk_total} chunks for slug {to!r} from {sender}",
+                slug=to, sender=sender, chunk_total=str(chunk_total),
+            )
 
-        # Decrypt if marked as encrypted
         if encrypted:
             if not self._config.encrypt_key:
                 self._logger.warning(
-                    f"Message from {sender} marked as encrypted but no WGROK_ENCRYPT_KEY configured — skipping"
+                    f"Message from {sender} marked as encrypted but no WGROK_ENCRYPT_KEY configured — skipping",
+                    slug=to, sender=sender,
                 )
                 return
             try:
                 payload = codec.decrypt(payload, self._config.encrypt_key)
             except Exception as e:
-                self._logger.warning(f"Failed to decrypt message from {sender}: {e}")
+                self._logger.warning(f"Failed to decrypt message from {sender}: {e}", slug=to, sender=sender)
                 return
 
-        # Decompress if marked as compressed
         if compressed:
             payload = codec.decompress(payload)
 
-        # Use cards from the incoming message if present, otherwise fetch from Webex
         cards = incoming.cards if incoming.cards else await self._fetch_cards(msg_id)
 
         if cards:
-            self._logger.info(f"Received payload for slug {to!r} from {sender} (with {len(cards)} card(s))")
+            self._logger.info(
+                f"Received payload for slug {to!r} from {sender} (with {len(cards)} card(s))",
+                slug=to, sender=sender, msg_id=msg_id,
+            )
         else:
-            self._logger.info(f"Received payload for slug {to!r} from {sender}")
-        await self._handler_callback(to, payload, cards, from_slug)
+            self._logger.info(
+                f"Received payload for slug {to!r} from {sender}",
+                slug=to, sender=sender, msg_id=msg_id,
+            )
+        ctx = MessageContext(
+            msg_id=msg_id,
+            sender=sender,
+            platform=incoming.platform,
+            room_id=incoming.room_id,
+            room_type=incoming.room_type,
+        )
+        await self._handler_callback(to, payload, cards, from_slug, ctx)
 
     async def on_message_with_cards(self, message: IncomingMessage) -> None:
         """Public test hook — process a message with pre-injected cards."""

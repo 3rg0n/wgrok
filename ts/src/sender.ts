@@ -12,6 +12,23 @@ export const PLATFORM_LIMITS: Record<string, number> = {
   irc: 400,
 };
 
+export interface SendResult {
+  messageId: string | null;
+  messageIds: string[];
+  platformResponse: Record<string, unknown> | Record<string, unknown>[] | null;
+  buffered: boolean;
+}
+
+function extractMessageId(platform: string, response: Record<string, unknown>): string | null {
+  if (platform === 'webex' || platform === 'discord') {
+    return (response.id as string) ?? null;
+  }
+  if (platform === 'slack') {
+    return (response.ts as string) ?? null;
+  }
+  return null;
+}
+
 export class WgrokSender {
   private config: SenderConfig;
   private logger: Logger;
@@ -23,7 +40,7 @@ export class WgrokSender {
     this.logger = getLogger(config.debug, 'wgrok.sender');
   }
 
-  async send(payload: string, card?: unknown, compress = false, fromSlug?: string): Promise<Record<string, unknown> | Record<string, unknown>[] | { buffered: true }> {
+  async send(payload: string, card?: unknown, compress = false, fromSlug?: string): Promise<SendResult> {
     if (this.paused) {
       this.logger.info('Sender is paused, buffering message');
       if (this.buffer.length >= 1000) {
@@ -31,7 +48,7 @@ export class WgrokSender {
         this.buffer.shift();
       }
       this.buffer.push({ payload, card, compress, fromSlug });
-      return { buffered: true };
+      return { messageId: null, messageIds: [], platformResponse: null, buffered: true };
     }
 
     const from = fromSlug ?? this.config.slug;
@@ -61,20 +78,38 @@ export class WgrokSender {
       const chunks = codecChunk(processedPayload, maxPayload);
       this.logger.info(`Payload exceeds ${limit}B limit, sending ${chunks.length} chunks to ${this.config.target}`);
       const results: Record<string, unknown>[] = [];
+      const msgIds: string[] = [];
       for (let i = 0; i < chunks.length; i++) {
         const chunkFlags = formatFlags(compress, encrypted, i + 1, chunks.length);
         const chunkText = formatEcho(this.config.slug, from, chunkFlags, chunks[i]);
-        results.push(await platformSendMessage(this.config.platform, this.config.webexToken, this.config.target, chunkText));
+        const resp = await platformSendMessage(this.config.platform, this.config.webexToken, this.config.target, chunkText);
+        results.push(resp);
+        const mid = extractMessageId(this.config.platform, resp);
+        if (mid) msgIds.push(mid);
       }
-      return results;
+      return {
+        messageId: msgIds[0] ?? null,
+        messageIds: msgIds,
+        platformResponse: results,
+        buffered: false,
+      };
     }
 
     this.logger.info(`Sending to ${this.config.target} [slug=${this.config.slug}, len=${processedPayload.length}]`);
+    let resp: Record<string, unknown>;
     if (card) {
       this.logger.info('Including card attachment');
-      return platformSendCard(this.config.platform, this.config.webexToken, this.config.target, text, card);
+      resp = await platformSendCard(this.config.platform, this.config.webexToken, this.config.target, text, card);
+    } else {
+      resp = await platformSendMessage(this.config.platform, this.config.webexToken, this.config.target, text);
     }
-    return platformSendMessage(this.config.platform, this.config.webexToken, this.config.target, text);
+    const mid = extractMessageId(this.config.platform, resp);
+    return {
+      messageId: mid,
+      messageIds: mid ? [mid] : [],
+      platformResponse: resp,
+      buffered: false,
+    };
   }
 
   async pause(notify = true): Promise<void> {

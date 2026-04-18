@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import aiohttp
 
 from . import codec
@@ -16,6 +18,24 @@ PLATFORM_LIMITS = {
     "discord": 2000,
     "irc": 400,
 }
+
+
+def _extract_message_id(platform: str, response: dict) -> str | None:
+    if platform in ("webex", "discord"):
+        return response.get("id")
+    if platform == "slack":
+        return response.get("ts")
+    return None
+
+
+@dataclass
+class SendResult:
+    """Structured result from a send operation."""
+
+    message_id: str | None = None
+    message_ids: list[str] = field(default_factory=list)
+    platform_response: dict | list[dict] | None = None
+    buffered: bool = False
 
 
 class WgrokSender:
@@ -37,7 +57,7 @@ class WgrokSender:
         card: dict | None = None,
         compress: bool = False,
         from_slug: str | None = None,
-    ) -> dict | list[dict]:
+    ) -> SendResult:
         """Format payload as echo message and send to the configured target.
 
         Args:
@@ -49,7 +69,7 @@ class WgrokSender:
         if self._paused:
             self._buffer.append((payload, card, compress, from_slug))
             self._logger.info("Buffered message (sender paused)")
-            return {"buffered": True}
+            return SendResult(buffered=True)
 
         session = await self._ensure_session()
         from_slug = from_slug or self._config.slug
@@ -82,17 +102,33 @@ class WgrokSender:
                 f"Payload exceeds {limit}B limit, sending {len(chunks)} chunks to {target} via {platform}"
             )
             results = []
+            msg_ids: list[str] = []
             for i, ch in enumerate(chunks):
                 chunk_flags = format_flags(compress, encrypted, i + 1, len(chunks))
                 chunk_text = format_echo(self._config.slug, from_slug, chunk_flags, ch)
-                results.append(await platform_send_message(platform, token, target, chunk_text, session))
-            return results
+                resp = await platform_send_message(platform, token, target, chunk_text, session)
+                results.append(resp)
+                mid = _extract_message_id(platform, resp)
+                if mid:
+                    msg_ids.append(mid)
+            return SendResult(
+                message_id=msg_ids[0] if msg_ids else None,
+                message_ids=msg_ids,
+                platform_response=results,
+            )
 
         self._logger.info(f"Sending to {target} via {platform} [slug={self._config.slug}, len={len(payload)}]")
         if card is not None:
             self._logger.info("Including card/rich content attachment")
-            return await platform_send_card(platform, token, target, text, card, session)
-        return await platform_send_message(platform, token, target, text, session)
+            resp = await platform_send_card(platform, token, target, text, card, session)
+        else:
+            resp = await platform_send_message(platform, token, target, text, session)
+        mid = _extract_message_id(platform, resp)
+        return SendResult(
+            message_id=mid,
+            message_ids=[mid] if mid else [],
+            platform_response=resp,
+        )
 
     async def pause(self, notify: bool = True) -> None:
         """Pause sending — buffer all subsequent send() calls locally.

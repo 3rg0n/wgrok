@@ -69,6 +69,9 @@ async fn test_sender_cases() {
 
         let result = sender.send(&tc.payload, card).await;
         assert!(result.is_ok(), "case {}: unexpected error: {:?}", tc.name, result);
+        let sr = result.unwrap();
+        assert_eq!(sr.message_id.as_deref(), Some("msg-1"), "case {}: message_id mismatch", tc.name);
+        assert!(!sr.buffered, "case {}: should not be buffered", tc.name);
 
         // Verify the request was made
         let requests = server.received_requests().await.unwrap();
@@ -115,7 +118,9 @@ async fn test_pause_buffers_messages() {
     // Try to send while paused (should be buffered)
     let result = sender.send("test payload", None).await;
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), serde_json::Value::Null, "Paused send should return Null");
+    let sr = result.unwrap();
+    assert!(sr.buffered, "Paused send should be buffered");
+    assert!(sr.message_id.is_none(), "Buffered send should have no message_id");
 }
 
 #[tokio::test]
@@ -133,10 +138,11 @@ async fn test_resume_transitions_state() {
     // Pause without notify
     sender.pause(false).await.unwrap();
 
-    // Buffer a message (returns Null when paused)
+    // Buffer a message (returns buffered=true when paused)
     let result = sender.send("test payload", None).await;
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), serde_json::Value::Null, "Buffered send should return Null");
+    let sr = result.unwrap();
+    assert!(sr.buffered, "Buffered send should have buffered=true");
 
     // Resume without notify
     // This will try to flush but without a mock server it will fail
@@ -165,6 +171,7 @@ async fn test_pause_state_prevents_send() {
     for i in 0..3 {
         let result = sender.send(&format!("payload {}", i), None).await;
         assert!(result.is_ok());
+        assert!(result.unwrap().buffered);
     }
 
     // Verify buffer has 3 messages
@@ -186,10 +193,12 @@ async fn test_pause_buffers_multiple_messages() {
     // Pause without notify
     sender.pause(false).await.unwrap();
 
-    // Buffer multiple messages - all should return Null
+    // Buffer multiple messages - all should be buffered
     for i in 0..3 {
         let result = sender.send(&format!("payload {}", i), None).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), serde_json::Value::Null, "Message {} should be buffered", i);
+        let sr = result.unwrap();
+        assert!(sr.buffered, "Message {} should be buffered", i);
+        assert!(sr.message_id.is_none(), "Message {} should have no message_id", i);
     }
 }
